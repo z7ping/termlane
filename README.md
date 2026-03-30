@@ -50,9 +50,48 @@ sudo apt install -y pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-app
 xcode-select --install
 ```
 
-**Windows:**
-- 下载安装 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-- 选择 "Desktop development with C++"
+**Windows（详细步骤）：**
+
+```powershell
+# 1. 安装 Visual Studio Build Tools
+#    下载地址: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+#    运行安装器 → 选择 "Desktop development with C++" → 安装
+#    （约 6GB，需要约 15 分钟）
+
+# 2. 安装 Rust
+#    方式一：winget
+winget install Rustlang.Rustup
+
+#    方式二：手动下载
+#    访问 https://rustup.rs → 下载 rustup-init.exe → 运行安装
+#    安装完成后重启终端
+
+# 3. 验证 Rust 安装
+rustc --version
+cargo --version
+
+# 4. 安装 Node.js
+winget install OpenJS.NodeJS
+# 或访问 https://nodejs.org 下载 LTS 版本安装
+
+# 5. 安装 Tauri CLI
+cargo install tauri-cli
+
+# 6. 拉取代码
+git clone https://gitea.7ping.site/ai-area/xterminal-pro.git
+cd xterminal-pro
+
+# 7. 安装前端依赖
+npm install
+
+# 8. 开发模式预览
+cargo-tauri dev
+
+# 9. 打包 exe
+cargo-tauri build
+
+# 输出: src-tauri\target\release\bundle\msi\XTerminal Pro_0.1.0_x64.msi
+```
 
 ### 2. 安装 Rust + Tauri CLI
 
