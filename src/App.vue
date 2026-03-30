@@ -34,14 +34,21 @@
         </div>
 
         <div class="flex-1 relative overflow-hidden">
-          <template v-if="viewMode === 'terminal'">
-            <TerminalPanel v-for="tab in tabs" :key="tab.id" :tab="tab" :active="tab.id === activeTabId" @connected="onSessionConnected(tab.id, $event)" @disconnected="onSessionDisconnected(tab.id)" />
-          </template>
-          <SftpPanel v-if="viewMode === 'sftp'" :connection="activeConnection" :session-id="activeSessionId" :active="true" />
-          <BatchCommand v-if="viewMode === 'batch'" />
-          <ConnectionMonitor v-if="viewMode === 'monitor'" :connections="connections" :active-session-id="activeSessionId" />
-          <SpeedTest v-if="viewMode === 'speed'" />
-          <SessionRecorder v-if="viewMode === 'recorder'" :session-id="activeSessionId" :connection-name="activeConnection?.name" />
+          <ErrorBoundary>
+            <template v-if="viewMode === 'terminal'">
+              <TerminalPanel v-for="tab in tabs" :key="tab.id" :tab="tab" :active="tab.id === activeTabId" @connected="onSessionConnected(tab.id, $event)" @disconnected="onSessionDisconnected(tab.id)" />
+            </template>
+            <SftpPanel v-if="viewMode === 'sftp'" :connection="activeConnection" :session-id="activeSessionId" :active="true" />
+            <BatchCommand v-if="viewMode === 'batch'" />
+            <ConnectionMonitor v-if="viewMode === 'monitor'" :connections="connections" :active-session-id="activeSessionId" />
+            <SpeedTest v-if="viewMode === 'speed'" />
+            <SessionRecorder v-if="viewMode === 'recorder'" :session-id="activeSessionId" :connection-name="activeConnection?.name" />
+            <Notes v-if="viewMode === 'notes'" :connection-name="activeConnection?.name" />
+            <Bookmarks v-if="viewMode === 'bookmarks'" @navigate="onBookmarkNav" />
+            <ProxyConfig v-if="viewMode === 'proxy'" />
+            <QuickCommands v-if="viewMode === 'commands'" @run="onQuickCommand" />
+            <PortForward v-if="viewMode === 'forward'" />
+          </ErrorBoundary>
           <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center text-gray-500">
             <div class="text-center">
               <div class="text-6xl mb-4">⌨️</div>
@@ -74,11 +81,17 @@ import BatchCommand from './components/BatchCommand.vue'
 import ConnectionMonitor from './components/ConnectionMonitor.vue'
 import SpeedTest from './components/SpeedTest.vue'
 import SessionRecorder from './components/SessionRecorder.vue'
+import Notes from './components/Notes.vue'
+import Bookmarks from './components/Bookmarks.vue'
+import ProxyConfig from './components/ProxyConfig.vue'
+import QuickCommands from './components/QuickCommands.vue'
+import PortForward from './components/PortForward.vue'
 import StatusBar from './components/StatusBar.vue'
 import ConnectionDialog from './components/ConnectionDialog.vue'
 import Toast from './components/Toast.vue'
 import UpdateNotifier from './components/UpdateNotifier.vue'
 import ShortcutHelp from './components/ShortcutHelp.vue'
+import ErrorBoundary from './components/ErrorBoundary.vue'
 
 const isDark = ref(true)
 const sidebarOpen = ref(true)
@@ -95,6 +108,11 @@ const viewModes = [
   { value: 'monitor', label: '📊 监控' },
   { value: 'speed', label: '🚀 测速' },
   { value: 'recorder', label: '⏺ 录制' },
+  { value: 'notes', label: '📝 笔记' },
+  { value: 'bookmarks', label: '🔖 书签' },
+  { value: 'proxy', label: '🌐 代理' },
+  { value: 'commands', label: '⚡ 命令' },
+  { value: 'forward', label: '🔗 转发' },
 ]
 
 const connections = ref([
@@ -246,8 +264,19 @@ async function onTestConnection(conn) {
 }
 
 function onQuickCommand(cmd) {
-  // TODO: Send to active terminal
-  showToast(`执行: ${cmd}`, 'info')
+  // Send to active terminal session
+  if (activeSessionId.value) {
+    invoke('ssh_shell_input', { sessionId: activeSessionId.value, data: cmd + '\r' }).catch(() => {})
+    viewMode.value = 'terminal'
+  } else {
+    showToast(`请先连接服务器`, 'info')
+  }
+}
+
+function onBookmarkNav(bm) {
+  // Navigate to bookmarked path in SFTP
+  viewMode.value = 'sftp'
+  showToast(`跳转到: ${bm.path}`, 'info')
 }
 
 function toggleFullscreen() {
