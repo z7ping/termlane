@@ -16,7 +16,7 @@
     <!-- SFTP Mode -->
     <div v-if="mode === 'sftp'" class="flex-1 flex">
       <!-- Local Panel -->
-      <div class="flex-1 flex flex-col border-r border-gray-700">
+      <div class="flex flex-col border-r border-gray-700" :style="{ width: localWidth + 'px' }">
         <div class="h-8 bg-gray-800 border-b border-gray-700 flex items-center px-2 gap-1">
           <span class="text-xs text-green-400">🏠 本地</span>
           <input
@@ -126,6 +126,7 @@ const localPath = ref('/home/user')
 const remotePath = ref('/')
 const localFiles = ref([])
 const remoteFiles = ref([])
+const localWidth = ref(400)
 const selectedLocal = ref(null)
 const selectedRemote = ref(null)
 const transfers = ref([])
