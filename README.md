@@ -71,7 +71,7 @@ npm run dev
 ## 待办功能（37 项）
 
 ### 🔴 打包发布（4 项）
-- [ ] Linux 打包 — 需先安装依赖（见下方）
+- [x] Linux 打包 — 需先安装依赖（见下方）
 - [ ] Windows 打包 — 需 VS Build Tools + Rust（见下方）
 - [ ] macOS 打包 — 需 Xcode（见下方）
 - [ ] 发布 v1.0.0 到 Gitea Releases
