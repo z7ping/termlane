@@ -5,14 +5,14 @@
     </button>
     <span class="text-sm font-medium text-gray-300">XTerminal Pro</span>
     <div class="flex-1" />
-    <div class="flex gap-2 text-gray-500 text-xs">
-      <span class="hover:text-gray-300 cursor-pointer">⚙️</span>
+    <div class="flex gap-2 no-drag">
+      <button @click="$emit('toggle-fullscreen')" class="text-gray-400 hover:text-white text-xs p-1" title="全屏 (F11)">⛶</button>
     </div>
   </div>
 </template>
 
 <script setup>
-defineEmits(['toggle-sidebar'])
+defineEmits(['toggle-sidebar', 'toggle-fullscreen'])
 </script>
 
 <style scoped>
