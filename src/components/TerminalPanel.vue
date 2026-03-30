@@ -28,6 +28,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { SearchAddon } from 'xterm-addon-search'
+import { WebLinksAddon } from 'xterm-addon-web-links'
 import { invoke } from '../utils/tauri.js'
 import 'xterm/css/xterm.css'
 
@@ -84,6 +85,7 @@ function createTerminal(container) {
   const search = new SearchAddon()
   t.loadAddon(fit)
   t.loadAddon(search)
+  t.loadAddon(new WebLinksAddon())
   t.open(container)
   fit.fit()
   return { term: t, fit, search }
