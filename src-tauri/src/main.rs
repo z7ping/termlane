@@ -6,18 +6,28 @@ mod sftp;
 use tauri::Manager;
 
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! XTerminal Pro is running.", name)
-}
-
-#[tauri::command]
 async fn ssh_connect(host: String, port: u16, username: String, password: String) -> Result<String, String> {
     ssh::connect(&host, port, &username, &password).await
 }
 
 #[tauri::command]
+async fn ssh_connect_key(host: String, port: u16, username: String, key_path: String, passphrase: String) -> Result<String, String> {
+    ssh::connect_with_key(&host, port, &username, &key_path, &passphrase).await
+}
+
+#[tauri::command]
 async fn ssh_execute(session_id: String, command: String) -> Result<String, String> {
     ssh::execute(&session_id, &command).await
+}
+
+#[tauri::command]
+fn ssh_disconnect(session_id: String) -> Result<(), String> {
+    ssh::disconnect(&session_id)
+}
+
+#[tauri::command]
+fn ssh_list_sessions() -> Vec<ssh::SshSession> {
+    ssh::list_sessions()
 }
 
 #[tauri::command]
@@ -35,16 +45,24 @@ fn delete_connection(id: String) -> Result<(), String> {
     config::delete_connection(&id)
 }
 
+#[tauri::command]
+fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            greet,
             ssh_connect,
+            ssh_connect_key,
             ssh_execute,
+            ssh_disconnect,
+            ssh_list_sessions,
             load_connections,
             save_connection,
             delete_connection,
+            get_app_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
