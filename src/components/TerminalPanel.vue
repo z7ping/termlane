@@ -64,6 +64,11 @@ let resizeObserver = null
 let shellId = null
 let isConnected = false
 let unlisten = null
+let reconnectAttempts = 0
+const MAX_RECONNECT = 3
+let idleTimer = null
+let lastActivity = Date.now()
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 const theme = {
   background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#aeafad', selection: '#264f78',
@@ -169,8 +174,10 @@ function showWelcome(t, mode) {
 
 // ─── PTY Shell (real interactive terminal) ───
 
-async function startPtyShell(t, conn) {
-  t.writeln(`\x1b[1;33m正在连接 ${conn.username}@${conn.host}:${conn.port || 22}...\x1b[0m`)
+async function startPtyShell(t, conn, isReconnect = false) {
+  if (!isReconnect) {
+    t.writeln(`\x1b[1;33m正在连接 ${conn.username}@${conn.host}:${conn.port || 22}...\x1b[0m`)
+  }
 
   try {
     // Get terminal dimensions
@@ -189,6 +196,7 @@ async function startPtyShell(t, conn) {
     })
 
     isConnected = true
+    reconnectAttempts = 0
     t.writeln(`\x1b[1;32m✓ 已连接到 ${conn.host}\x1b[0m`)
     showToast('连接成功', 'success')
     emit('connected', shellId)
@@ -197,11 +205,27 @@ async function startPtyShell(t, conn) {
     unlisten = await listen(`ssh-output:${shellId}`, (event) => {
       if (term && !term.disposed) {
         term.write(event.payload)
+        // Check for disconnect message
+        if (event.payload.includes('[Shell 已退出]') || event.payload.includes('[连接断开]')) {
+          isConnected = false
+          emit('disconnected')
+          // Auto-reconnect
+          if (reconnectAttempts < MAX_RECONNECT) {
+            reconnectAttempts++
+            term.writeln(`\r\n\x1b[1;33m正在重连 (${reconnectAttempts}/${MAX_RECONNECT})...\x1b[0m`)
+            setTimeout(() => startPtyShell(term, conn, true), 2000 * reconnectAttempts)
+          } else {
+            term.writeln('\r\n\x1b[1;31m重连失败，请手动重新连接\x1b[0m')
+          }
+        }
       }
+      // Reset idle timer on any output
+      lastActivity = Date.now()
     })
 
     // Send user input to PTY shell
     t.onData(async (data) => {
+      lastActivity = Date.now() // Reset idle timer
       if (shellId && isConnected) {
         try {
           await invoke('ssh_shell_input', { sessionId: shellId, data })
@@ -323,8 +347,22 @@ watch(() => props.active, (active) => {
   if (active && term) setTimeout(() => { fitAddon?.fit(); if (splitMode.value) splitFitAddon?.fit() }, 50)
 })
 
-onMounted(() => initTerminal())
+onMounted(() => {
+  initTerminal()
+  // Idle timeout check every minute
+  idleTimer = setInterval(() => {
+    if (isConnected && shellId && Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
+      term?.writeln('\r\n\x1b[1;33m[空闲超时 30 分钟，自动断开]\x1b[0m')
+      invoke('ssh_close_shell', { sessionId: shellId }).catch(() => {})
+      isConnected = false
+      shellId = null
+      emit('disconnected')
+    }
+  }, 60000)
+})
+
 onUnmounted(async () => {
+  clearInterval(idleTimer)
   resizeObserver?.disconnect()
   unlisten?.()
   if (shellId) {

@@ -113,6 +113,7 @@ const activeSessionId = computed(() => sessionMap.value[activeTabId.value] || nu
 function showToast(msg, type = 'info') { toastRef.value?.show(msg, type) }
 
 onMounted(async () => {
+  // Restore connections
   try {
     const saved = await invoke('load_connections')
     if (saved?.length > 0) {
@@ -121,7 +122,7 @@ onMounted(async () => {
     }
   } catch {}
 
-  // Restore last session tabs
+  // Restore tabs
   try {
     const savedTabs = JSON.parse(localStorage.getItem('xterminal_tabs') || '[]')
     if (savedTabs.length > 0) {
@@ -130,14 +131,37 @@ onMounted(async () => {
     }
   } catch {}
 
+  // Restore window state
+  try {
+    const ws = await invoke('load_window_state')
+    if (ws) {
+      // Window state available for Tauri window management
+      console.log('Window state:', ws)
+    }
+  } catch {}
+
+  // Save window state on close
+  window.addEventListener('beforeunload', () => {
+    saveTabsState()
+    // Save window state (only works in Tauri)
+    try {
+      invoke('save_window_state', {
+        x: window.screenX,
+        y: window.screenY,
+        width: window.outerWidth,
+        height: window.outerHeight,
+        maximized: false,
+      })
+    } catch {}
+  })
+
   // Global keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.key === 't') { openLocalTerminal(); e.preventDefault() }
     if (e.ctrlKey && e.key === 'w' && activeTabId.value) { closeTab(activeTabId.value); e.preventDefault() }
     if (e.ctrlKey && e.key === 'b') { sidebarOpen.value = !sidebarOpen.value; e.preventDefault() }
     if (e.key === 'F11') { toggleFullscreen(); e.preventDefault() }
-    if (e.key === '?' && !e.ctrlKey && !e.altKey) { showShortcuts.value = !showShortcuts.value }
-    if (e.ctrlKey && e.key === ',') { /* Settings - not implemented yet */ }
+    if (e.key === '?' && !e.ctrlKey && !e.altKey && !['INPUT','TEXTAREA'].includes(e.target.tagName)) { showShortcuts.value = !showShortcuts.value }
   })
 })
 
