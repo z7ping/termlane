@@ -10,7 +10,6 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "title": "XTerminal Pro",
     "windows": [
       {
         "title": "XTerminal Pro",
