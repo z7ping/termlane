@@ -28,3 +28,34 @@ html, body, #app {
 
 /* Terminal overrides */
 .xterm { padding: 4px 8px; }
+
+/* Panel animations */
+.slide-in {
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-10px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.fade-in {
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Connection favorite star */
+.star-fav {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.star-fav:hover {
+  transform: scale(1.2);
+}
+.star-fav.active {
+  color: #eab308;
+}
