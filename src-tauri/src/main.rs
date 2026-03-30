@@ -50,6 +50,32 @@ fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+#[tauri::command]
+async fn sftp_list_local(path: String) -> Result<Vec<sftp::FileEntry>, String> {
+    sftp::list_local(&path)
+}
+
+#[tauri::command]
+async fn sftp_list_remote(session_id: String, path: String) -> Result<Vec<sftp::FileEntry>, String> {
+    sftp::list_remote(&session_id, &path).await
+}
+
+#[tauri::command]
+async fn sftp_upload(session_id: String, local_path: String, remote_path: String) -> Result<String, String> {
+    sftp::upload(&session_id, &local_path, &remote_path).await
+}
+
+#[tauri::command]
+async fn sftp_download(session_id: String, remote_path: String, local_path: String) -> Result<String, String> {
+    sftp::download(&session_id, &remote_path, &local_path).await
+}
+
+#[tauri::command]
+fn open_file_dialog() -> Result<String, String> {
+    // Placeholder - in real Tauri app would use dialog plugin
+    Err("请在完整Tauri环境中使用文件选择器".into())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -63,6 +89,11 @@ pub fn run() {
             save_connection,
             delete_connection,
             get_app_version,
+            sftp_list_local,
+            sftp_list_remote,
+            sftp_upload,
+            sftp_download,
+            open_file_dialog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

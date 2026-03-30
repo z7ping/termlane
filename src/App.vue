@@ -13,23 +13,51 @@
       />
 
       <div class="flex-1 flex flex-col overflow-hidden bg-gray-900">
-        <TabBar
-          :tabs="tabs"
-          :active-id="activeTabId"
-          @select="activeTabId = $event"
-          @close="closeTab"
-          @new="openLocalTerminal"
-        />
-
-        <div class="flex-1 relative overflow-hidden">
-          <TerminalPanel
-            v-for="tab in tabs"
-            :key="tab.id"
-            :tab="tab"
-            :active="tab.id === activeTabId"
-            @connected="onSessionConnected(tab.id, $event)"
-            @disconnected="onSessionDisconnected(tab.id)"
+        <!-- View Mode Tabs -->
+        <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-2">
+          <TabBar
+            :tabs="tabs"
+            :active-id="activeTabId"
+            @select="activeTabId = $event"
+            @close="closeTab"
+            @new="openLocalTerminal"
+            class="flex-1"
           />
+          <!-- View Mode Switch -->
+          <div v-if="activeTab" class="flex gap-1 ml-2">
+            <button
+              v-for="vm in viewModes"
+              :key="vm.value"
+              @click="viewMode = vm.value"
+              class="px-2 py-0.5 text-xs rounded"
+              :class="viewMode === vm.value ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'"
+            >{{ vm.label }}</button>
+          </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="flex-1 relative overflow-hidden">
+          <!-- Terminal View -->
+          <template v-if="viewMode === 'terminal'">
+            <TerminalPanel
+              v-for="tab in tabs"
+              :key="tab.id"
+              :tab="tab"
+              :active="tab.id === activeTabId"
+              @connected="onSessionConnected(tab.id, $event)"
+              @disconnected="onSessionDisconnected(tab.id)"
+            />
+          </template>
+
+          <!-- SFTP View -->
+          <SftpPanel
+            v-if="viewMode === 'sftp'"
+            :connection="activeConnection"
+            :session-id="activeSessionId"
+            :active="true"
+          />
+
+          <!-- Empty State -->
           <div v-if="tabs.length === 0" class="h-full flex items-center justify-center text-gray-500">
             <div class="text-center">
               <div class="text-6xl mb-4">⌨️</div>
@@ -59,12 +87,19 @@ import TitleBar from './components/TitleBar.vue'
 import Sidebar from './components/Sidebar.vue'
 import TabBar from './components/TabBar.vue'
 import TerminalPanel from './components/TerminalPanel.vue'
+import SftpPanel from './components/SftpPanel.vue'
 import StatusBar from './components/StatusBar.vue'
 import ConnectionDialog from './components/ConnectionDialog.vue'
 
 const isDark = ref(true)
 const sidebarOpen = ref(true)
 const showAddConnection = ref(false)
+const viewMode = ref('terminal')
+
+const viewModes = [
+  { value: 'terminal', label: '⌨️ 终端' },
+  { value: 'sftp', label: '📁 文件' },
+]
 
 const connections = ref([
   { id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' },
@@ -72,7 +107,7 @@ const connections = ref([
 
 const tabs = ref([])
 const activeTabId = ref(null)
-const sessionMap = ref({}) // tabId -> sessionId
+const sessionMap = ref({})
 
 const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value))
 const activeConnectionId = ref(null)
@@ -83,16 +118,13 @@ onMounted(async () => {
   try {
     const saved = await invoke('load_connections')
     if (saved && saved.length > 0) {
-      // 合并保存的连接和默认本地终端
       const localExists = saved.some(c => c.id === 'local')
       connections.value = localExists ? saved : [
         { id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' },
         ...saved,
       ]
     }
-  } catch (e) {
-    console.log('加载连接配置:', e)
-  }
+  } catch (e) { /* ignore */ }
 })
 
 function onSelectConnection(conn) {
@@ -114,13 +146,11 @@ function onSelectConnection(conn) {
 }
 
 function closeTab(tabId) {
-  // 断开会话
   const sid = sessionMap.value[tabId]
   if (sid) {
     invoke('ssh_disconnect', { sessionId: sid }).catch(() => {})
     delete sessionMap.value[tabId]
   }
-
   const idx = tabs.value.findIndex(t => t.id === tabId)
   tabs.value.splice(idx, 1)
   if (activeTabId.value === tabId) {

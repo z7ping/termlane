@@ -30,6 +30,14 @@ export const invoke = isTauri
           return null;
         case 'get_app_version':
           return '0.1.0';
+        case 'sftp_list_local':
+          return mockLocalFiles(args.path);
+        case 'sftp_list_remote':
+          return mockRemoteFiles(args.path);
+        case 'sftp_upload':
+          return `上传完成: ${args.local_path} -> ${args.remote_path}`;
+        case 'sftp_download':
+          return `下载完成: ${args.remote_path} -> ${args.local_path}`;
         default:
           throw new Error(`Unknown command: ${cmd}`);
       }
@@ -73,6 +81,32 @@ Swap:          2.0Gi          0B       2.0Gi`,
   if (responses[bin]) return responses[bin];
 
   return `\x1b[31m${bin}: command not found\x1b[0m\n提示: 这是浏览器演示模式，连接服务器后可执行完整命令`;
+}
+
+function mockLocalFiles(path) {
+  return [
+    { name: '..', path: '/home/user', size: 0, is_dir: true, modified: '2026-03-30 10:00', permissions: 'drwxr-xr-x' },
+    { name: 'Documents', path: '/home/user/Documents', size: 4096, is_dir: true, modified: '2026-03-30 14:00', permissions: 'drwxr-xr-x' },
+    { name: 'Downloads', path: '/home/user/Downloads', size: 4096, is_dir: true, modified: '2026-03-30 12:00', permissions: 'drwxr-xr-x' },
+    { name: 'Desktop', path: '/home/user/Desktop', size: 4096, is_dir: true, modified: '2026-03-30 08:00', permissions: 'drwxr-xr-x' },
+    { name: 'Pictures', path: '/home/user/Pictures', size: 4096, is_dir: true, modified: '2026-03-29 18:00', permissions: 'drwxr-xr-x' },
+    { name: '.bashrc', path: '/home/user/.bashrc', size: 3526, is_dir: false, modified: '2026-03-25 10:00', permissions: '-rw-r--r--' },
+    { name: '.gitconfig', path: '/home/user/.gitconfig', size: 280, is_dir: false, modified: '2026-03-28 16:00', permissions: '-rw-r--r--' },
+    { name: 'README.md', path: '/home/user/README.md', size: 1520, is_dir: false, modified: '2026-03-30 15:30', permissions: '-rw-r--r--' },
+    { name: 'project.tar.gz', path: '/home/user/project.tar.gz', size: 15728640, is_dir: false, modified: '2026-03-29 22:00', permissions: '-rw-r--r--' },
+  ];
+}
+
+function mockRemoteFiles(path) {
+  return [
+    { name: '..', path: '/', size: 0, is_dir: true, modified: '2026-03-01 00:00', permissions: 'drwxr-xr-x' },
+    { name: 'etc', path: '/etc', size: 4096, is_dir: true, modified: '2026-03-30 08:00', permissions: 'drwxr-xr-x' },
+    { name: 'home', path: '/home', size: 4096, is_dir: true, modified: '2026-01-15 10:00', permissions: 'drwxr-xr-x' },
+    { name: 'var', path: '/var', size: 4096, is_dir: true, modified: '2026-03-30 16:00', permissions: 'drwxr-xr-x' },
+    { name: 'tmp', path: '/tmp', size: 4096, is_dir: true, modified: '2026-03-30 17:00', permissions: 'drwxrwxrwt' },
+    { name: 'opt', path: '/opt', size: 4096, is_dir: true, modified: '2026-02-20 14:00', permissions: 'drwxr-xr-x' },
+    { name: 'usr', path: '/usr', size: 4096, is_dir: true, modified: '2026-03-01 00:00', permissions: 'drwxr-xr-x' },
+  ];
 }
 
 export default { invoke, isTauri };
