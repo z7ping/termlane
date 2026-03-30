@@ -16,6 +16,17 @@ async fn ssh_connect_key(host: String, port: u16, username: String, key_path: St
 }
 
 #[tauri::command]
+async fn ssh_connect_jump(
+    target_host: String, target_port: u16, target_user: String, target_pass: String,
+    jump_host: String, jump_port: u16, jump_user: String, jump_pass: String,
+) -> Result<String, String> {
+    ssh::connect_with_jump(
+        &target_host, target_port, &target_user, &target_pass,
+        &jump_host, jump_port, &jump_user, &jump_pass,
+    ).await
+}
+
+#[tauri::command]
 async fn ssh_execute(session_id: String, command: String) -> Result<String, String> {
     ssh::execute(&session_id, &command).await
 }
@@ -82,6 +93,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ssh_connect,
             ssh_connect_key,
+            ssh_connect_jump,
             ssh_execute,
             ssh_disconnect,
             ssh_list_sessions,

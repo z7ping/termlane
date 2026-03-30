@@ -14,6 +14,8 @@ export const invoke = isTauri
           return `mock_session_${Date.now()}`;
         case 'ssh_connect_key':
           return `mock_session_key_${Date.now()}`;
+        case 'ssh_connect_jump':
+          return `mock_session_jump_${Date.now()}`;
         case 'ssh_execute':
           return mockExecute(args.command);
         case 'ssh_disconnect':

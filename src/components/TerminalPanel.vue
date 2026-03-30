@@ -180,7 +180,20 @@ function showWelcome(t, mode) {
 async function connectSSH(t, conn) {
   t.writeln(`\x1b[1;33m正在连接 ${conn.username}@${conn.host}:${conn.port || 22}...\x1b[0m`)
   try {
-    if (conn.authType === 'key' || conn.keyPath) {
+    // 检查是否有跳板配置
+    if (conn.useJumpHost && conn.jumpHost) {
+      t.writeln(`\x1b[1;33m通过跳板机 ${conn.jumpHost} 中转...\x1b[0m`)
+      sessionId = await invoke('ssh_connect_jump', {
+        targetHost: conn.host,
+        targetPort: conn.port || 22,
+        targetUser: conn.username,
+        targetPass: conn.password || '',
+        jumpHost: conn.jumpHost,
+        jumpPort: conn.jumpPort || 22,
+        jumpUser: conn.jumpUsername || conn.username,
+        jumpPass: conn.jumpPassword || conn.password || '',
+      })
+    } else if (conn.authType === 'key' || conn.keyPath) {
       sessionId = await invoke('ssh_connect_key', {
         host: conn.host, port: conn.port || 22, username: conn.username,
         keyPath: conn.keyPath || '', passphrase: conn.passphrase || '',
