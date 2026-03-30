@@ -1,134 +1,171 @@
 <template>
   <div class="h-full flex flex-col bg-gray-900">
     <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-3 gap-2">
-      <span class="text-sm font-medium text-gray-300">连接监控</span>
+      <span class="text-sm font-medium text-gray-300">📊 服务器监控</span>
       <div class="flex-1" />
+      <label class="flex items-center gap-1 text-xs text-gray-400">
+        <input type="checkbox" v-model="autoRefresh" class="w-3 h-3" /> 自动刷新 (5s)
+      </label>
       <button @click="refreshAll" class="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300">⟳ 刷新</button>
     </div>
 
     <div class="flex-1 overflow-y-auto p-3">
-      <div v-for="server in servers" :key="server.id" class="bg-gray-800 rounded mb-2 p-3">
-        <div class="flex items-center justify-between mb-2">
+      <div v-for="s in servers" :key="s.id" class="bg-gray-800 rounded-lg mb-3 p-4">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full" :class="statusColor(server.status)" />
-            <span class="text-sm text-gray-200">{{ server.name }}</span>
-            <span class="text-xs text-gray-500">{{ server.host }}</span>
+            <span class="w-3 h-3 rounded-full" :class="s.loading ? 'bg-yellow-400 animate-pulse' : s.error ? 'bg-red-400' : 'bg-green-400'" />
+            <span class="text-sm font-medium text-gray-200">{{ s.name }}</span>
+            <span class="text-xs text-gray-500">{{ s.host }}:{{ s.port }}</span>
           </div>
-          <span class="text-xs px-1.5 py-0.5 rounded" :class="statusBadge(server.status)">
-            {{ statusLabel(server.status) }}
+          <span v-if="s.error" class="text-xs text-red-400">{{ s.error }}</span>
+          <span v-else-if="s.data" class="text-xs text-gray-500">
+            负载 {{ s.data.load_1.toFixed(2) }} / {{ s.data.load_5.toFixed(2) }} / {{ s.data.load_15.toFixed(2) }}
           </span>
         </div>
 
-        <div v-if="server.status === 'online'" class="grid grid-cols-3 gap-2 text-xs">
-          <div class="bg-gray-900 rounded p-2">
-            <div class="text-gray-500">延迟</div>
-            <div class="text-gray-200 font-mono">{{ server.latency }}ms</div>
-          </div>
-          <div class="bg-gray-900 rounded p-2">
-            <div class="text-gray-500">CPU</div>
-            <div class="text-gray-200 font-mono">{{ server.cpu }}%</div>
-            <div class="w-full h-1 bg-gray-700 rounded-full mt-1">
-              <div class="h-full rounded-full" :class="server.cpu > 80 ? 'bg-red-500' : server.cpu > 50 ? 'bg-yellow-500' : 'bg-green-500'" :style="{ width: server.cpu + '%' }" />
+        <!-- Metrics Grid -->
+        <div v-if="s.data" class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <!-- CPU -->
+          <div class="bg-gray-900 rounded p-3">
+            <div class="text-xs text-gray-500 mb-1">🧠 CPU</div>
+            <div class="text-lg font-mono text-gray-200">{{ s.data.cpu_usage.toFixed(1) }}%</div>
+            <div class="w-full h-1.5 bg-gray-700 rounded-full mt-2">
+              <div class="h-full rounded-full transition-all duration-500"
+                :class="barColor(s.data.cpu_usage)"
+                :style="{ width: Math.min(100, s.data.cpu_usage) + '%' }" />
             </div>
           </div>
-          <div class="bg-gray-900 rounded p-2">
-            <div class="text-gray-500">内存</div>
-            <div class="text-gray-200 font-mono">{{ server.mem }}%</div>
-            <div class="w-full h-1 bg-gray-700 rounded-full mt-1">
-              <div class="h-full rounded-full" :class="server.mem > 80 ? 'bg-red-500' : server.mem > 50 ? 'bg-yellow-500' : 'bg-green-500'" :style="{ width: server.mem + '%' }" />
+
+          <!-- Memory -->
+          <div class="bg-gray-900 rounded p-3">
+            <div class="text-xs text-gray-500 mb-1">💾 内存</div>
+            <div class="text-lg font-mono text-gray-200">{{ s.data.memory_percent.toFixed(1) }}%</div>
+            <div class="text-xs text-gray-500 mt-0.5">{{ fmtBytes(s.data.memory_used) }} / {{ fmtBytes(s.data.memory_total) }}</div>
+            <div class="w-full h-1.5 bg-gray-700 rounded-full mt-2">
+              <div class="h-full rounded-full transition-all duration-500"
+                :class="barColor(s.data.memory_percent)"
+                :style="{ width: Math.min(100, s.data.memory_percent) + '%' }" />
             </div>
+          </div>
+
+          <!-- Disk -->
+          <div class="bg-gray-900 rounded p-3">
+            <div class="text-xs text-gray-500 mb-1">💿 磁盘 (/)</div>
+            <div class="text-lg font-mono text-gray-200">{{ s.data.disk_percent.toFixed(1) }}%</div>
+            <div class="text-xs text-gray-500 mt-0.5">{{ fmtBytes(s.data.disk_used) }} / {{ fmtBytes(s.data.disk_total) }}</div>
+            <div class="w-full h-1.5 bg-gray-700 rounded-full mt-2">
+              <div class="h-full rounded-full transition-all duration-500"
+                :class="barColor(s.data.disk_percent)"
+                :style="{ width: Math.min(100, s.data.disk_percent) + '%' }" />
+            </div>
+          </div>
+
+          <!-- Uptime -->
+          <div class="bg-gray-900 rounded p-3">
+            <div class="text-xs text-gray-500 mb-1">⏱️ 运行时间</div>
+            <div class="text-sm font-mono text-gray-200">{{ fmtUptime(s.data.uptime_seconds) }}</div>
+            <div class="text-xs text-gray-500 mt-2">负载 1/5/15min</div>
+            <div class="text-xs font-mono text-gray-300">{{ s.data.load_1.toFixed(2) }} / {{ s.data.load_5.toFixed(2) }} / {{ s.data.load_15.toFixed(2) }}</div>
           </div>
         </div>
 
-        <div v-if="server.status === 'online'" class="grid grid-cols-2 gap-2 text-xs mt-2">
-          <div class="bg-gray-900 rounded p-2">
-            <div class="text-gray-500">磁盘</div>
-            <div class="text-gray-200 font-mono">{{ server.diskUsed }} / {{ server.diskTotal }}</div>
-          </div>
-          <div class="bg-gray-900 rounded p-2">
-            <div class="text-gray-500">运行时间</div>
-            <div class="text-gray-200 font-mono">{{ server.uptime }}</div>
-          </div>
-        </div>
-
-        <div v-if="server.status === 'offline'" class="text-xs text-gray-500 mt-1">
-          最后在线: {{ server.lastSeen || '未知' }}
+        <!-- No data yet -->
+        <div v-else-if="!s.error" class="text-center text-gray-500 text-sm py-4">
+          {{ s.loading ? '加载中...' : '点击刷新获取数据' }}
         </div>
       </div>
 
       <div v-if="servers.length === 0" class="text-center text-gray-500 text-sm mt-10">
-        暂无监控服务器<br/>
-        <span class="text-xs">添加 SSH 连接后自动显示</span>
+        暂无连接<br/><span class="text-xs">先在左侧添加 SSH 连接</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { invoke } from '../utils/tauri.js'
 
-const servers = ref([
-  {
-    id: '1',
-    name: '生产服务器',
-    host: '192.168.1.100',
-    status: 'online',
-    latency: 12,
-    cpu: 35,
-    mem: 62,
-    diskUsed: '42G',
-    diskTotal: '100G',
-    uptime: '45天 12小时',
-  },
-  {
-    id: '2',
-    name: '测试服务器',
-    host: '192.168.1.101',
-    status: 'online',
-    latency: 8,
-    cpu: 15,
-    mem: 28,
-    diskUsed: '18G',
-    diskTotal: '50G',
-    uptime: '12天 6小时',
-  },
-  {
-    id: '3',
-    name: '备份服务器',
-    host: '192.168.1.102',
-    status: 'offline',
-    lastSeen: '2026-03-29 22:00',
-  },
-])
+const props = defineProps({ connections: Array, activeSessionId: String })
 
-function statusColor(status) {
-  return {
-    online: 'bg-green-400',
-    offline: 'bg-red-400',
-    unknown: 'bg-gray-400',
-  }[status]
+const servers = ref([])
+const autoRefresh = ref(false)
+let refreshTimer = null
+
+function barColor(pct) {
+  if (pct > 85) return 'bg-red-500'
+  if (pct > 60) return 'bg-yellow-500'
+  return 'bg-green-500'
 }
 
-function statusBadge(status) {
-  return {
-    online: 'bg-green-600/30 text-green-300',
-    offline: 'bg-red-600/30 text-red-300',
-    unknown: 'bg-gray-600/30 text-gray-300',
-  }[status]
+function fmtBytes(b) {
+  if (!b) return '0 B'
+  const k = 1024, s = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(b) / Math.log(k))
+  return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i]
 }
 
-function statusLabel(status) {
-  return { online: '在线', offline: '离线', unknown: '未知' }[status]
+function fmtUptime(secs) {
+  if (!secs) return '-'
+  const d = Math.floor(secs / 86400)
+  const h = Math.floor((secs % 86400) / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const parts = []
+  if (d > 0) parts.push(d + '天')
+  if (h > 0) parts.push(h + '小时')
+  parts.push(m + '分钟')
+  return parts.join(' ')
 }
 
-function refreshAll() {
-  // Simulate refresh
-  servers.value.forEach(s => {
-    if (s.status === 'online') {
-      s.latency = Math.floor(Math.random() * 20) + 5
-      s.cpu = Math.floor(Math.random() * 40) + 10
-      s.mem = Math.floor(Math.random() * 50) + 20
+async function loadServers() {
+  try {
+    const conns = await invoke('load_connections')
+    servers.value = (conns || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      host: c.host,
+      port: c.port,
+      data: null,
+      loading: false,
+      error: null,
+    }))
+  } catch {
+    servers.value = []
+  }
+}
+
+async function refreshAll() {
+  // We need an active session to query monitoring data
+  // For each server, try to get monitor data via the active session
+  // In a real implementation, each server would need its own session
+  for (const s of servers.value) {
+    s.loading = true
+    s.error = null
+    try {
+      // If we have an active session ID, use it for monitoring
+      if (props.activeSessionId) {
+        s.data = await invoke('ssh_monitor', { sessionId: props.activeSessionId })
+      } else {
+        s.error = '未连接'
+      }
+    } catch (e) {
+      s.error = typeof e === 'string' ? e : '获取失败'
+    } finally {
+      s.loading = false
     }
-  })
+  }
 }
+
+watch(autoRefresh, (on) => {
+  if (on) {
+    refreshTimer = setInterval(refreshAll, 5000)
+    refreshAll()
+  } else {
+    clearInterval(refreshTimer)
+  }
+})
+
+onMounted(() => loadServers())
+onUnmounted(() => clearInterval(refreshTimer))
 </script>

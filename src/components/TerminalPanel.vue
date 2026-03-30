@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full">
+  <div class="flex flex-col h-full" v-show="active">
     <!-- Search Bar -->
     <div v-if="showSearch" class="h-8 bg-gray-800 border-b border-gray-700 flex items-center px-2 gap-2">
       <input ref="searchInput" v-model="searchTerm" @keydown.enter="searchNext" @keydown.shift.enter="searchPrev" class="flex-1 bg-gray-900 text-sm text-gray-200 px-2 py-1 rounded border border-gray-600 focus:outline-none focus:border-blue-500" placeholder="搜索... (Enter下一个, Shift+Enter上一个)" />
@@ -29,7 +29,7 @@ import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { SearchAddon } from 'xterm-addon-search'
 import { WebLinksAddon } from 'xterm-addon-web-links'
-import { invoke } from '../utils/tauri.js'
+import { invoke, listen } from '../utils/tauri.js'
 import 'xterm/css/xterm.css'
 
 const props = defineProps({ tab: Object, active: Boolean })
@@ -52,7 +52,7 @@ const toastClass = computed(() => ({
 
 function showToast(message, type = 'info', duration = 2000) {
   toast.value = { show: true, message, type }
-  setTimeout(() => { toast.value.show = false }, duration)
+  setTimeout(() => { toast.value = false }, duration)
 }
 
 let term = null
@@ -61,11 +61,9 @@ let fitAddon = null
 let splitFitAddon = null
 let searchAddon = null
 let resizeObserver = null
-let sessionId = null
+let shellId = null
 let isConnected = false
-let inputBuffer = ''
-let commandHistory = []
-let historyIndex = -1
+let unlisten = null
 
 const theme = {
   background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#aeafad', selection: '#264f78',
@@ -102,14 +100,16 @@ async function initTerminal() {
   const isLocal = !conn || conn.host === 'localhost'
 
   if (isLocal) {
-    showWelcome(term, '本地演示')
-    term.write('\x1b[1;32m$ \x1b[0m')
+    showWelcome(term, '本地演示（浏览器模式）')
+    term.write('\r\n\x1b[1;32m$ \x1b[0m')
     isConnected = true
+    // Fallback: exec mode for browser testing
+    term.onData((data) => handleLocalInput(term, data))
   } else {
-    await connectSSH(term, conn)
+    await startPtyShell(term, conn)
   }
 
-  // 鼠标选中自动复制
+  // Auto-copy on selection
   term.onSelectionChange(() => {
     const selected = term.getSelection()
     if (selected) {
@@ -119,38 +119,39 @@ async function initTerminal() {
     }
   })
 
-  // 右键粘贴
+  // Right-click paste
   containerRef.value.addEventListener('contextmenu', async (e) => {
     e.preventDefault()
     try {
       const text = await navigator.clipboard.readText()
-      if (text) {
-        inputBuffer += text
-        term.write(text)
+      if (text && shellId) {
+        await invoke('ssh_shell_input', { sessionId: shellId, data: text })
       }
     } catch {}
   })
 
-  // 双击选词
-  containerRef.value.addEventListener('dblclick', () => {
-    term.selectAll()
-  })
-
-  term.onData((data) => handleInput(term, data))
-
+  // Keyboard shortcuts
   term.attachCustomKeyEventHandler((e) => {
     if (e.ctrlKey && e.shiftKey && e.key === 'F') { toggleSearch(); return false }
-    if (e.key === 'ArrowUp' && isConnected && inputBuffer === '') {
-      navigateHistory(-1); return false
+    if (e.ctrlKey && e.key === 'c' && term.hasSelection()) {
+      // Ctrl+C with selection → copy, not interrupt
+      navigator.clipboard.writeText(term.getSelection()).catch(() => {})
+      return false
     }
-    if (e.key === 'ArrowDown' && isConnected && inputBuffer === '') {
-      navigateHistory(1); return false
-    }
+    if (e.ctrlKey && e.key === 'v') return false // Let paste handler deal with it
     return true
   })
 
   resizeObserver = new ResizeObserver(() => {
-    if (fitAddon && props.active) fitAddon.fit()
+    if (fitAddon && props.active) {
+      fitAddon.fit()
+      if (shellId) {
+        const dims = fitAddon.proposeDimensions()
+        if (dims) {
+          invoke('ssh_shell_resize', { sessionId: shellId, cols: dims.cols, rows: dims.rows }).catch(() => {})
+        }
+      }
+    }
     if (splitFitAddon && splitMode.value) splitFitAddon.fit()
   })
   resizeObserver.observe(containerRef.value)
@@ -163,90 +164,128 @@ function showWelcome(t, mode) {
   t.writeln('')
   t.writeln(`  模式: \x1b[1;33m${mode}\x1b[0m`)
   t.writeln('  快捷键: Ctrl+Shift+F 搜索 | Ctrl+L 清屏 | Ctrl+C 中断')
-  t.writeln('  输入 \x1b[1;32mhelp\x1b[0m 查看可用命令')
   t.writeln('')
 }
 
-async function connectSSH(t, conn) {
+// ─── PTY Shell (real interactive terminal) ───
+
+async function startPtyShell(t, conn) {
   t.writeln(`\x1b[1;33m正在连接 ${conn.username}@${conn.host}:${conn.port || 22}...\x1b[0m`)
+
   try {
-    if (conn.useJumpHost && conn.jumpHost) {
-      t.writeln(`\x1b[1;33m通过跳板机 ${conn.jumpHost} 中转...\x1b[0m`)
-      sessionId = await invoke('ssh_connect_jump', {
-        targetHost: conn.host, targetPort: conn.port || 22, targetUser: conn.username, targetPass: conn.password || '',
-        jumpHost: conn.jumpHost, jumpPort: conn.jumpPort || 22, jumpUser: conn.jumpUsername || conn.username, jumpPass: conn.jumpPassword || conn.password || '',
-      })
-    } else if (conn.authType === 'key' || conn.keyPath) {
-      sessionId = await invoke('ssh_connect_key', { host: conn.host, port: conn.port || 22, username: conn.username, keyPath: conn.keyPath || '', passphrase: conn.passphrase || '' })
-    } else {
-      sessionId = await invoke('ssh_connect', { host: conn.host, port: conn.port || 22, username: conn.username, password: conn.password || '' })
-    }
+    // Get terminal dimensions
+    const dims = fitAddon?.proposeDimensions() || { cols: 80, rows: 24 }
+
+    // Start PTY shell
+    shellId = await invoke('ssh_start_shell', {
+      host: conn.host,
+      port: conn.port || 22,
+      username: conn.username,
+      password: conn.password || '',
+      keyPath: conn.keyPath || null,
+      passphrase: conn.passphrase || null,
+      cols: dims.cols,
+      rows: dims.rows,
+    })
+
     isConnected = true
     t.writeln(`\x1b[1;32m✓ 已连接到 ${conn.host}\x1b[0m`)
-    t.writeln('')
-    t.write('\x1b[1;32m$ \x1b[0m')
     showToast('连接成功', 'success')
-    emit('connected', sessionId)
+    emit('connected', shellId)
+
+    // Listen for shell output events
+    unlisten = await listen(`ssh-output:${shellId}`, (event) => {
+      if (term && !term.disposed) {
+        term.write(event.payload)
+      }
+    })
+
+    // Send user input to PTY shell
+    t.onData(async (data) => {
+      if (shellId && isConnected) {
+        try {
+          await invoke('ssh_shell_input', { sessionId: shellId, data })
+        } catch (err) {
+          console.error('Failed to send input:', err)
+        }
+      }
+    })
+
   } catch (err) {
     t.writeln(`\x1b[1;31m✗ 连接失败: ${err}\x1b[0m`)
-    t.write('\x1b[1;31m$ \x1b[0m')
     showToast('连接失败', 'error')
+    // Fallback to local mode
+    isConnected = true
+    t.write('\x1b[1;31m$ \x1b[0m')
+    t.onData((data) => handleLocalInput(t, data))
   }
 }
 
-function handleInput(t, data) {
+// ─── Local/Fallback Input Handler ───
+
+let localBuffer = ''
+let commandHistory = []
+let historyIndex = -1
+
+function handleLocalInput(t, data) {
   if (data === '\r') {
     t.write('\r\n')
-    const cmd = inputBuffer.trim()
+    const cmd = localBuffer.trim()
     if (cmd) {
       commandHistory.push(cmd)
       historyIndex = commandHistory.length
-      executeCommand(t, cmd)
+      executeLocalCommand(t, cmd)
     }
-    inputBuffer = ''
+    localBuffer = ''
     if (isConnected) t.write('\x1b[1;32m$ \x1b[0m')
   } else if (data === '\x7f') {
-    if (inputBuffer.length > 0) { inputBuffer = inputBuffer.slice(0, -1); t.write('\b \b') }
+    if (localBuffer.length > 0) { localBuffer = localBuffer.slice(0, -1); t.write('\b \b') }
   } else if (data === '\x03') {
-    t.write('^C\r\n'); inputBuffer = ''
+    t.write('^C\r\n'); localBuffer = ''
     if (isConnected) t.write('\x1b[1;32m$ \x1b[0m')
   } else if (data === '\x0c') {
-    t.clear(); inputBuffer = ''
+    t.clear(); localBuffer = ''
     if (isConnected) t.write('\x1b[1;32m$ \x1b[0m')
-  } else if (data >= ' ') {
-    inputBuffer += data; t.write(data)
-  }
-}
-
-function navigateHistory(direction) {
-  if (commandHistory.length === 0) return
-  historyIndex = Math.max(0, Math.min(commandHistory.length, historyIndex + direction))
-  // Clear current line
-  while (inputBuffer.length > 0) { term.write('\b \b'); inputBuffer = inputBuffer.slice(0, -1) }
-  if (historyIndex < commandHistory.length) {
-    inputBuffer = commandHistory[historyIndex]
-    term.write(inputBuffer)
-  }
-}
-
-async function executeCommand(t, cmd) {
-  if (cmd === 'exit' || cmd === 'quit') {
-    if (sessionId) {
-      await invoke('ssh_disconnect', { sessionId }).catch(() => {})
-      sessionId = null; isConnected = false; emit('disconnected')
-      showToast('已断开连接', 'info')
+  } else if (data === '\x1b[A') {
+    // Up arrow - history
+    if (commandHistory.length > 0 && historyIndex > 0) {
+      historyIndex--
+      while (localBuffer.length > 0) { t.write('\b \b'); localBuffer = localBuffer.slice(0, -1) }
+      localBuffer = commandHistory[historyIndex]
+      t.write(localBuffer)
     }
-    t.writeln('\x1b[33m会话已断开\x1b[0m')
-    return
-  }
-  if (cmd === 'clear') { t.clear(); return }
-  try {
-    const result = sessionId ? await invoke('ssh_execute', { sessionId, command: cmd }) : await invoke('ssh_execute', { command: cmd })
-    if (result) t.write(result.replace(/\n/g, '\r\n'))
-  } catch (err) {
-    t.write(`\x1b[31m执行错误: ${err}\x1b[0m\r\n`)
+  } else if (data === '\x1b[B') {
+    // Down arrow - history
+    if (historyIndex < commandHistory.length - 1) {
+      historyIndex++
+      while (localBuffer.length > 0) { t.write('\b \b'); localBuffer = localBuffer.slice(0, -1) }
+      localBuffer = commandHistory[historyIndex]
+      t.write(localBuffer)
+    } else {
+      historyIndex = commandHistory.length
+      while (localBuffer.length > 0) { t.write('\b \b'); localBuffer = localBuffer.slice(0, -1) }
+    }
+  } else if (data >= ' ') {
+    localBuffer += data; t.write(data)
   }
 }
+
+function executeLocalCommand(t, cmd) {
+  if (cmd === 'help') {
+    t.writeln('  可用命令: help, clear, exit, version')
+    t.writeln('  提示: 连接远程服务器以使用完整终端功能')
+  } else if (cmd === 'version') {
+    t.writeln('XTerminal Pro v0.1.0')
+  } else if (cmd === 'clear') {
+    t.clear()
+  } else if (cmd === 'exit' || cmd === 'quit') {
+    t.writeln('\x1b[33m本地模式无法退出\x1b[0m')
+  } else {
+    t.writeln(`\x1b[33m"${cmd}": 本地模式不支持命令执行，请连接远程服务器\x1b[0m`)
+  }
+}
+
+// ─── Search ───
 
 function toggleSearch() {
   showSearch.value = !showSearch.value
@@ -257,6 +296,8 @@ function closeSearch() { showSearch.value = false; searchTerm.value = ''; search
 function searchNext() { if (searchTerm.value && searchAddon) searchAddon.findNext(searchTerm.value) }
 function searchPrev() { if (searchTerm.value && searchAddon) searchAddon.findPrevious(searchTerm.value) }
 
+// ─── Split ───
+
 function toggleSplit() {
   splitMode.value = !splitMode.value
   if (splitMode.value) {
@@ -266,7 +307,7 @@ function toggleSplit() {
         splitTerm = st; splitFitAddon = sf
         showWelcome(splitTerm, '分屏')
         splitTerm.write('\x1b[1;32m$ \x1b[0m')
-        splitTerm.onData((data) => handleInput(splitTerm, data))
+        splitTerm.onData((data) => handleLocalInput(splitTerm, data))
       }
       setTimeout(() => { fitAddon?.fit(); splitFitAddon?.fit() }, 50)
     })
@@ -276,14 +317,19 @@ function toggleSplit() {
   }
 }
 
+// ─── Lifecycle ───
+
 watch(() => props.active, (active) => {
   if (active && term) setTimeout(() => { fitAddon?.fit(); if (splitMode.value) splitFitAddon?.fit() }, 50)
 })
 
 onMounted(() => initTerminal())
-onUnmounted(() => {
+onUnmounted(async () => {
   resizeObserver?.disconnect()
-  if (sessionId) invoke('ssh_disconnect', { sessionId }).catch(() => {})
+  unlisten?.()
+  if (shellId) {
+    await invoke('ssh_close_shell', { sessionId: shellId }).catch(() => {})
+  }
   splitTerm?.dispose(); term?.dispose()
 })
 </script>

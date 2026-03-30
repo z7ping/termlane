@@ -40,6 +40,42 @@ export const invoke = isTauri
           return `上传完成: ${args.local_path} -> ${args.remote_path}`;
         case 'sftp_download':
           return `下载完成: ${args.remote_path} -> ${args.local_path}`;
+        case 'sftp_rename':
+          return `已重命名: ${args.old_path} → ${args.new_path}`;
+        case 'sftp_delete':
+          return `已删除: ${args.path}`;
+        case 'sftp_mkdir':
+          return `已创建: ${args.path}`;
+        case 'sftp_chmod':
+          return `已修改权限: ${args.path} → ${args.mode}`;
+        case 'sftp_read_file':
+          return `// 文件内容预览\n// 路径: ${args.path}\n// 此功能需要连接远程服务器`;
+        case 'sftp_write_file':
+          return `已保存: ${args.path}`;
+        case 'ssh_start_shell':
+          return `mock_shell_${Date.now()}`;
+        case 'ssh_shell_input':
+          return null;
+        case 'ssh_shell_resize':
+          return null;
+        case 'ssh_close_shell':
+          return null;
+        case 'ssh_list_shells':
+          return [];
+        case 'ssh_monitor':
+          return {
+            cpu_usage: 25.3,
+            memory_total: 16777216000,
+            memory_used: 6442450944,
+            memory_percent: 38.4,
+            disk_total: 107374182400,
+            disk_used: 45097156608,
+            disk_percent: 42.0,
+            load_1: 0.45,
+            load_5: 0.38,
+            load_15: 0.32,
+            uptime_seconds: 278400,
+          };
         default:
           throw new Error(`Unknown command: ${cmd}`);
       }
@@ -111,4 +147,12 @@ function mockRemoteFiles(path) {
   ];
 }
 
-export default { invoke, isTauri };
+export const listen = isTauri
+  ? window.__TAURI__.event.listen
+  : async (event, callback) => {
+      console.log(`[Mock] listen: ${event}`);
+      // Return a no-op unlisten function
+      return () => {};
+    };
+
+export default { invoke, listen, isTauri };
