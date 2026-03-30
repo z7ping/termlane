@@ -41,7 +41,7 @@ pub async fn connect(host: &str, port: u16, username: &str, password: &str) -> R
         return Err("认证失败: 用户名或密码错误".into());
     }
 
-    let session_id = format!("ssh_{}_{}", host.replace('.', "_"), chrono_now());
+    let session_id = format!("ssh_{}_{}", host.replace('.', "_"), unix_now());
 
     let info = SshSession {
         id: session_id.clone(),
@@ -77,7 +77,7 @@ pub async fn connect_with_key(host: &str, port: u16, username: &str, key_path: &
         return Err("密钥认证失败".into());
     }
 
-    let session_id = format!("ssh_{}_{}", host.replace('.', "_"), chrono_now());
+    let session_id = format!("ssh_{}_{}", host.replace('.', "_"), unix_now());
 
     let info = SshSession {
         id: session_id.clone(),
@@ -130,7 +130,7 @@ pub async fn connect_with_jump(
         return Err("目标服务器认证失败".into());
     }
 
-    let session_id = format!("ssh_jump_{}_{}", target_host.replace('.', "_"), chrono_now());
+    let session_id = format!("ssh_jump_{}_{}", target_host.replace('.', "_"), unix_now());
 
     let info = SshSession {
         id: session_id.clone(),
@@ -190,7 +190,7 @@ pub async fn open_shell(session_id: &str) -> Result<String, String> {
     // Set non-blocking mode
     channel.set_blocking(false);
 
-    let channel_id = format!("ch_{}_{}", session_id, chrono_now());
+    let channel_id = format!("ch_{}_{}", session_id, unix_now());
 
     // Note: In a real implementation, we'd store the channel separately
     // For now, return the channel ID for future reference
@@ -211,7 +211,7 @@ pub fn list_sessions() -> Vec<SshSession> {
     SESSION_INFO.lock().unwrap().values().cloned().collect()
 }
 
-fn chrono_now() -> u64 {
+fn unix_now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()

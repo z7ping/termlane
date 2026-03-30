@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::time::SystemTime;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileEntry {
@@ -11,37 +12,6 @@ pub struct FileEntry {
     pub is_dir: bool,
     pub modified: Option<String>,
     pub permissions: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TransferProgress {
-    pub id: String,
-    pub filename: String,
-    pub total: u64,
-    pub transferred: u64,
-    pub status: String, // "pending", "transferring", "completed", "failed"
-}
-
-/// List remote directory contents via SSH session
-pub async fn list_remote(session_id: &str, path: &str) -> Result<Vec<FileEntry>, String> {
-    // Use `ls -la` via SSH to list files (works without SFTP subsystem)
-    let cmd = format!(
-        "ls -la --time-style='+%Y-%m-%d %H:%M' {} 2>/dev/null || ls -la {} 2>/dev/null",
-        path, path
-    );
-
-    // For now, return mock data since we need the SSH session
-    // In production, this would call ssh::execute and parse the output
-    Ok(vec![
-        FileEntry {
-            name: "..".to_string(),
-            path: parent_path(path),
-            size: 0,
-            is_dir: true,
-            modified: None,
-            permissions: Some("drwxr-xr-x".to_string()),
-        },
-    ])
 }
 
 /// List local directory contents
@@ -78,8 +48,8 @@ pub fn list_local(path: &str) -> Result<Vec<FileEntry>, String> {
             .as_ref()
             .and_then(|m| m.modified().ok())
             .map(|t| {
-                let datetime: chrono::DateTime<chrono::Local> = t.into();
-                datetime.format("%Y-%m-%d %H:%M").to_string()
+                let dur = t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
+                format_timestamp(dur.as_secs())
             });
 
         entries.push(FileEntry {
@@ -102,35 +72,15 @@ pub fn list_local(path: &str) -> Result<Vec<FileEntry>, String> {
     Ok(entries)
 }
 
-/// Upload file to remote server
-pub async fn upload(
-    session_id: &str,
-    local_path: &str,
-    remote_path: &str,
-) -> Result<String, String> {
-    let _local = Path::new(local_path);
-    if !_local.exists() {
-        return Err(format!("本地文件不存在: {}", local_path));
-    }
-
-    // In a real implementation, we'd use SFTP subsystem
-    // For now, use scp via the SSH session
-    Ok(format!("上传完成: {} -> {}", local_path, remote_path))
-}
-
-/// Download file from remote server
-pub async fn download(
-    session_id: &str,
-    remote_path: &str,
-    local_path: &str,
-) -> Result<String, String> {
-    // In a real implementation, we'd use SFTP subsystem
-    Ok(format!("下载完成: {} -> {}", remote_path, local_path))
-}
-
-fn parent_path(path: &str) -> String {
-    Path::new(path)
-        .parent()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|| "/".to_string())
+/// Format Unix timestamp to readable string
+fn format_timestamp(secs: u64) -> String {
+    // Simple date formatting without chrono
+    let total_days = secs / 86400;
+    let _year = 1970 + total_days / 365;
+    let day_of_year = total_days % 365;
+    let month = day_of_year / 30 + 1;
+    let day = day_of_year % 30 + 1;
+    let hours = (secs % 86400) / 3600;
+    let minutes = (secs % 3600) / 60;
+    format!("{:04}-{:02}-{:02} {:02}:{:02}", _year, month, day, hours, minutes)
 }
