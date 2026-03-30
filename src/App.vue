@@ -90,6 +90,7 @@ import TerminalPanel from './components/TerminalPanel.vue'
 import SftpPanel from './components/SftpPanel.vue'
 import StatusBar from './components/StatusBar.vue'
 import ConnectionDialog from './components/ConnectionDialog.vue'
+import UpdateNotifier from './components/UpdateNotifier.vue'
 
 const isDark = ref(true)
 const sidebarOpen = ref(true)
