@@ -99,8 +99,8 @@
           </div>
         </template>
 
-        <!-- 分组 -->
-        <div class="text-xs text-gray-500 uppercase mb-1 mt-4">分组</div>
+        <!-- 分组 + 标签颜色 -->
+        <div class="text-xs text-gray-500 uppercase mb-1 mt-4">分组 & 标签</div>
         <div class="flex gap-2">
           <input v-model="form.group" class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="默认" />
           <select v-model="form.icon" class="bg-gray-900 border border-gray-600 rounded px-2 text-sm">
@@ -111,6 +111,18 @@
             <option value="🌐">🌐</option>
             <option value="💾">💾</option>
           </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 block mb-1">标签颜色</label>
+          <div class="flex gap-2">
+            <button v-for="c in tagColors" :key="c.value" @click="form.color = c.value"
+              class="w-6 h-6 rounded-full border-2 transition-all" :class="form.color === c.value ? 'border-white scale-110' : 'border-transparent'"
+              :style="{ background: c.hex }" :title="c.label" />
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 block mb-1">标签（逗号分隔）</label>
+          <input v-model="tagsInput" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="生产, Web, 数据库" />
         </div>
       </div>
 
@@ -145,6 +157,17 @@ const showPassword = ref(false)
 const testing = ref(false)
 const testResult = ref(null)
 
+const tagColors = [
+  { value: 'red', hex: '#ef4444', label: '生产' },
+  { value: 'yellow', hex: '#eab308', label: '测试' },
+  { value: 'green', hex: '#22c55e', label: '开发' },
+  { value: 'blue', hex: '#3b82f6', label: '一般' },
+  { value: 'purple', hex: '#a855f7', label: '特殊' },
+  { value: '', hex: '#6b7280', label: '无' },
+]
+
+const tagsInput = ref((props.editing?.tags || []).join(', '))
+
 const authTypes = [
   { value: 'password', label: '密码' },
   { value: 'key', label: 'SSH 密钥' },
@@ -161,6 +184,7 @@ const form = reactive({
   passphrase: props.editing?.passphrase || '',
   group: props.editing?.group || '默认',
   icon: props.editing?.icon || '🖥️',
+  color: props.editing?.color || '',
   // 代理跳板
   useJumpHost: props.editing?.useJumpHost || false,
   jumpHost: props.editing?.jumpHost || '',
@@ -196,6 +220,7 @@ async function testConnection() {
 
 function save() {
   if (!form.name || !form.host || !form.username) return
-  emit('save', { ...form })
+  const tags = tagsInput.value.split(',').map(t => t.trim()).filter(Boolean)
+  emit('save', { ...form, tags })
 }
 </script>

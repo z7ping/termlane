@@ -76,6 +76,26 @@ export const invoke = isTauri
             load_15: 0.32,
             uptime_seconds: 278400,
           };
+        case 'tcp_ping':
+          return Math.floor(Math.random() * 80) + 5;
+        case 'keyring_save_password':
+        case 'keyring_load_password':
+          return '***';
+        case 'keyring_delete_password':
+          return null;
+        case 'save_window_state':
+        case 'load_window_state':
+          return { x: 100, y: 100, width: 1200, height: 800, maximized: false };
+        case 'list_recordings':
+          return [];
+        case 'save_recording_meta':
+        case 'delete_recording':
+          return null;
+        case 'save_recording_file':
+        case 'read_recording_file':
+          return '';
+        case 'get_recording_dir':
+          return '/tmp/recordings';
         default:
           throw new Error(`Unknown command: ${cmd}`);
       }

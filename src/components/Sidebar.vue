@@ -21,6 +21,7 @@
         </div>
         <div v-show="!collapsedGroups[group.name]">
           <div v-for="conn in group.items" :key="conn.id" @click="$emit('select', conn)" @contextmenu.prevent="showContextMenu($event, conn)" class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm group" :class="activeId === conn.id ? 'bg-blue-600/30 text-blue-300' : 'text-gray-300 hover:bg-gray-700'">
+            <span v-if="conn.color" class="w-2 h-2 rounded-full flex-shrink-0" :style="{ background: colorHex(conn.color) }" />
             <span>{{ conn.icon || '🖥️' }}</span>
             <span class="truncate flex-1">{{ conn.name }}</span>
             <span v-if="conn.host !== 'localhost'" class="text-[10px] text-gray-500">{{ conn.host }}</span>
@@ -78,6 +79,9 @@ const filteredGroups = computed(() => {
 
 function toggleGroup(name) { collapsedGroups[name] = !collapsedGroups[name] }
 function showContextMenu(e, conn) { ctx.show = true; ctx.x = e.clientX; ctx.y = e.clientY; ctx.conn = conn }
+
+const colorMap = { red: '#ef4444', yellow: '#eab308', green: '#22c55e', blue: '#3b82f6', purple: '#a855f7' }
+function colorHex(c) { return colorMap[c] || '#6b7280' }
 function onCtx(action) {
   const c = ctx.conn; ctx.show = false; if (!c) return
   if (action === 'edit') emit('edit', c)

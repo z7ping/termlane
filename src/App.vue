@@ -39,6 +39,9 @@
           </template>
           <SftpPanel v-if="viewMode === 'sftp'" :connection="activeConnection" :session-id="activeSessionId" :active="true" />
           <BatchCommand v-if="viewMode === 'batch'" />
+          <ConnectionMonitor v-if="viewMode === 'monitor'" :connections="connections" :active-session-id="activeSessionId" />
+          <SpeedTest v-if="viewMode === 'speed'" />
+          <SessionRecorder v-if="viewMode === 'recorder'" :session-id="activeSessionId" :connection-name="activeConnection?.name" />
           <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center text-gray-500">
             <div class="text-center">
               <div class="text-6xl mb-4">⌨️</div>
@@ -68,6 +71,9 @@ import TabBar from './components/TabBar.vue'
 import TerminalPanel from './components/TerminalPanel.vue'
 import SftpPanel from './components/SftpPanel.vue'
 import BatchCommand from './components/BatchCommand.vue'
+import ConnectionMonitor from './components/ConnectionMonitor.vue'
+import SpeedTest from './components/SpeedTest.vue'
+import SessionRecorder from './components/SessionRecorder.vue'
 import StatusBar from './components/StatusBar.vue'
 import ConnectionDialog from './components/ConnectionDialog.vue'
 import Toast from './components/Toast.vue'
@@ -86,6 +92,9 @@ const viewModes = [
   { value: 'terminal', label: '⌨️ 终端' },
   { value: 'sftp', label: '📁 文件' },
   { value: 'batch', label: '⚡ 批量' },
+  { value: 'monitor', label: '📊 监控' },
+  { value: 'speed', label: '🚀 测速' },
+  { value: 'recorder', label: '⏺ 录制' },
 ]
 
 const connections = ref([
