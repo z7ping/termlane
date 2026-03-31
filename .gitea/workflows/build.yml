@@ -1,32 +1,28 @@
 # XTerminal Pro CI/CD
-# 工作流程：dev 分支开 PR → 合并到 main → 自动构建
-# Runner 配置（Gitea Act Runner）：
-#   runner-22796302: linux, x64, desktop, docker, container（Podman 容器构建）
-#   runner-22796306: windows, x64, desktop（原生 MSVC 构建）
-# 容器镜像：xterminal-builder（需在 Runner 宿主机预构建：podman build -f Dockerfile.builder -t xterminal-builder .）
-# 默认触发：check (Linux) + Windows .msi
-# 手动触发：Linux .deb / macOS .dmg
+# 宸ヤ綔娴佺▼锛歞ev 鍒嗘敮寮€ PR 鈫?鍚堝苟鍒?main 鈫?鑷姩鏋勫缓
+# Runner 閰嶇疆锛圙itea Act Runner锛夛細
+#   runner-22796302: linux, x64, desktop, docker, container锛圥odman 瀹瑰櫒鏋勫缓锛?#   runner-22796306: windows, x64, desktop锛堝師鐢?MSVC 鏋勫缓锛?# 瀹瑰櫒闀滃儚锛歺terminal-builder锛堥渶鍦?Runner 瀹夸富鏈洪鏋勫缓锛歱odman build -f Dockerfile.builder -t xterminal-builder .锛?# 榛樿瑙﹀彂锛歝heck (Linux) + Windows .msi
+# 鎵嬪姩瑙﹀彂锛歀inux .deb / macOS .dmg
 
 name: Build XTerminal Pro
 
 on:
-  # PR 合并到 main 时触发构建（手动合并 → 自动构建）
-  pull_request:
+  # PR 鍚堝苟鍒?main 鏃惰Е鍙戞瀯寤猴紙鎵嬪姩鍚堝苟 鈫?鑷姩鏋勫缓锛?  pull_request:
     branches: [main]
     types: [closed]
-  # tag 仍然直接触发
+  # tag 浠嶇劧鐩存帴瑙﹀彂
   push:
     tags: ['v*']
-  # 手动触发
+  # 鎵嬪姩瑙﹀彂
   workflow_dispatch:
     inputs:
       build_linux:
-        description: '构建 Linux .deb'
+        description: '鏋勫缓 Linux .deb'
         required: false
         type: boolean
         default: false
       build_macos:
-        description: '构建 macOS .dmg'
+        description: '鏋勫缓 macOS .dmg'
         required: false
         type: boolean
         default: false
@@ -36,7 +32,7 @@ env:
   CARGO_BUILD_JOBS: 2
 
 jobs:
-  # ==================== 检查（Linux runner + Podman 容器）===================
+  # ==================== 妫€鏌ワ紙Linux runner + Podman 瀹瑰櫒锛?==================
   check:
     name: Lint & Test
     runs-on: linux
@@ -44,13 +40,13 @@ jobs:
       image: xterminal-builder
     steps:
       - name: Checkout
-        uses: https://gitea.com/actions/checkout@v4
+        uses: https://gitea.7ping.site/actions/checkout@v4
 
       - name: Install frontend deps
         run: npm ci
 
       - name: Rust cache
-        uses: https://gitea.com/actions/cache@v4
+        uses: https://gitea.7ping.site/actions/cache@v4
         with:
           path: |
             /root/.cargo/bin/
@@ -71,17 +67,17 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
-  # ==================== Windows .msi（Windows runner，默认触发）====================
+  # ==================== Windows .msi锛圵indows runner锛岄粯璁よЕ鍙戯級====================
   build-windows:
     name: Windows (.msi)
     runs-on: windows
     needs: [check]
     steps:
       - name: Checkout
-        uses: https://gitea.com/actions/checkout@v4
+        uses: https://gitea.7ping.site/actions/checkout@v4
 
       - name: Setup Node.js
-        uses: https://gitea.com/actions/setup-node@v4
+        uses: https://gitea.7ping.site/actions/setup-node@v4
         with:
           node-version: '22'
 
@@ -89,12 +85,12 @@ jobs:
         run: npm ci
 
       - name: Setup Rust
-        uses: https://gitea.com/dtolnay/rust-toolchain@stable
+        uses: https://gitea.7ping.site/dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
       - name: Rust cache
-        uses: https://gitea.com/actions/cache@v4
+        uses: https://gitea.7ping.site/actions/cache@v4
         with:
           path: |
             ~\.cargo\bin\
@@ -111,13 +107,13 @@ jobs:
         run: npx tauri build --bundles msi
 
       - name: Upload .msi artifact
-        uses: https://gitea.com/actions/upload-artifact@v4
+        uses: https://gitea.7ping.site/actions/upload-artifact@v4
         with:
           name: xterminal-pro-msi
           path: src-tauri\target\release\bundle\msi\*.msi
           retention-days: 30
 
-  # ==================== Linux .deb（Linux runner + Podman，手动触发）====================
+  # ==================== Linux .deb锛圠inux runner + Podman锛屾墜鍔ㄨЕ鍙戯級====================
   build-linux:
     name: Linux (.deb)
     runs-on: linux
@@ -129,13 +125,13 @@ jobs:
     needs: [check]
     steps:
       - name: Checkout
-        uses: https://gitea.com/actions/checkout@v4
+        uses: https://gitea.7ping.site/actions/checkout@v4
 
       - name: Install frontend deps
         run: npm ci
 
       - name: Rust cache
-        uses: https://gitea.com/actions/cache@v4
+        uses: https://gitea.7ping.site/actions/cache@v4
         with:
           path: |
             /root/.cargo/bin/
@@ -152,13 +148,13 @@ jobs:
         run: cargo tauri build --bundles deb
 
       - name: Upload .deb artifact
-        uses: https://gitea.com/actions/upload-artifact@v4
+        uses: https://gitea.7ping.site/actions/upload-artifact@v4
         with:
           name: xterminal-pro-deb
           path: src-tauri/target/release/bundle/deb/*.deb
           retention-days: 30
 
-  # ==================== macOS .dmg（Linux runner + Podman，手动触发）====================
+  # ==================== macOS .dmg锛圠inux runner + Podman锛屾墜鍔ㄨЕ鍙戯級====================
   build-macos:
     name: macOS (.dmg)
     runs-on: linux
@@ -170,13 +166,13 @@ jobs:
     needs: [check]
     steps:
       - name: Checkout
-        uses: https://gitea.com/actions/checkout@v4
+        uses: https://gitea.7ping.site/actions/checkout@v4
 
       - name: Install frontend deps
         run: npm ci
 
       - name: Rust cache
-        uses: https://gitea.com/actions/cache@v4
+        uses: https://gitea.7ping.site/actions/cache@v4
         with:
           path: |
             /root/.cargo/bin/
@@ -193,13 +189,13 @@ jobs:
         run: cargo tauri build --bundles dmg
 
       - name: Upload .dmg artifact
-        uses: https://gitea.com/actions/upload-artifact@v4
+        uses: https://gitea.7ping.site/actions/upload-artifact@v4
         with:
           name: xterminal-pro-dmg
           path: src-tauri/target/release/bundle/dmg/*.dmg
           retention-days: 30
 
-  # ==================== Release（仅 tag 触发）===================
+  # ==================== Release锛堜粎 tag 瑙﹀彂锛?==================
   release:
     name: Create Release
     needs: [build-windows, build-linux, build-macos]
@@ -207,7 +203,7 @@ jobs:
     runs-on: linux
     steps:
       - name: Download all artifacts
-        uses: https://gitea.com/actions/download-artifact@v4
+        uses: https://gitea.7ping.site/actions/download-artifact@v4
         with:
           path: dist
         continue-on-error: true
@@ -226,7 +222,7 @@ jobs:
             -d "{
               \"tag_name\": \"${TAG}\",
               \"name\": \"XTerminal Pro ${TAG}\",
-              \"body\": \"自动构建，见附件下载。\"
+              \"body\": \"鑷姩鏋勫缓锛岃闄勪欢涓嬭浇銆俓"
             }"
 
           RELEASE_ID=$(curl -s \
