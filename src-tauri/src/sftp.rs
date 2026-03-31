@@ -309,3 +309,86 @@ pub fn write_file(session_id: &str, path: &str, content: &str) -> Result<String,
     rt.block_on(ssh::execute(session_id, &cmd))?;
     Ok(format!("已保存: {}", path))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_escape_path_simple() {
+        assert_eq!(escape_path("/home/user"), "'/home/user'");
+    }
+
+    #[test]
+    fn test_escape_path_with_single_quote() {
+        let escaped = escape_path("/path/to/file'name");
+        // Should handle single quote with shell quoting trick: 'path'\''name'
+        assert_eq!(escaped, "'/path/to/file'\\''name'");
+    }
+
+    #[test]
+    fn test_escape_path_with_spaces() {
+        assert_eq!(escape_path("/path/to/my file"), "'/path/to/my file'");
+    }
+
+    #[test]
+    fn test_parse_ls_output() {
+        let output = "total 24\n\
+drwxr-xr-x 2 user group  4096 2024-01-15 10:30 src\n\
+-rw-r--r-- 1 user group 12345 2024-01-15 09:00 readme.txt\n\
+lrwxrwxrwx 1 user group     5 2024-01-15 08:00 link -> target\n";
+        let entries = parse_ls_output(output, "/home/user").expect("parse_ls_output");
+        // Should have ".." + 3 entries (minus "." and ".." from ls if present)
+        assert!(entries.len() >= 3, "Expected at least 3 entries, got {}", entries.len());
+
+        // Check directories come first
+        let dirs: Vec<_> = entries.iter().filter(|e| e.is_dir).collect();
+        assert!(!dirs.is_empty(), "Should have at least one directory");
+        // ".." should be first (is_dir=true)
+        assert_eq!(entries[0].name, "..");
+
+        // Find the file entry
+        let file = entries.iter().find(|e| e.name == "readme.txt").expect("readme.txt");
+        assert!(!file.is_dir);
+        assert_eq!(file.size, 12345);
+        assert_eq!(file.path, "/home/user/readme.txt");
+
+        // Find the directory entry
+        let dir = entries.iter().find(|e| e.name == "src").expect("src");
+        assert!(dir.is_dir);
+        assert_eq!(dir.path, "/home/user/src");
+
+        // Find the symlink entry (name should be cleaned, not include "-> target")
+        let link = entries.iter().find(|e| e.name == "link").expect("link");
+        assert_eq!(link.path, "/home/user/link");
+    }
+
+    #[test]
+    fn test_parse_ls_output_root_dir() {
+        let output = "total 8\ndrwxr-xr-x 2 root root 4096 2024-01-01 00:00 etc\n";
+        let entries = parse_ls_output(output, "/").expect("parse root dir");
+        // "/" has no ".." parent
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "etc");
+        assert_eq!(entries[0].path, "/etc");
+    }
+
+    #[test]
+    fn test_parse_ls_output_skips_dot_entries() {
+        let output = "total 4\ndrwxr-xr-x 2 root root 4096 2024-01-01 00:00 .\ndrwxr-xr-x 2 root root 4096 2024-01-01 00:00 ..\n-rw-r--r-- 1 root root 0 2024-01-01 00:00 file.txt\n";
+        let entries = parse_ls_output(output, "/home").expect("parse ls");
+        let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
+        // "." and ".." from ls should be skipped; we add our own ".."
+        assert!(!names.iter().any(|n| *n == "."), "Should skip .");
+        // ".." entry should be parent path, not from ls
+        let parent = entries.iter().find(|e| e.name == "..").unwrap();
+        assert_eq!(parent.path, "/");
+    }
+
+    #[test]
+    fn test_format_timestamp() {
+        // 1609459200 = 2021-01-01 00:00:00 UTC
+        let ts = format_timestamp(1609459200);
+        assert!(ts.starts_with("2021"), "Expected year 2021, got: {}", ts);
+    }
+}

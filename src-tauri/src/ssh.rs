@@ -550,3 +550,87 @@ fn parse_monitor_data(output: &str) -> Result<MonitorData, String> {
         uptime_seconds,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unix_now_returns_positive() {
+        let t = unix_now();
+        assert!(t > 0, "unix_now() should return a value > 0");
+        // Should be reasonable (after 2020-01-01 1577836800)
+        assert!(t > 1_577_836_800, "unix_now() should be after 2020");
+    }
+
+    #[test]
+    fn test_ssh_session_serialize_deserialize() {
+        let session = SshSession {
+            id: "ssh_192_168_1_1_12345".into(),
+            host: "192.168.1.1".into(),
+            port: 22,
+            username: "root".into(),
+            connected: true,
+        };
+        let json = serde_json::to_string(&session).expect("serialize SshSession");
+        assert!(json.contains("192.168.1.1"));
+        assert!(json.contains("root"));
+
+        let back: SshSession = serde_json::from_str(&json).expect("deserialize SshSession");
+        assert_eq!(back.id, "ssh_192_168_1_1_12345");
+        assert_eq!(back.host, "192.168.1.1");
+        assert_eq!(back.port, 22);
+        assert_eq!(back.username, "root");
+        assert!(back.connected);
+    }
+
+    #[test]
+    fn test_monitor_data_deserialize() {
+        let json = r#"{
+            "cpu_usage": 25.5,
+            "memory_total": 8589934592,
+            "memory_used": 4294967296,
+            "memory_percent": 50.0,
+            "disk_total": 107374182400,
+            "disk_used": 53687091200,
+            "disk_percent": 50.0,
+            "load_1": 1.5,
+            "load_5": 1.2,
+            "load_15": 0.8,
+            "uptime_seconds": 86400
+        }"#;
+        let data: MonitorData = serde_json::from_str(json).expect("deserialize MonitorData");
+        assert!((data.cpu_usage - 25.5).abs() < 0.01);
+        assert_eq!(data.memory_total, 8_589_934_592);
+        assert_eq!(data.uptime_seconds, 86400);
+    }
+
+    #[test]
+    fn test_parse_monitor_data() {
+        let output = r#"cpu  1000 100 500 3000 200 0 0 0 0 0
+cpu0 500 50 250 1500 100 0 0 0 0 0
+MemTotal:       16384000 kB
+MemAvailable:    8192000 kB
+0.50 0.30 0.20 1/500 12345
+123456.78 234567.89
+/dev/sda1 107374182400 53687091200 53687091200 50% /"#;
+        let data = parse_monitor_data(output).expect("parse_monitor_data");
+        assert!(data.cpu_usage > 0.0);
+        assert!(data.cpu_usage < 100.0);
+        assert_eq!(data.memory_total, 16_384_000 * 1024);
+        assert_eq!(data.memory_used, (16_384_000 - 8_192_000) * 1024);
+        assert!((data.load_1 - 0.50).abs() < 0.01);
+        assert!((data.load_5 - 0.30).abs() < 0.01);
+        assert!((data.load_15 - 0.20).abs() < 0.01);
+        assert!(data.uptime_seconds > 0);
+        assert_eq!(data.disk_total, 107_374_182_400);
+    }
+
+    #[test]
+    fn test_parse_monitor_data_empty() {
+        let data = parse_monitor_data("").expect("empty input should still return valid data");
+        assert_eq!(data.cpu_usage, 0.0);
+        assert_eq!(data.memory_total, 0);
+        assert_eq!(data.load_1, 0.0);
+    }
+}

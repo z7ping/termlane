@@ -190,3 +190,145 @@ pub fn delete_recording(id: &str) -> Result<(), String> {
 pub fn get_recording_dir() -> PathBuf {
     recordings_dir()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_connection_config_serialize_deserialize() {
+        let conn = ConnectionConfig {
+            id: "test-001".into(),
+            name: "My Server".into(),
+            host: "192.168.1.100".into(),
+            port: 22,
+            username: "admin".into(),
+            auth_type: "password".into(),
+            group: "Production".into(),
+            icon: Some("🖥️".into()),
+            key_path: None,
+            last_connected: Some("2024-01-15 10:30".into()),
+            color: Some("red".into()),
+            tags: Some(vec!["production".into(), "web".into()]),
+            proxy_type: Some("socks5".into()),
+            proxy_host: Some("127.0.0.1".into()),
+            proxy_port: Some(1080),
+            favorite: Some(true),
+        };
+
+        let json = serde_json::to_string_pretty(&conn).expect("serialize ConnectionConfig");
+        assert!(json.contains("test-001"));
+        assert!(json.contains("My Server"));
+        assert!(json.contains("production"));
+
+        let back: ConnectionConfig = serde_json::from_str(&json).expect("deserialize ConnectionConfig");
+        assert_eq!(back.id, "test-001");
+        assert_eq!(back.name, "My Server");
+        assert_eq!(back.port, 22);
+        assert_eq!(back.auth_type, "password");
+        assert_eq!(back.color.as_deref(), Some("red"));
+        assert_eq!(back.tags.as_ref().unwrap().len(), 2);
+        assert_eq!(back.proxy_port, Some(1080));
+        assert_eq!(back.favorite, Some(true));
+    }
+
+    #[test]
+    fn test_connection_config_minimal() {
+        let conn = ConnectionConfig {
+            id: "min".into(),
+            name: "Minimal".into(),
+            host: "10.0.0.1".into(),
+            port: 22,
+            username: "root".into(),
+            auth_type: "key".into(),
+            group: "".into(),
+            icon: None,
+            key_path: Some("/root/.ssh/id_rsa".into()),
+            last_connected: None,
+            color: None,
+            tags: None,
+            proxy_type: None,
+            proxy_host: None,
+            proxy_port: None,
+            favorite: None,
+        };
+
+        let json = serde_json::to_string(&conn).expect("serialize minimal");
+        let back: ConnectionConfig = serde_json::from_str(&json).expect("deserialize minimal");
+        assert_eq!(back.id, "min");
+        assert_eq!(back.key_path.as_deref(), Some("/root/.ssh/id_rsa"));
+        assert!(back.color.is_none());
+        assert!(back.tags.is_none());
+        assert!(back.favorite.is_none());
+    }
+
+    #[test]
+    fn test_connection_config_vec_serialize() {
+        let conns = vec![
+            ConnectionConfig {
+                id: "a".into(), name: "A".into(), host: "1.1.1.1".into(),
+                port: 22, username: "root".into(), auth_type: "password".into(),
+                group: "G1".into(), icon: None, key_path: None, last_connected: None,
+                color: None, tags: None, proxy_type: None, proxy_host: None,
+                proxy_port: None, favorite: None,
+            },
+            ConnectionConfig {
+                id: "b".into(), name: "B".into(), host: "2.2.2.2".into(),
+                port: 2222, username: "admin".into(), auth_type: "key".into(),
+                group: "G2".into(), icon: None, key_path: Some("/key".into()),
+                last_connected: None, color: None, tags: None, proxy_type: None,
+                proxy_host: None, proxy_port: None, favorite: None,
+            },
+        ];
+        let json = serde_json::to_string_pretty(&conns).expect("serialize vec");
+        let back: Vec<ConnectionConfig> = serde_json::from_str(&json).expect("deserialize vec");
+        assert_eq!(back.len(), 2);
+        assert_eq!(back[0].id, "a");
+        assert_eq!(back[1].port, 2222);
+    }
+
+    #[test]
+    fn test_window_state_serialize() {
+        let state = WindowState {
+            x: Some(100),
+            y: Some(200),
+            width: Some(1200),
+            height: Some(800),
+            maximized: Some(false),
+        };
+        let json = serde_json::to_string(&state).expect("serialize WindowState");
+        let back: WindowState = serde_json::from_str(&json).expect("deserialize WindowState");
+        assert_eq!(back.x, Some(100));
+        assert_eq!(back.width, Some(1200));
+        assert_eq!(back.maximized, Some(false));
+    }
+
+    #[test]
+    fn test_window_state_defaults() {
+        let state = WindowState {
+            x: None, y: None, width: None, height: None, maximized: None,
+        };
+        let json = serde_json::to_string(&state).expect("serialize");
+        let back: WindowState = serde_json::from_str(&json).expect("deserialize");
+        assert!(back.x.is_none());
+        assert!(back.maximized.is_none());
+    }
+
+    #[test]
+    fn test_recording_meta_serialize() {
+        let meta = RecordingMeta {
+            id: "rec-001".into(),
+            name: "Session 1".into(),
+            connection_name: "My Server".into(),
+            started_at: "2024-01-15T10:00:00Z".into(),
+            duration_secs: 3600,
+            file_path: "rec-001.cast".into(),
+            tags: vec!["demo".into()],
+        };
+        let json = serde_json::to_string(&meta).expect("serialize RecordingMeta");
+        let back: RecordingMeta = serde_json::from_str(&json).expect("deserialize RecordingMeta");
+        assert_eq!(back.id, "rec-001");
+        assert_eq!(back.duration_secs, 3600);
+        assert_eq!(back.tags, vec!["demo"]);
+    }
+}
