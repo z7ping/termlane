@@ -1,61 +1,72 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* XTerminal Pro — 全局样式 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --sidebar-width: 260px;
-  --statusbar-height: 28px;
+  /* Oklch dark theme (Linear/Vercel style) */
+  --bg-base: oklch(0.145 0 0);         /* #1a1a1a */
+  --bg-surface: oklch(0.17 0 0);        /* #222 */
+  --bg-elevated: oklch(0.20 0 0);       /* #2a2a2a */
+  --bg-hover: oklch(0.23 0 0);          /* #333 */
+  --fg-primary: oklch(0.93 0 0);        /* #eee */
+  --fg-secondary: oklch(0.70 0 0);      /* #999 */
+  --fg-muted: oklch(0.50 0 0);          /* #666 */
+  --border: oklch(0.25 0 0);            /* #3a3a3a */
+  --border-subtle: oklch(0.20 0 0);     /* #2e2e2e */
+  --accent: oklch(0.65 0.18 250);       /* blue-500 */
+  --accent-hover: oklch(0.58 0.18 250); /* blue-600 */
+  --success: oklch(0.70 0.18 145);      /* green */
+  --warning: oklch(0.75 0.16 85);       /* yellow */
+  --danger: oklch(0.60 0.20 25);        /* red */
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 12px;
+  --shadow: 0 1px 3px oklch(0 0 0 / 0.3);
+  --shadow-lg: 0 4px 12px oklch(0 0 0 / 0.4);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-html, body, #app {
-  height: 100%;
-  overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
-  font-size: 13px;
+code, pre, .font-mono, input[placeholder*="命令"], textarea {
+  font-family: var(--font-mono) !important;
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #1e1e1e; }
-::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #555; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
 
-/* Terminal overrides */
-.xterm { padding: 4px 8px; }
-
-/* Panel animations */
-.slide-in {
-  animation: slideIn 0.2s ease-out;
+/* Smooth transitions for interactive elements */
+button, a, [role="button"] {
+  transition: background var(--transition), color var(--transition), transform var(--transition), box-shadow var(--transition);
 }
 
-@keyframes slideIn {
-  from { transform: translateX(-10px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+/* Button press effect */
+button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
-.fade-in {
-  animation: fadeIn 0.15s ease-out;
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+/* Selection */
+::selection {
+  background: oklch(0.65 0.18 250 / 0.3);
 }
 
-/* Connection favorite star */
-.star-fav {
-  cursor: pointer;
-  transition: transform 0.15s;
-}
-.star-fav:hover {
-  transform: scale(1.2);
-}
-.star-fav.active {
-  color: #eab308;
+/* Dark background for body */
+body {
+  background: var(--bg-base);
+  color: var(--fg-primary);
+  margin: 0;
 }

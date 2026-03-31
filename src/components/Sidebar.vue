@@ -1,17 +1,17 @@
 <template>
-  <div class="relative flex flex-col overflow-hidden select-none" :style="{ width: sidebarWidth + 'px' }" style="background: #252526;">
+  <div class="relative flex flex-col overflow-hidden select-none" :style="{ width: sidebarWidth + 'px' }" style="background: var(--bg-surface); border-right: 1px solid var(--border-subtle);">
     <!-- Header -->
-    <div class="px-3 py-2.5 flex items-center justify-between border-b" style="border-color: #333;">
-      <span class="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">连接</span>
+    <div class="px-4 py-3 flex items-center justify-between" style="border-bottom: 1px solid var(--border-subtle);">
+      <span class="text-[10px] font-semibold uppercase tracking-widest" style="color: var(--fg-muted);">连接</span>
       <div class="flex items-center gap-1.5">
-        <span class="text-[10px] text-gray-600 px-1.5 py-0.5 rounded" style="background: #1e1e1e;">{{ connections.length }}</span>
+        <span class="text-[10px] text-gray-600 px-1.5 py-0.5 rounded" style="background: var(--bg-base);">{{ connections.length }}</span>
         <button @click="$emit('add')" class="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-white hover:bg-gray-700 rounded text-sm transition-colors" title="添加连接">+</button>
       </div>
     </div>
 
     <!-- Search -->
     <div class="px-2 py-1.5 border-b" style="border-color: #333;">
-      <input v-model="searchQuery" class="w-full text-xs text-gray-300 px-2 py-1 rounded border focus:outline-none focus:border-blue-500/50 transition-colors placeholder-gray-600" style="background: #1a1a1a; border-color: #333;" placeholder="🔍 搜索..." />
+      <input v-model="searchQuery" class="w-full text-xs text-gray-300 px-2 py-1 rounded border focus:outline-none focus:border-blue-500/50 transition-colors placeholder-gray-600" style="background: var(--bg-base); border-color: var(--border);" placeholder="🔍 搜索..." />
     </div>
 
     <!-- Tree -->
@@ -31,7 +31,7 @@
       <div class="text-[10px] text-gray-600 px-1 mb-1.5 uppercase tracking-wider">快捷命令</div>
       <div class="flex flex-wrap gap-1">
         <button v-for="cmd in quickCommands" :key="cmd.l" @click="$emit('quick-command', cmd.c)"
-          class="text-[10px] px-1.5 py-0.5 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors font-mono" style="background: #1e1e1e;">
+          class="text-[10px] px-1.5 py-0.5 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors font-mono" style="background: var(--bg-base);">
           {{ cmd.l }}
         </button>
       </div>
@@ -41,14 +41,14 @@
     <div class="absolute right-0 top-0 bottom-0 w-0.5 cursor-col-resize hover:bg-blue-500/50" @mousedown="startResize" />
 
     <!-- Context Menu -->
-    <div v-if="ctx.show" class="fixed z-50 rounded-lg shadow-2xl py-1 min-w-[150px]" style="background: #2a2a2a; border: 1px solid #444;" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+    <div v-if="ctx.show" class="fixed z-50 rounded-lg shadow-2xl py-1 min-w-[150px]" style="background: var(--bg-elevated); border: 1px solid var(--border);" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
       <button @click="doCtx('select')" class="ctx-item">📂 连接</button>
       <button @click="doCtx('edit')" class="ctx-item">✏️ 编辑</button>
       <button @click="doCtx('duplicate')" class="ctx-item">📋 复制</button>
       <button @click="doCtx('test')" class="ctx-item">🔗 测试</button>
-      <div class="border-t my-1" style="border-color: #444;" />
+      <div class="border-t my-1" style="border-color: var(--border);" />
       <button @click="doCtx('fav')" class="ctx-item">⭐ {{ ctx.conn?.favorite ? '取消收藏' : '收藏' }}</button>
-      <div class="border-t my-1" style="border-color: #444;" />
+      <div class="border-t my-1" style="border-color: var(--border);" />
       <button @click="doCtx('delete')" class="ctx-item text-red-400">🗑 删除</button>
     </div>
     <div v-if="ctx.show" class="fixed inset-0 z-40" @click="ctx.show = false" />

@@ -5,16 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>XTerminal Pro</title>
   <meta name="description" content="轻量级 SSH 终端 + SFTP + 多服务器管理工具" />
-  <!-- Preconnect for faster resource loading -->
-  <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-  <!-- Prevent FOUC -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <style>
-    body { margin: 0; background: #1e1e1e; }
-    #app { opacity: 0; transition: opacity 0.15s; }
+    body { margin: 0; background: #1a1a1a; }
+    #app { opacity: 0; transition: opacity 0.2s ease-out; }
     #app.ready { opacity: 1; }
   </style>
 </head>
-<body class="bg-gray-900 text-gray-100">
+<body>
   <div id="app"></div>
   <script type="module" src="/src/main.js"></script>
 </body>

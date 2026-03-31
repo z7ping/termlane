@@ -17,8 +17,8 @@
           @favorite="onToggleFavorite"
       />
 
-      <div class="flex-1 flex flex-col overflow-hidden bg-gray-900">
-        <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-2">
+      <div class="flex-1 flex flex-col overflow-hidden" style="background: var(--bg-base);">
+        <div class="h-9 flex items-center px-2" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
           <TabBar
             :tabs="tabs"
             :active-id="activeTabId"
@@ -30,7 +30,7 @@
             class="flex-1"
           />
           <div v-if="activeTab" class="flex gap-1 ml-2">
-            <button v-for="vm in viewModes" :key="vm.value" @click="viewMode = vm.value" class="px-2 py-0.5 text-xs rounded" :class="viewMode === vm.value ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'">{{ vm.label }}</button>
+            <button v-for="vm in viewModes" :key="vm.value" @click="viewMode = vm.value" class="px-2 py-0.5 text-[10px] rounded-md transition-colors" :style="viewMode === vm.value ? 'background: var(--accent); color: white;' : 'color: var(--fg-muted); hover: background: var(--bg-hover);'" :class="viewMode === vm.value ? '' : 'hover:bg-white/5'">{{ vm.label }}</button>
           </div>
         </div>
 
