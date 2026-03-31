@@ -13,7 +13,7 @@
     <!-- SFTP Panels -->
     <div class="flex-1 flex">
       <!-- Local Panel -->
-      <div class="flex flex-col border-r border-gray-700" style="width: 50%;">
+      <div class="flex flex-col overflow-hidden" :style="{ width: localWidth + '%' }">
         <div class="h-8 bg-gray-800 border-b border-gray-700 flex items-center px-2 gap-1">
           <span class="text-xs text-green-400">🏠 本地</span>
           <input v-model="localPath" @keydown.enter="loadLocal" class="flex-1 bg-gray-900 text-xs text-gray-300 px-2 py-0.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500" />
@@ -49,6 +49,9 @@
         </div>
       </div>
 
+      <!-- Resize Divider -->
+      <div class="w-1 cursor-col-resize hover:bg-blue-500/50 transition-colors flex-shrink-0" @mousedown="startLocalResize" />
+
       <!-- Transfer Buttons -->
       <div class="w-10 bg-gray-800 flex flex-col items-center justify-center gap-2 border-r border-gray-700">
         <button @click="doUpload" :disabled="selectedLocalSet.size === 0 && !selectedLocal || !sessionId"
@@ -70,7 +73,26 @@
           <input v-model="remotePath" @keydown.enter="loadRemote" class="flex-1 bg-gray-900 text-xs text-gray-300 px-2 py-0.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500" />
           <button @click="loadRemote" class="text-xs text-gray-400 hover:text-white">⟳</button>
         </div>
-        <div class="flex-1 overflow-y-auto" @click.self="selectedRemoteSet.clear()">
+
+        <!-- Inline Editor (replaces file list when editing) -->
+        <Transition name="slide-right">
+        <div v-if="showInlineEditor" class="flex-1 flex flex-col" style="background: var(--bg-base);">
+          <div class="flex items-center justify-between px-4 py-2" style="border-bottom: 1px solid var(--border-subtle);">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium" style="color: var(--fg-primary);">📝 {{ editFile.path.split('/').pop() }}</span>
+              <span v-if="editFile.dirty" class="text-[10px] px-1.5 py-0.5 rounded-full animate-pulse-dot" style="background: var(--warning); color: #000;">未保存</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button @click="saveEdit" class="px-3 py-1 text-xs rounded-lg font-medium" style="background: var(--accent); color: white;">保存</button>
+              <button @click="closeEditor" class="p-1 rounded hover:bg-white/10" style="color: var(--fg-muted);">✕</button>
+            </div>
+          </div>
+          <textarea v-model="editFile.content" @input="editFile.dirty = true" class="flex-1 text-sm p-4 font-mono resize-none focus:outline-none" style="background: var(--bg-base); color: var(--fg-primary);" spellcheck="false" />
+        </div>
+        </Transition>
+
+        <!-- File List -->
+        <div v-if="!showInlineEditor" class="flex-1 overflow-y-auto" @click.self="selectedRemoteSet.clear()">
           <!-- Virtual list for large directories -->
           <VirtualList v-if="remoteVirtual" :items="remoteFiles" :item-height="28" :height="400">
             <template #default="{ item: file }">
@@ -140,24 +162,6 @@
       <div @click="ctxDelete" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-red-400">🗑 删除</div>
     </div>
 
-    <!-- Inline Editor (replaces remote panel when editing) -->
-    <Transition name="slide-right">
-    <div v-if="editFile.show" class="fixed inset-0 z-40 flex items-center justify-center" style="background: oklch(0 0 0 / 0.5); backdrop-filter: blur(4px);" @click.self="editFile.show = false">
-      <div class="rounded-xl shadow-2xl flex flex-col w-[720px] max-h-[85vh]" style="background: var(--bg-elevated); border: 1px solid var(--border);">
-        <div class="flex items-center justify-between px-4 py-2.5" style="border-bottom: 1px solid var(--border-subtle);">
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-medium" style="color: var(--fg-primary);">📝 {{ editFile.path.split('/').pop() }}</span>
-            <span v-if="editFile.dirty" class="text-[10px] px-1.5 py-0.5 rounded-full animate-pulse-dot" style="background: var(--warning); color: #000;">未保存</span>
-          </div>
-          <div class="flex items-center gap-1">
-            <button @click="saveEdit" class="px-3 py-1 text-xs rounded-lg font-medium" style="background: var(--accent); color: white;">保存</button>
-            <button @click="editFile.show = false" class="p-1 rounded hover:bg-white/10" style="color: var(--fg-muted);">✕</button>
-          </div>
-        </div>
-        <textarea v-model="editFile.content" @input="editFile.dirty = true" class="flex-1 text-sm p-4 font-mono resize-none focus:outline-none min-h-[300px]" style="background: var(--bg-base); color: var(--fg-primary);" spellcheck="false" />
-      </div>
-    </div>
-    </Transition>
   </div>
 </template>
 
@@ -180,14 +184,39 @@ const selectedRemoteSet = reactive(new Set())
 const localVirtual = computed(() => localFiles.value.length > 100)
 const remoteVirtual = computed(() => remoteFiles.value.length > 100)
 const remoteDragOver = ref(false)
+const localWidth = ref(50) // percentage for resizable split
 let lastClickedLocal = null
 let lastClickedRemote = null
 
 // Drag state
 let dragPaths = []
 
+// --- SFTP split resize ---
+function startLocalResize(e) {
+  e.preventDefault()
+  const container = e.target.parentElement
+  const rect = container.getBoundingClientRect()
+  const startX = e.clientX
+  const startW = localWidth.value
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  const onMove = (ev) => {
+    const pct = startW + ((ev.clientX - startX) / rect.width) * 100
+    localWidth.value = Math.max(20, Math.min(80, pct))
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
 const ctxMenu = ref({ show: false, x: 0, y: 0, file: null })
 const editFile = ref({ show: false, path: '', content: '', dirty: false })
+const showInlineEditor = ref(false)
 
 function fmtSize(bytes) {
   if (!bytes) return '0 B'
@@ -440,7 +469,12 @@ async function openEdit(path) {
   try {
     const content = await invoke('sftp_read_file', { sessionId: props.sessionId, path })
     editFile.value = { show: true, path, content, dirty: false }
+    showInlineEditor.value = true
   } catch (e) { alert('读取文件失败: ' + e) }
+}
+
+function closeEditor() {
+  showInlineEditor.value = false
 }
 
 async function saveEdit() {
@@ -462,3 +496,18 @@ async function createRemoteDir() {
 onMounted(() => loadLocal())
 watch(() => props.sessionId, (sid) => { if (sid) loadRemote() })
 </script>
+
+<style scoped>
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.slide-right-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+.slide-right-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+</style>

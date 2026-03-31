@@ -8,8 +8,9 @@
 
     <!-- Terminal Container -->
     <div class="flex-1 flex overflow-hidden">
-      <div ref="containerRef" class="flex-1" :style="splitMode ? { width: '50%' } : {}" />
-      <div v-if="splitMode" ref="splitContainerRef" class="flex-1 border-l border-gray-700" />
+      <div ref="containerRef" class="flex-1 overflow-hidden" :style="splitMode ? { width: splitLeftWidth + '%' } : {}" />
+      <div v-if="splitMode" class="w-1 cursor-col-resize hover:bg-blue-500/50 transition-colors flex-shrink-0" @mousedown="startSplitResize" />
+      <div v-if="splitMode" ref="splitContainerRef" class="flex-1 overflow-hidden border-l border-gray-700" />
     </div>
 
     <!-- Quick Actions -->
@@ -41,6 +42,7 @@ const searchInput = ref(null)
 const showSearch = ref(false)
 const searchTerm = ref('')
 const splitMode = ref(false)
+const splitLeftWidth = ref(50) // percentage for resizable split
 
 // Toast
 const toast = ref({ show: false, message: '', type: 'info' })
@@ -386,6 +388,31 @@ function toggleSplit() {
     splitTerm?.dispose(); splitTerm = null; splitFitAddon = null
     nextTick(() => fitAddon?.fit())
   }
+}
+
+// ─── Split Resize ───
+function startSplitResize(e) {
+  e.preventDefault()
+  const container = e.target.parentElement
+  const rect = container.getBoundingClientRect()
+  const startX = e.clientX
+  const startW = splitLeftWidth.value
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  const onMove = (ev) => {
+    const pct = startW + ((ev.clientX - startX) / rect.width) * 100
+    splitLeftWidth.value = Math.max(20, Math.min(80, pct))
+    fitAddon?.fit(); splitFitAddon?.fit()
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    fitAddon?.fit(); splitFitAddon?.fit()
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
 }
 
 // ─── Lifecycle ───

@@ -69,6 +69,7 @@
 
     <ConnectionDialog v-if="showAddConnection" :editing="editingConnection" @save="onSaveConnection" @close="showAddConnection = false; editingConnection = null" />
     <ShortcutHelp v-if="showShortcuts" @close="showShortcuts = false" />
+    <Onboarding />
   </div>
 </template>
 
@@ -101,6 +102,7 @@ const ConnectionDialog = defineAsyncComponent(() => import('./components/Connect
 const UpdateNotifier = defineAsyncComponent(() => import('./components/UpdateNotifier.vue'))
 const ShortcutHelp = defineAsyncComponent(() => import('./components/ShortcutHelp.vue'))
 const ErrorBoundary = defineAsyncComponent(() => import('./components/ErrorBoundary.vue'))
+const Onboarding = defineAsyncComponent(() => import('./components/Onboarding.vue'))
 
 const isDark = ref(true)
 const sidebarOpen = ref(true)
