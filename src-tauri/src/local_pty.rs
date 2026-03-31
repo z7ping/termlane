@@ -14,7 +14,7 @@ macro_rules! lock {
 }
 
 struct LocalPty {
-    _master: Box<dyn portable_pty::MasterPty + Send>,
+    master: Box<dyn portable_pty::MasterPty + Send>,
     _child: Box<dyn portable_pty::Child + Send + Sync>,
     input_tx: crossbeam_channel::Sender<String>,
     _reader: std::thread::JoinHandle<()>,
@@ -121,7 +121,7 @@ pub fn start_local_shell(
     lock!(LOCAL_PTYS).insert(
         session_id.clone(),
         LocalPty {
-            _master: pair.master,
+            master: pair.master,
             _child: child,
             input_tx,
             _reader: reader_thread,
@@ -140,10 +140,16 @@ pub fn local_input(session_id: &str, data: &str) -> Result<(), String> {
 }
 
 pub fn local_resize(session_id: &str, cols: u16, rows: u16) -> Result<(), String> {
-    // Resize is handled through the master PTY, but we'd need a separate channel
-    // For now, this is a no-op (most programs handle SIGWINCH automatically)
-    let _ = (session_id, cols, rows);
-    Ok(())
+    let ptys = lock!(LOCAL_PTYS);
+    let pty = ptys.get(session_id).ok_or("本地 Shell 不存在")?;
+    pty.master
+        .resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("Resize 失败: {}", e))
 }
 
 pub fn close_local_shell(session_id: &str) -> Result<(), String> {

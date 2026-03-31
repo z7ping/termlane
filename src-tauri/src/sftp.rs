@@ -82,23 +82,49 @@ pub fn list_local(path: &str) -> Result<Vec<FileEntry>, String> {
 }
 
 fn format_timestamp(secs: u64) -> String {
-    // Simple timestamp formatting (approximate, not timezone-aware)
-    // TODO: Replace with chrono or time crate for accurate date math
-    let mins = secs / 60;
-    let hours = mins / 60;
-    let days = hours / 24;
-    let years = days / 365;
-    let remaining_days = days % 365;
-    let months = remaining_days / 30;
-    let day = (remaining_days % 30) + 1;
-    format!(
-        "{:04}-{:02}-{:02} {:02}:{:02}",
-        1970 + years,
-        months + 1,
-        day,
-        hours % 24,
-        mins % 60
-    )
+    // Convert Unix timestamp to date-time string (UTC, approximate)
+    // Uses proper leap year calculation
+    let total_days = secs / 86400;
+    let remaining_secs = secs % 86400;
+    let hours = remaining_secs / 3600;
+    let minutes = (remaining_secs % 3600) / 60;
+
+    // Calculate year with leap years
+    let mut year = 1970u64;
+    let mut days_left = total_days;
+    loop {
+        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
+        if days_left < days_in_year {
+            break;
+        }
+        days_left -= days_in_year;
+        year += 1;
+    }
+
+    // Calculate month
+    let month_lengths = [
+        if is_leap_year(year) { 29u64 } else { 28u64 },
+        31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
+    ];
+    // Reorder: Jan=31, Feb=28/29, Mar=30, ...
+    let month_days = [31u64, month_lengths[0], 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    let mut month = 1u64;
+    let mut day_left = days_left;
+    for &days_in_month in &month_days {
+        if day_left < days_in_month {
+            break;
+        }
+        day_left -= days_in_month;
+        month += 1;
+    }
+    let day = day_left + 1;
+
+    format!("{:04}-{:02}-{:02} {:02}:{:02}", year, month, day, hours, minutes)
+}
+
+fn is_leap_year(year: u64) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
 // ─── Path escaping ───
@@ -445,8 +471,17 @@ lrwxrwxrwx 1 user group     5 2024-01-15 08:00 link -> target\n";
 
     #[test]
     fn test_format_timestamp() {
+        // 1609459200 = 2021-01-01 00:00:00 UTC
         let ts = format_timestamp(1609459200);
-        assert!(ts.starts_with("2021"), "Expected year 2021, got: {}", ts);
+        assert_eq!(ts, "2021-01-01 00:00", "Got: {}", ts);
+
+        // 1640995200 = 2022-01-01 00:00:00 UTC
+        let ts2 = format_timestamp(1640995200);
+        assert_eq!(ts2, "2022-01-01 00:00", "Got: {}", ts2);
+
+        // 946684800 = 2000-01-01 00:00:00 UTC (leap year boundary)
+        let ts3 = format_timestamp(946684800);
+        assert_eq!(ts3, "2000-01-01 00:00", "Got: {}", ts3);
     }
 
     #[test]

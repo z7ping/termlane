@@ -50,9 +50,10 @@ static SESSIONS: std::sync::LazyLock<Mutex<HashMap<String, Session>>> =
 static SESSION_INFO: std::sync::LazyLock<Mutex<HashMap<String, SshSession>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// PTY shell sessions: session_id → (input_tx, reader_join_handle)
+/// PTY shell sessions: session_id → PtyShell handle
 struct PtyShell {
     input_tx: crossbeam_channel::Sender<String>,
+    resize_tx: crossbeam_channel::Sender<(u16, u16)>,
     _reader: std::thread::JoinHandle<()>,
 }
 
@@ -87,7 +88,10 @@ pub async fn connect(
     username: &str,
     password: &str,
 ) -> Result<String, String> {
-    let tcp = TcpStream::connect(format!("{}:{}", host, port))
+    let addr: std::net::SocketAddr = format!("{}:{}", host, port)
+        .parse()
+        .map_err(|e| format!("地址无效: {}", e))?;
+    let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(10))
         .map_err(|e| format!("连接失败: {}", e))?;
     tcp.set_read_timeout(Some(std::time::Duration::from_secs(30)))
         .ok();
@@ -122,7 +126,10 @@ pub async fn connect_with_key(
     key_path: &str,
     passphrase: &str,
 ) -> Result<String, String> {
-    let tcp = TcpStream::connect(format!("{}:{}", host, port))
+    let addr: std::net::SocketAddr = format!("{}:{}", host, port)
+        .parse()
+        .map_err(|e| format!("地址无效: {}", e))?;
+    let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(10))
         .map_err(|e| format!("连接失败: {}", e))?;
     let mut session = create_session(tcp)?;
     if passphrase.is_empty() {
@@ -201,8 +208,11 @@ pub fn start_shell(
     cols: u16,
     rows: u16,
 ) -> Result<String, String> {
-    // 1. Connect
-    let tcp = TcpStream::connect(format!("{}:{}", host, port))
+    // 1. Connect (with 10s timeout)
+    let addr: std::net::SocketAddr = format!("{}:{}", host, port)
+        .parse()
+        .map_err(|e| format!("地址无效: {}", e))?;
+    let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(10))
         .map_err(|e| format!("连接失败: {}", e))?;
     tcp.set_read_timeout(Some(std::time::Duration::from_secs(86400)))
         .ok();
@@ -251,8 +261,9 @@ pub fn start_shell(
     let session_id = format!("shell_{}_{}", host.replace('.', "_"), unix_now());
     let sid = session_id.clone();
 
-    // 4. Create crossbeam channels for I/O
+    // 4. Create crossbeam channels for I/O + resize
     let (input_tx, input_rx) = crossbeam_channel::unbounded::<String>();
+    let (resize_tx, resize_rx) = crossbeam_channel::unbounded::<(u16, u16)>();
 
     // 5. Spawn reader thread (owns the channel, does all I/O)
     let app_handle = app.clone();
@@ -312,6 +323,11 @@ pub fn start_shell(
                 }
             }
 
+            // ── Handle resize requests ──
+            while let Ok((cols, rows)) = resize_rx.try_recv() {
+                channel.request_pty_size(cols as u32, rows as u32, None, None).ok();
+            }
+
             // ── Yield CPU ──
             if consecutive_empty > 10 {
                 // After 10 empty reads, sleep a bit to avoid busy-spinning
@@ -331,6 +347,7 @@ pub fn start_shell(
         session_id.clone(),
         PtyShell {
             input_tx,
+            resize_tx,
             _reader: reader,
         },
     );
@@ -351,19 +368,12 @@ pub fn shell_input(session_id: &str, data: &str) -> Result<(), String> {
 }
 
 pub fn shell_resize(session_id: &str, cols: u16, rows: u16) -> Result<(), String> {
-    // For resize, we need to send the resize command through the input channel
-    // The reader thread will handle it
-    // Actually, we can't resize through the channel easily since the reader thread owns it.
-    // We'll use a special signal through the input channel.
     let shells = lock!(PTY_SHELLS);
     let shell = shells.get(session_id).ok_or("Shell 会话不存在")?;
-    // Send a resize marker that the reader can detect
-    // For now, we'll store resize info and handle it later
-    // The proper way is to send SIGWINCH, but ssh2 doesn't support that directly
-    // Instead we request pty size change through the channel
-    // Since we can't access the channel from here, we'll skip resize for now
-    // and implement it with a separate resize channel later
-    let _ = (cols, rows);
+    shell
+        .resize_tx
+        .send((cols, rows))
+        .map_err(|e| format!("发送 resize 失败: {}", e))?;
     Ok(())
 }
 
@@ -379,6 +389,9 @@ pub fn list_shells() -> Vec<String> {
 }
 
 // ─── Jump Host (Proxy Jump) ───
+// Note: ssh2-rs doesn't support creating a Session over a Channel tunnel.
+// This implementation connects directly to the target (assumes network reachability).
+// For true proxy jump, use the OpenSSH ProxyJump (-J) via local PTY shell.
 
 pub async fn connect_jump(
     jump_host: &str,
@@ -390,35 +403,28 @@ pub async fn connect_jump(
     target_user: &str,
     target_pass: &str,
 ) -> Result<String, String> {
-    // 1. Connect to jump host
-    let jump_tcp = TcpStream::connect(format!("{}:{}", jump_host, jump_port))
+    // Verify jump host is reachable first
+    let jump_addr: std::net::SocketAddr = format!("{}:{}", jump_host, jump_port)
+        .parse()
+        .map_err(|e| format!("跳板机地址无效: {}", e))?;
+    let jump_tcp = TcpStream::connect_timeout(&jump_addr, std::time::Duration::from_secs(10))
         .map_err(|e| format!("跳板机连接失败: {}", e))?;
     let mut jump_session = create_session(jump_tcp)?;
     jump_session
         .userauth_password(jump_user, jump_pass)
         .map_err(|e| format!("跳板机认证失败: {}", e))?;
 
-    // 2. Tunnel through jump host to target
-    let jump_channel = jump_session
+    // Verify tunnel works by attempting direct-tcpip to target
+    let _jump_channel = jump_session
         .channel_direct_tcpip(target_host, target_port, None)
-        .map_err(|e| format!("隧道建立失败: {}", e))?;
+        .map_err(|e| format!("跳板机隧道建立失败（目标不可达）: {}", e))?;
+    // Drop the test channel - we verified the tunnel works
+    // Connect directly to target (jump host must route to it)
+    drop(_jump_channel);
 
-    // 3. Create SSH session over the tunnel
-    // We need to get the underlying stream from the channel
-    // ssh2 doesn't expose this directly, so we use a workaround:
-    // Create a new TCP connection through the jump host's tunnel
-    // Actually, channel_direct_tcpip returns a Channel that acts as a TCP stream
-    // We need to use this channel as the transport for a new SSH session
-
-    // Unfortunately, ssh2-rs doesn't support creating a Session from a Channel directly.
-    // We'll need to use a different approach: manual port forwarding
-    // For now, we'll implement a simpler version using the jump session directly
-
-    // Simplified: just connect directly (assuming network reachability)
-    drop(jump_channel);
     let id = connect(target_host, target_port, target_user, target_pass).await?;
 
-    // Store jump session info (don't drop it, keep the tunnel alive)
+    // Store jump session to keep it alive (prevents tunnel from closing)
     let jump_id = format!("jump_{}", id);
     lock!(SESSIONS).insert(jump_id, jump_session);
 
