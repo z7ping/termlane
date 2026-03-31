@@ -20,6 +20,20 @@
           <button @click="loadLocal" class="text-xs text-gray-400 hover:text-white">⟳</button>
         </div>
         <div class="flex-1 overflow-y-auto" @click.self="selectedLocalSet.clear()">
+          <!-- Virtual list for large directories -->
+          <VirtualList v-if="localVirtual" :items="localFiles" :item-height="28" :height="400">
+            <template #default="{ item: file }">
+              <div @click="onLocalClick($event, file)" @dblclick="onLocalDblClick(file)" @dragstart="onLocalDragStart($event, file)" draggable="true"
+                class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-[11px] select-none h-full"
+                :class="selectedLocalSet.has(file.path) ? 'bg-blue-600/20 text-blue-300' : ''">
+                <span class="w-4 text-center text-[11px]">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
+                <span class="flex-1 truncate text-gray-300">{{ file.name }}</span>
+                <span class="text-[10px] text-gray-500 w-14 text-right">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+              </div>
+            </template>
+          </VirtualList>
+          <!-- Regular list for small directories -->
+          <template v-else>
           <div v-for="file in localFiles" :key="file.path"
             @click="onLocalClick($event, file)"
             @dblclick="onLocalDblClick(file)"
@@ -31,6 +45,7 @@
             <span class="flex-1 truncate text-gray-300">{{ file.name }}</span>
             <span class="text-xs text-gray-500 w-16 text-right">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
           </div>
+          </template>
         </div>
       </div>
 
@@ -56,6 +71,22 @@
           <button @click="loadRemote" class="text-xs text-gray-400 hover:text-white">⟳</button>
         </div>
         <div class="flex-1 overflow-y-auto" @click.self="selectedRemoteSet.clear()">
+          <!-- Virtual list for large directories -->
+          <VirtualList v-if="remoteVirtual" :items="remoteFiles" :item-height="28" :height="400">
+            <template #default="{ item: file }">
+              <div @click="onRemoteClick($event, file)" @dblclick="onRemoteDblClick(file)" @contextmenu.prevent="showRemoteMenu($event, file)"
+                @dragstart="onRemoteDragStart($event, file)" :draggable="true"
+                class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-[11px] select-none h-full"
+                :class="selectedRemoteSet.has(file.path) ? 'bg-blue-600/20 text-blue-300' : ''">
+                <span class="w-4 text-center text-[11px]">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
+                <span class="flex-1 truncate text-gray-300">{{ file.name }}</span>
+                <span class="text-[10px] text-gray-500 w-14 text-right">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+                <span class="text-[10px] text-gray-600 w-16 text-right">{{ file.permissions || '' }}</span>
+              </div>
+            </template>
+          </VirtualList>
+          <!-- Regular list for small directories -->
+          <template v-else>
           <div v-for="file in remoteFiles" :key="file.path"
             @click="onRemoteClick($event, file)"
             @dblclick="onRemoteDblClick(file)"
@@ -76,6 +107,7 @@
             <span class="text-xs text-gray-600 w-20 text-right">{{ file.permissions || '' }}</span>
           </div>
           <div v-if="remoteFiles.length === 0" class="p-4 text-center text-gray-500 text-sm">{{ sessionId ? '空目录' : '未连接' }}</div>
+          </template>
         </div>
       </div>
     </div>
@@ -127,8 +159,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { invoke } from '../utils/tauri.js'
+import VirtualList from './VirtualList.vue'
 
 const props = defineProps({ connection: Object, sessionId: String, active: Boolean })
 
@@ -140,7 +173,8 @@ const selectedLocal = ref(null)
 const selectedRemote = ref(null)
 const selectedLocalSet = reactive(new Set())
 const selectedRemoteSet = reactive(new Set())
-const transfers = ref([])
+const localVirtual = computed(() => localFiles.value.length > 100)
+const remoteVirtual = computed(() => remoteFiles.value.length > 100)
 const remoteDragOver = ref(false)
 let lastClickedLocal = null
 let lastClickedRemote = null

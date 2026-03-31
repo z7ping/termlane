@@ -1,7 +1,7 @@
 // utils/tauri.js - Tauri IPC wrapper
 // 当在 Tauri 环境中运行时使用原生 IPC，否则使用模拟数据
 
-const isTauri = typeof window.__TAURI__ !== 'undefined';
+export const isTauri = typeof window.__TAURI__ !== 'undefined';
 
 export const invoke = isTauri
   ? window.__TAURI__.core.invoke
