@@ -165,8 +165,7 @@ onMounted(async () => {
   try {
     const ws = await invoke('load_window_state')
     if (ws) {
-      // Window state available for Tauri window management
-      console.log('Window state:', ws)
+      // Window state available
     }
   } catch {}
 

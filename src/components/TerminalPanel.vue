@@ -206,7 +206,7 @@ async function startLocalShell(t) {
       lastActivity = Date.now()
       if (shellId && isConnected) {
         try { await invoke('local_shell_input', { sessionId: shellId, data }) }
-        catch (err) { console.error('Local input failed:', err) }
+        catch { /* input failed silently */ }
       }
     })
   } catch (err) {
@@ -276,8 +276,8 @@ async function startPtyShell(t, conn, isReconnect = false) {
       if (shellId && isConnected) {
         try {
           await invoke('ssh_shell_input', { sessionId: shellId, data })
-        } catch (err) {
-          console.error('Failed to send input:', err)
+        } catch {
+          // input failed silently
         }
       }
     })

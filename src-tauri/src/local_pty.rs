@@ -6,6 +6,13 @@ use std::io::{Read, Write};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 
+/// Safely lock a Mutex, recovering from poisoned locks
+macro_rules! lock {
+    ($mutex:expr) => {
+        $mutex.lock().unwrap_or_else(|e| e.into_inner())
+    };
+}
+
 struct LocalPty {
     _master: Box<dyn portable_pty::MasterPty + Send>,
     _child: Box<dyn portable_pty::Child + Send + Sync>,
@@ -69,7 +76,7 @@ pub fn start_local_shell(
 
     let session_id = format!("local_{}", std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs());
 
     let sid = session_id.clone();
@@ -111,7 +118,7 @@ pub fn start_local_shell(
     // Actually let's just store everything we need
     std::mem::forget(writer_thread); // Writer thread runs until channel closes
 
-    LOCAL_PTYS.lock().unwrap().insert(
+    lock!(LOCAL_PTYS).insert(
         session_id.clone(),
         LocalPty {
             _master: pair.master,
@@ -125,7 +132,7 @@ pub fn start_local_shell(
 }
 
 pub fn local_input(session_id: &str, data: &str) -> Result<(), String> {
-    let ptys = LOCAL_PTYS.lock().unwrap();
+    let ptys = lock!(LOCAL_PTYS);
     let pty = ptys.get(session_id).ok_or("本地 Shell 不存在")?;
     pty.input_tx
         .send(data.to_string())
@@ -140,10 +147,10 @@ pub fn local_resize(session_id: &str, cols: u16, rows: u16) -> Result<(), String
 }
 
 pub fn close_local_shell(session_id: &str) -> Result<(), String> {
-    LOCAL_PTYS.lock().unwrap().remove(session_id);
+    lock!(LOCAL_PTYS).remove(session_id);
     Ok(())
 }
 
 pub fn list_local_shells() -> Vec<String> {
-    LOCAL_PTYS.lock().unwrap().keys().cloned().collect()
+    lock!(LOCAL_PTYS).keys().cloned().collect()
 }

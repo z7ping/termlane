@@ -11,7 +11,7 @@
 
     <!-- Search -->
     <div class="px-2 py-1.5 border-b" style="border-color: #333;">
-      <input v-model="searchQuery" class="w-full text-[11px] text-gray-300 px-2 py-1 rounded border focus:outline-none focus:border-blue-500/50 transition-colors placeholder-gray-600" style="background: #1a1a1a; border-color: #333;" placeholder="🔍 搜索..." />
+      <input v-model="searchQuery" class="w-full text-xs text-gray-300 px-2 py-1 rounded border focus:outline-none focus:border-blue-500/50 transition-colors placeholder-gray-600" style="background: #1a1a1a; border-color: #333;" placeholder="🔍 搜索..." />
     </div>
 
     <!-- Tree -->
@@ -22,13 +22,13 @@
       </template>
       <div v-if="tree.length === 0" class="text-center py-10">
         <div class="text-2xl mb-2 opacity-30">{{ searchQuery ? '🔍' : '🔌' }}</div>
-        <div class="text-[11px] text-gray-600">{{ searchQuery ? '没有匹配' : '点击 + 添加连接' }}</div>
+        <div class="text-xs text-gray-600">{{ searchQuery ? '没有匹配' : '点击 + 添加连接' }}</div>
       </div>
     </div>
 
     <!-- Quick Commands -->
     <div class="border-t px-2 py-2" style="border-color: #333;">
-      <div class="text-[9px] text-gray-600 px-1 mb-1.5 uppercase tracking-wider">快捷命令</div>
+      <div class="text-[10px] text-gray-600 px-1 mb-1.5 uppercase tracking-wider">快捷命令</div>
       <div class="flex flex-wrap gap-1">
         <button v-for="cmd in quickCommands" :key="cmd.l" @click="$emit('quick-command', cmd.c)"
           class="text-[10px] px-1.5 py-0.5 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors font-mono" style="background: #1e1e1e;">
@@ -174,10 +174,10 @@ const TreeItem = defineComponent({
             class: 'flex items-center gap-1.5 px-2 py-[5px] cursor-pointer hover:bg-white/5 transition-colors group',
             style: { paddingLeft: (8 + indent) + 'px' }
           }, [
-            h('span', { class: `text-[8px] text-gray-600 transition-transform duration-150 ${n.collapsed ? '-rotate-90' : ''}` }, '▼'),
-            h('span', { class: 'text-[11px]' }, n.icon || '📁'),
-            h('span', { class: 'text-[11px] text-gray-400 truncate flex-1 font-medium' }, n.label),
-            h('span', { class: 'text-[9px] text-gray-600 px-1 rounded', style: 'background:#1e1e1e' }, String(n.count)),
+            h('span', { class: `text-[10px] text-gray-600 transition-transform duration-150 ${n.collapsed ? '-rotate-90' : ''}` }, '▼'),
+            h('span', { class: 'text-xs' }, n.icon || '📁'),
+            h('span', { class: 'text-xs text-gray-400 truncate flex-1 font-medium' }, n.label),
+            h('span', { class: 'text-[10px] text-gray-600 px-1 rounded', style: 'background:#1e1e1e' }, String(n.count)),
           ]),
           ...(n.collapsed ? [] : (n.children || []).map(child =>
             h(TreeItem, { node: child, activeId: props.activeId, depth: props.depth + 1, onSelect: (c) => emit('select', c), onToggle: (p) => emit('toggle', p), onCtx: (e) => emit('ctx', e) })
@@ -193,10 +193,10 @@ const TreeItem = defineComponent({
           style: { paddingLeft: (12 + indent) + 'px' }
         }, [
           c.color ? h('span', { class: 'w-1.5 h-1.5 rounded-full flex-shrink-0', style: `background:${{ red:'#ef4444', yellow:'#eab308', green:'#22c55e', blue:'#3b82f6', purple:'#a855f7' }[c.color] || '#6b7280'}` }) : null,
-          h('span', { class: 'text-[11px]' }, c.icon || '🖥️'),
-          h('span', { class: `text-[11px] truncate flex-1 ${isActive ? 'text-blue-200' : 'text-gray-300'}` }, c.name),
-          c.favorite ? h('span', { class: 'text-[9px]' }, '⭐') : null,
-          c.host && c.host !== 'localhost' ? h('span', { class: 'text-[9px] text-gray-600 font-mono truncate max-w-[70px]' }, c.host) : null,
+          h('span', { class: 'text-xs' }, c.icon || '🖥️'),
+          h('span', { class: `text-xs truncate flex-1 ${isActive ? 'text-blue-200' : 'text-gray-300'}` }, c.name),
+          c.favorite ? h('span', { class: 'text-[10px]' }, '⭐') : null,
+          c.host && c.host !== 'localhost' ? h('span', { class: 'text-[10px] text-gray-600 font-mono truncate max-w-[70px]' }, c.host) : null,
         ])
       }
     }
@@ -208,6 +208,6 @@ export default { components: { TreeItem } }
 
 <style scoped>
 .ctx-item {
-  @apply w-full px-3 py-1.5 text-[11px] text-gray-300 hover:bg-white/10 text-left transition-colors;
+  @apply w-full px-3 py-1.5 text-xs text-gray-300 hover:bg-white/10 text-left transition-colors;
 }
 </style>

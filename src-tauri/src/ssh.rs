@@ -8,6 +8,13 @@ use std::sync::Mutex;
 use ssh2::Session;
 use tauri::{AppHandle, Emitter};
 
+/// Safely lock a Mutex, recovering from poisoned locks
+macro_rules! lock {
+    ($mutex:expr) => {
+        $mutex.lock().unwrap_or_else(|e| e.into_inner())
+    };
+}
+
 // ─── Types ───
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,7 +75,7 @@ fn create_session(tcp: TcpStream) -> Result<Session, String> {
 fn unix_now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs()
 }
 
@@ -94,7 +101,7 @@ pub async fn connect(
     }
 
     let id = format!("ssh_{}_{}", host.replace('.', "_"), unix_now());
-    SESSION_INFO.lock().unwrap().insert(
+    lock!(SESSION_INFO).insert(
         id.clone(),
         SshSession {
             id: id.clone(),
@@ -104,7 +111,7 @@ pub async fn connect(
             connected: true,
         },
     );
-    SESSIONS.lock().unwrap().insert(id.clone(), session);
+    lock!(SESSIONS).insert(id.clone(), session);
     Ok(id)
 }
 
@@ -141,7 +148,7 @@ pub async fn connect_with_key(
         return Err("密钥认证失败".into());
     }
     let id = format!("ssh_{}_{}", host.replace('.', "_"), unix_now());
-    SESSION_INFO.lock().unwrap().insert(
+    lock!(SESSION_INFO).insert(
         id.clone(),
         SshSession {
             id: id.clone(),
@@ -151,12 +158,12 @@ pub async fn connect_with_key(
             connected: true,
         },
     );
-    SESSIONS.lock().unwrap().insert(id.clone(), session);
+    lock!(SESSIONS).insert(id.clone(), session);
     Ok(id)
 }
 
 pub async fn execute(session_id: &str, command: &str) -> Result<String, String> {
-    let sessions = SESSIONS.lock().unwrap();
+    let sessions = lock!(SESSIONS);
     let session = sessions.get(session_id).ok_or("会话不存在")?;
     let mut ch = session.channel_session().map_err(|e| e.to_string())?;
     ch.request_pty("xterm-256color", None, None).ok();
@@ -169,15 +176,13 @@ pub async fn execute(session_id: &str, command: &str) -> Result<String, String> 
 }
 
 pub fn disconnect(session_id: &str) -> Result<(), String> {
-    SESSIONS.lock().unwrap().remove(session_id);
-    SESSION_INFO.lock().unwrap().remove(session_id);
+    lock!(SESSIONS).remove(session_id);
+    lock!(SESSION_INFO).remove(session_id);
     Ok(())
 }
 
 pub fn list_sessions() -> Vec<SshSession> {
-    SESSION_INFO
-        .lock()
-        .unwrap()
+    lock!(SESSION_INFO)
         .values()
         .cloned()
         .collect()
@@ -322,23 +327,21 @@ pub fn start_shell(
     });
 
     // 6. Store state
-    PTY_SHELLS.lock().unwrap().insert(
+    lock!(PTY_SHELLS).insert(
         session_id.clone(),
         PtyShell {
             input_tx,
             _reader: reader,
         },
     );
-    PTY_SESSIONS
-        .lock()
-        .unwrap()
+    lock!(PTY_SESSIONS)
         .insert(session_id.clone(), session);
 
     Ok(sid)
 }
 
 pub fn shell_input(session_id: &str, data: &str) -> Result<(), String> {
-    let shells = PTY_SHELLS.lock().unwrap();
+    let shells = lock!(PTY_SHELLS);
     let shell = shells.get(session_id).ok_or("Shell 会话不存在")?;
     shell
         .input_tx
@@ -352,7 +355,7 @@ pub fn shell_resize(session_id: &str, cols: u16, rows: u16) -> Result<(), String
     // The reader thread will handle it
     // Actually, we can't resize through the channel easily since the reader thread owns it.
     // We'll use a special signal through the input channel.
-    let shells = PTY_SHELLS.lock().unwrap();
+    let shells = lock!(PTY_SHELLS);
     let shell = shells.get(session_id).ok_or("Shell 会话不存在")?;
     // Send a resize marker that the reader can detect
     // For now, we'll store resize info and handle it later
@@ -365,14 +368,14 @@ pub fn shell_resize(session_id: &str, cols: u16, rows: u16) -> Result<(), String
 }
 
 pub fn close_shell(session_id: &str) -> Result<(), String> {
-    PTY_SHELLS.lock().unwrap().remove(session_id);
+    lock!(PTY_SHELLS).remove(session_id);
     // Dropping the session closes the TCP connection → reader thread exits
-    PTY_SESSIONS.lock().unwrap().remove(session_id);
+    lock!(PTY_SESSIONS).remove(session_id);
     Ok(())
 }
 
 pub fn list_shells() -> Vec<String> {
-    PTY_SHELLS.lock().unwrap().keys().cloned().collect()
+    lock!(PTY_SHELLS).keys().cloned().collect()
 }
 
 // ─── Jump Host (Proxy Jump) ───
@@ -417,7 +420,7 @@ pub async fn connect_jump(
 
     // Store jump session info (don't drop it, keep the tunnel alive)
     let jump_id = format!("jump_{}", id);
-    SESSIONS.lock().unwrap().insert(jump_id, jump_session);
+    lock!(SESSIONS).insert(jump_id, jump_session);
 
     Ok(id)
 }

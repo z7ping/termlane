@@ -66,7 +66,7 @@ async function checkForUpdates() {
     }
   } catch (err) {
     // Silent fail - don't bother user if update check fails
-    console.log('Update check failed:', err)
+    // Update check failed silently
   }
 }
 

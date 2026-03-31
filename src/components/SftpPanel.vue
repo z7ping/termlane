@@ -24,9 +24,9 @@
           <VirtualList v-if="localVirtual" :items="localFiles" :item-height="28" :height="400">
             <template #default="{ item: file }">
               <div @click="onLocalClick($event, file)" @dblclick="onLocalDblClick(file)" @dragstart="onLocalDragStart($event, file)" draggable="true"
-                class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-[11px] select-none h-full"
+                class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-xs select-none h-full"
                 :class="selectedLocalSet.has(file.path) ? 'bg-blue-600/20 text-blue-300' : ''">
-                <span class="w-4 text-center text-[11px]">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
+                <span class="w-4 text-center text-xs">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
                 <span class="flex-1 truncate text-gray-300">{{ file.name }}</span>
                 <span class="text-[10px] text-gray-500 w-14 text-right">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
               </div>
@@ -76,9 +76,9 @@
             <template #default="{ item: file }">
               <div @click="onRemoteClick($event, file)" @dblclick="onRemoteDblClick(file)" @contextmenu.prevent="showRemoteMenu($event, file)"
                 @dragstart="onRemoteDragStart($event, file)" :draggable="true"
-                class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-[11px] select-none h-full"
+                class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-xs select-none h-full"
                 :class="selectedRemoteSet.has(file.path) ? 'bg-blue-600/20 text-blue-300' : ''">
-                <span class="w-4 text-center text-[11px]">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
+                <span class="w-4 text-center text-xs">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
                 <span class="flex-1 truncate text-gray-300">{{ file.name }}</span>
                 <span class="text-[10px] text-gray-500 w-14 text-right">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
                 <span class="text-[10px] text-gray-600 w-16 text-right">{{ file.permissions || '' }}</span>
@@ -367,7 +367,7 @@ async function batchDelete() {
     const file = remoteFiles.value.find(f => f.path === p)
     if (file) {
       try { await invoke('sftp_delete', { sessionId: props.sessionId, path: p, isDir: file.is_dir }) }
-      catch (e) { console.error('Delete failed:', e) }
+      catch { /* ignore */ }
     }
   }
   selectedRemoteSet.clear()

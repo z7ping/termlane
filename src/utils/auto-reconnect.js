@@ -18,7 +18,6 @@ export class AutoReconnectManager {
 
     if (retries < this.maxRetries && callback) {
       this.retries.set(connectionId, retries + 1)
-      console.log(`[AutoReconnect] ${connectionId} 第${retries + 1}次重连...`)
 
       setTimeout(() => {
         callback(connectionId).catch(() => {
@@ -29,7 +28,6 @@ export class AutoReconnectManager {
       return true
     }
 
-    console.log(`[AutoReconnect] ${connectionId} 已达最大重试次数`)
     return false
   }
 

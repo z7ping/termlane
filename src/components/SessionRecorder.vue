@@ -122,7 +122,7 @@ async function toggleRecording() {
           tags: [],
         }
       })
-    } catch (e) { console.error('Save recording failed:', e) }
+    } catch { /* save failed silently */ }
 
     recData.length = 0
     recDuration.value = 0
