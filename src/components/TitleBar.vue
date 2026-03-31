@@ -5,14 +5,34 @@
     </button>
     <span class="text-sm font-medium" style="color: var(--fg-primary);">XTerminal Pro</span>
     <div class="flex-1" />
-    <div class="flex gap-2 no-drag">
-      <button @click="$emit('toggle-fullscreen')" class="text-xs p-1 hover:bg-white/10 rounded" style="color: var(--fg-muted);" title="全屏 (F11)">⛶</button>
+    <div class="flex gap-1 no-drag">
+      <button @click="cycleTheme" class="p-1 hover:bg-white/10 rounded text-[10px]" style="color: var(--fg-muted);" :title="'主题: ' + themeNames[currentTheme]">
+        {{ themeIcons[currentTheme] }}
+      </button>
+      <button @click="$emit('toggle-fullscreen')" class="p-1 hover:bg-white/10 rounded text-xs" style="color: var(--fg-muted);" title="全屏 (F11)">⛶</button>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
+
 defineEmits(['toggle-sidebar', 'toggle-fullscreen'])
+
+const themes = ['dark', 'light', 'nord']
+const themeNames = { dark: '暗色', light: '亮色', nord: 'Nord' }
+const themeIcons = { dark: '🌙', light: '☀️', nord: '❄️' }
+const currentTheme = ref(localStorage.getItem('xterminal-theme') || 'dark')
+
+// Apply theme on mount
+document.documentElement.setAttribute('data-theme', currentTheme.value)
+
+function cycleTheme() {
+  const idx = themes.indexOf(currentTheme.value)
+  currentTheme.value = themes[(idx + 1) % themes.length]
+  document.documentElement.setAttribute('data-theme', currentTheme.value)
+  localStorage.setItem('xterminal-theme', currentTheme.value)
+}
 </script>
 
 <style scoped>

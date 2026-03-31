@@ -1,8 +1,10 @@
 <template>
-  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" @click.self="$emit('close')">
-    <div class="bg-gray-800 rounded-lg w-[480px] border border-gray-600 shadow-2xl max-h-[90vh] overflow-y-auto">
-      <div class="p-4 border-b border-gray-700 flex items-center justify-between">
-        <h3 class="text-sm font-medium">{{ editing ? '编辑连接' : '新建连接' }}</h3>
+  <Transition name="fade">
+  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm" @click.self="$emit('close')">
+    <Transition name="slide-up">
+    <div class="rounded-xl w-[480px] max-h-[90vh] overflow-y-auto shadow-2xl" style="background: var(--bg-elevated); border: 1px solid var(--border);">
+      <div class="p-4 flex items-center justify-between" style="border-bottom: 1px solid var(--border-subtle);">
+        <h3 class="text-sm font-semibold" style="color: var(--fg-primary);">{{ editing ? '编辑连接' : '新建连接' }}</h3>
         <button @click="$emit('close')" class="text-gray-400 hover:text-white">✕</button>
       </div>
 
@@ -143,7 +145,9 @@
         </div>
       </div>
     </div>
+    </Transition>
   </div>
+  </Transition>
 </template>
 
 <script setup>

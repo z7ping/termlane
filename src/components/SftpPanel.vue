@@ -140,21 +140,24 @@
       <div @click="ctxDelete" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-red-400">🗑 删除</div>
     </div>
 
-    <!-- Edit Modal -->
-    <div v-if="editFile.show" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" @click.self="editFile.show = false">
-      <div class="bg-gray-800 rounded-lg shadow-xl w-[700px] max-h-[80vh] flex flex-col">
-        <div class="flex items-center justify-between px-4 py-2 border-b border-gray-700">
-          <span class="text-sm text-gray-300">编辑: {{ editFile.path }}</span>
-          <span v-if="editFile.dirty" class="text-xs text-yellow-400">● 未保存</span>
-          <button @click="editFile.show = false" class="text-gray-400 hover:text-white">✕</button>
+    <!-- Inline Editor (replaces remote panel when editing) -->
+    <Transition name="slide-right">
+    <div v-if="editFile.show" class="fixed inset-0 z-40 flex items-center justify-center" style="background: oklch(0 0 0 / 0.5); backdrop-filter: blur(4px);" @click.self="editFile.show = false">
+      <div class="rounded-xl shadow-2xl flex flex-col w-[720px] max-h-[85vh]" style="background: var(--bg-elevated); border: 1px solid var(--border);">
+        <div class="flex items-center justify-between px-4 py-2.5" style="border-bottom: 1px solid var(--border-subtle);">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium" style="color: var(--fg-primary);">📝 {{ editFile.path.split('/').pop() }}</span>
+            <span v-if="editFile.dirty" class="text-[10px] px-1.5 py-0.5 rounded-full animate-pulse-dot" style="background: var(--warning); color: #000;">未保存</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button @click="saveEdit" class="px-3 py-1 text-xs rounded-lg font-medium" style="background: var(--accent); color: white;">保存</button>
+            <button @click="editFile.show = false" class="p-1 rounded hover:bg-white/10" style="color: var(--fg-muted);">✕</button>
+          </div>
         </div>
-        <textarea v-model="editFile.content" @input="editFile.dirty = true" class="flex-1 bg-gray-900 text-gray-200 text-sm p-4 font-mono resize-none focus:outline-none min-h-[300px]" spellcheck="false" />
-        <div class="flex justify-end gap-2 px-4 py-2 border-t border-gray-700">
-          <button @click="saveEdit" class="px-4 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded">💾 保存</button>
-          <button @click="editFile.show = false" class="px-4 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded">关闭</button>
-        </div>
+        <textarea v-model="editFile.content" @input="editFile.dirty = true" class="flex-1 text-sm p-4 font-mono resize-none focus:outline-none min-h-[300px]" style="background: var(--bg-base); color: var(--fg-primary);" spellcheck="false" />
       </div>
     </div>
+    </Transition>
   </div>
 </template>
 
