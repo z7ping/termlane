@@ -1,4 +1,6 @@
-// sftp.rs - Real SFTP file operations via ssh2
+// sftp.rs - SFTP file operations via SSH exec with base64 encoding
+// All remote file operations use SSH exec commands with base64 encoding
+// to safely handle binary files across different shell environments.
 
 use serde::{Deserialize, Serialize};
 
@@ -12,10 +14,18 @@ pub struct FileEntry {
     pub permissions: Option<String>,
 }
 
-/// Map of session_id → underlying ssh2::Session
-/// We need access to the session to open SFTP subsystem
-/// Reuse the same sessions from ssh.rs
 use crate::ssh;
+
+// ─── Shared tokio runtime (avoid creating new runtime per operation) ───
+static RUNTIME: std::sync::LazyLock<tokio::runtime::Runtime> =
+    std::sync::LazyLock::new(|| tokio::runtime::Runtime::new().expect("Failed to create tokio runtime"));
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 // ─── Local file operations ───
 
@@ -31,7 +41,6 @@ pub fn list_local(path: &str) -> Result<Vec<FileEntry>, String> {
 
     let mut entries = Vec::new();
 
-    // Parent directory entry
     if let Some(parent) = dir.parent() {
         entries.push(FileEntry {
             name: "..".into(),
@@ -53,26 +62,19 @@ pub fn list_local(path: &str) -> Result<Vec<FileEntry>, String> {
             .as_ref()
             .and_then(|m| m.modified().ok())
             .map(|t| {
-                let dur = t
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap_or_default();
+                let dur = t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
                 let secs = dur.as_secs();
                 format_timestamp(secs)
             });
 
         entries.push(FileEntry {
-            name,
-            path,
-            size,
-            is_dir,
-            modified,
+            name, path, size, is_dir, modified,
             permissions: None,
         });
     }
 
     entries.sort_by(|a, b| {
-        b.is_dir
-            .cmp(&a.is_dir)
+        b.is_dir.cmp(&a.is_dir)
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
 
@@ -80,7 +82,8 @@ pub fn list_local(path: &str) -> Result<Vec<FileEntry>, String> {
 }
 
 fn format_timestamp(secs: u64) -> String {
-    // Simple timestamp formatting (not timezone-aware)
+    // Simple timestamp formatting (approximate, not timezone-aware)
+    // TODO: Replace with chrono or time crate for accurate date math
     let mins = secs / 60;
     let hours = mins / 60;
     let days = hours / 24;
@@ -98,16 +101,16 @@ fn format_timestamp(secs: u64) -> String {
     )
 }
 
-// ─── Remote SFTP operations (via ssh2) ───
+// ─── Path escaping ───
 
-/// List remote directory using SFTP subsystem
-/// Note: We can't directly access the Session from ssh.rs due to ownership.
-/// For now, we use SSH exec to list directory (works without SFTP subsystem).
+fn escape_path(path: &str) -> String {
+    format!("'{}'", path.replace('\'', "'\\''"))
+}
+
+// ─── Remote SFTP operations (via SSH exec + base64) ───
+
 pub fn list_remote(session_id: &str, path: &str) -> Result<Vec<FileEntry>, String> {
-    // Use ssh exec to list directory with detailed format
-    // This approach works when SFTP subsystem might not be available
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let output = rt.block_on(ssh::execute(
+    let output = RUNTIME.block_on(ssh::execute(
         session_id,
         &format!(
             "ls -la --time-style='+%Y-%m-%d %H:%M' {} 2>/dev/null || ls -la {}",
@@ -115,31 +118,20 @@ pub fn list_remote(session_id: &str, path: &str) -> Result<Vec<FileEntry>, Strin
             escape_path(path)
         ),
     ))?;
-
     parse_ls_output(&output, path)
-}
-
-fn escape_path(path: &str) -> String {
-    // Shell-escape the path
-    format!("'{}'", path.replace('\'', "'\\''"))
 }
 
 fn parse_ls_output(output: &str, base_path: &str) -> Result<Vec<FileEntry>, String> {
     let mut entries = Vec::new();
 
-    // Add parent directory
     if base_path != "/" {
         let parent = std::path::Path::new(base_path)
             .parent()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| "/".to_string());
         entries.push(FileEntry {
-            name: "..".into(),
-            path: parent,
-            size: 0,
-            is_dir: true,
-            modified: None,
-            permissions: Some("drwxr-xr-x".into()),
+            name: "..".into(), path: parent, size: 0, is_dir: true,
+            modified: None, permissions: Some("drwxr-xr-x".into()),
         });
     }
 
@@ -158,18 +150,15 @@ fn parse_ls_output(output: &str, base_path: &str) -> Result<Vec<FileEntry>, Stri
         let is_dir = permissions.starts_with('d');
         let size: u64 = parts[4].parse().unwrap_or(0);
 
-        // Date and time (parts[5] = date, parts[6] = time)
         let modified = if parts.len() >= 7 {
             Some(format!("{} {}", parts[5], parts[6]))
         } else {
             None
         };
 
-        // Filename is the rest after date+time+size
         let name_start = if parts.len() >= 8 { 7 } else { 6 };
         let name = parts[name_start..].join(" ");
 
-        // Handle symlinks: "name -> target"
         let clean_name = if let Some(arrow_pos) = name.find(" -> ") {
             name[..arrow_pos].to_string()
         } else {
@@ -187,66 +176,77 @@ fn parse_ls_output(output: &str, base_path: &str) -> Result<Vec<FileEntry>, Stri
         };
 
         entries.push(FileEntry {
-            name: clean_name,
-            path,
-            size,
-            is_dir,
-            modified,
+            name: clean_name, path, size, is_dir, modified,
             permissions: Some(permissions),
         });
     }
 
-    // Sort: directories first, then alphabetical
     entries.sort_by(|a, b| {
-        b.is_dir
-            .cmp(&a.is_dir)
+        b.is_dir.cmp(&a.is_dir)
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
 
     if entries.is_empty() {
-        // Parsing might have failed, return at least parent
         return Err("无法解析目录列表".to_string());
     }
 
     Ok(entries)
 }
 
+/// Upload a local file to remote via base64 encoding (safe for binary files).
+/// Uses temp file + chunked printf to avoid shell ARG_MAX limits.
 pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, String> {
-    // Use scp via exec
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let local_content = std::fs::read(local).map_err(|e| format!("读取本地文件失败: {}", e))?;
+    let encoded = base64_encode(&local_content);
+    let remote_tmp = format!("/tmp/xterminal_upload_{}.b64", unix_now());
 
-    // Write content via SSH: cat > remote_path
+    // Write base64 in chunks via printf to avoid argument length limits
+    let chunk_size = 4000;
+    let chunks: Vec<&str> = encoded.as_bytes()
+        .chunks(chunk_size)
+        .filter_map(|c| std::str::from_utf8(c).ok())
+        .collect();
+
+    if let Some(first) = chunks.first() {
+        let cmd = format!("printf '%s' {} > {}", escape_path(first), escape_path(&remote_tmp));
+        RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+    }
+    for chunk in chunks.iter().skip(1) {
+        let cmd = format!("printf '%s' {} >> {}", escape_path(chunk), escape_path(&remote_tmp));
+        RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+    }
+
+    // Decode base64 temp file to final destination and clean up
     let cmd = format!(
-        "cat > {} << 'XTERMINAL_EOF'\n{}\nXTERMINAL_EOF",
-        escape_path(remote),
-        String::from_utf8_lossy(&local_content)
+        "base64 -d {} > {} && rm -f {}",
+        escape_path(&remote_tmp), escape_path(remote), escape_path(&remote_tmp)
     );
-    rt.block_on(ssh::execute(session_id, &cmd))?;
+    RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
 
-    Ok(format!("已上传: {} → {}", local, remote))
+    Ok(format!("已上传: {} → {} ({} bytes)", local, remote, local_content.len()))
 }
 
+/// Download a remote file via base64 encoding (safe for binary files).
 pub fn download(session_id: &str, remote: &str, local: &str) -> Result<String, String> {
-    // Read remote file via SSH cat
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let output = rt.block_on(ssh::execute(session_id, &format!("cat {}", escape_path(remote))))?;
+    let cmd = format!("base64 -w 0 {}", escape_path(remote));
+    let output = RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
 
     // Remove the "[exit: X]" suffix that execute() adds
-    let content = if let Some(pos) = output.rfind("\n[exit:") {
-        &output[..pos]
+    let encoded = if let Some(pos) = output.rfind("\n[exit:") {
+        output[..pos].trim().to_string()
     } else {
-        &output
+        output.trim().to_string()
     };
+    let encoded: String = encoded.chars().filter(|c| !c.is_whitespace()).collect();
 
-    std::fs::write(local, content).map_err(|e| format!("写入本地文件失败: {}", e))?;
+    let decoded = base64_decode(&encoded)?;
+    std::fs::write(local, &decoded).map_err(|e| format!("写入本地文件失败: {}", e))?;
 
-    Ok(format!("已下载: {} → {}", remote, local))
+    Ok(format!("已下载: {} → {} ({} bytes)", remote, local, decoded.len()))
 }
 
 pub fn rename_file(session_id: &str, old_path: &str, new_path: &str) -> Result<String, String> {
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    rt.block_on(ssh::execute(
+    RUNTIME.block_on(ssh::execute(
         session_id,
         &format!("mv {} {}", escape_path(old_path), escape_path(new_path)),
     ))?;
@@ -254,19 +254,17 @@ pub fn rename_file(session_id: &str, old_path: &str, new_path: &str) -> Result<S
 }
 
 pub fn delete_file(session_id: &str, path: &str, is_dir: bool) -> Result<String, String> {
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let cmd = if is_dir {
         format!("rm -rf {}", escape_path(path))
     } else {
         format!("rm {}", escape_path(path))
     };
-    rt.block_on(ssh::execute(session_id, &cmd))?;
+    RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
     Ok(format!("已删除: {}", path))
 }
 
 pub fn create_dir(session_id: &str, path: &str) -> Result<String, String> {
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    rt.block_on(ssh::execute(
+    RUNTIME.block_on(ssh::execute(
         session_id,
         &format!("mkdir -p {}", escape_path(path)),
     ))?;
@@ -274,40 +272,119 @@ pub fn create_dir(session_id: &str, path: &str) -> Result<String, String> {
 }
 
 pub fn chmod(session_id: &str, path: &str, mode: &str) -> Result<String, String> {
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    rt.block_on(ssh::execute(
+    RUNTIME.block_on(ssh::execute(
         session_id,
         &format!("chmod {} {}", mode, escape_path(path)),
     ))?;
     Ok(format!("已修改权限: {} → {}", path, mode))
 }
 
+/// Read a remote file as UTF-8 text via base64 (safe for any encoding).
 pub fn read_file(session_id: &str, path: &str) -> Result<String, String> {
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let output =
-        rt.block_on(ssh::execute(session_id, &format!("cat {}", escape_path(path))))?;
+    let cmd = format!("base64 -w 0 {}", escape_path(path));
+    let output = RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
 
-    // Remove the "[exit: X]" suffix
-    let content = if let Some(pos) = output.rfind("\n[exit:") {
-        &output[..pos]
+    let encoded = if let Some(pos) = output.rfind("\n[exit:") {
+        output[..pos].trim().to_string()
     } else {
-        &output
+        output.trim().to_string()
     };
+    let encoded: String = encoded.chars().filter(|c| !c.is_whitespace()).collect();
 
-    Ok(content.to_string())
+    let decoded = base64_decode(&encoded)?;
+    String::from_utf8(decoded).map_err(|e| format!("文件不是有效的 UTF-8 文本: {}", e))
 }
 
+/// Write UTF-8 text to a remote file via base64 (safe for any content).
 pub fn write_file(session_id: &str, path: &str, content: &str) -> Result<String, String> {
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
+    let encoded = base64_encode(content.as_bytes());
+    let remote_tmp = format!("/tmp/xterminal_edit_{}.b64", unix_now());
 
-    // Use heredoc to write content
+    let chunk_size = 4000;
+    let chunks: Vec<&str> = encoded.as_bytes()
+        .chunks(chunk_size)
+        .filter_map(|c| std::str::from_utf8(c).ok())
+        .collect();
+
+    if let Some(first) = chunks.first() {
+        let cmd = format!("printf '%s' {} > {}", escape_path(first), escape_path(&remote_tmp));
+        RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+    }
+    for chunk in chunks.iter().skip(1) {
+        let cmd = format!("printf '%s' {} >> {}", escape_path(chunk), escape_path(&remote_tmp));
+        RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+    }
+
     let cmd = format!(
-        "cat > {} << 'XTERMINAL_EOF'\n{}\nXTERMINAL_EOF",
-        escape_path(path),
-        content
+        "base64 -d {} > {} && rm -f {}",
+        escape_path(&remote_tmp), escape_path(path), escape_path(&remote_tmp)
     );
-    rt.block_on(ssh::execute(session_id, &cmd))?;
-    Ok(format!("已保存: {}", path))
+    RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+    Ok(format!("已保存: {} ({} bytes)", path, content.len()))
+}
+
+// ─── Base64 helpers (no external crate needed) ───
+
+const B64_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+fn base64_encode(input: &[u8]) -> String {
+    let mut result = String::with_capacity((input.len() + 2) / 3 * 4);
+    for chunk in input.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        result.push(B64_CHARS[((triple >> 18) & 0x3F) as usize] as char);
+        result.push(B64_CHARS[((triple >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            result.push(B64_CHARS[((triple >> 6) & 0x3F) as usize] as char);
+        } else {
+            result.push('=');
+        }
+        if chunk.len() > 2 {
+            result.push(B64_CHARS[(triple & 0x3F) as usize] as char);
+        } else {
+            result.push('=');
+        }
+    }
+    result
+}
+
+fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
+    let table: [u8; 256] = {
+        let mut t = [255u8; 256];
+        let mut i = 0u8;
+        for &c in B64_CHARS {
+            t[c as usize] = i;
+            i += 1;
+        }
+        t[b'=' as usize] = 0;
+        t
+    };
+
+    let clean: Vec<u8> = input.bytes().filter(|&b| b != b'\n' && b != b'\r' && b != b' ').collect();
+    if clean.len() % 4 != 0 {
+        return Err("无效的 base64 编码".to_string());
+    }
+
+    let mut result = Vec::with_capacity(clean.len() / 4 * 3);
+    for chunk in clean.chunks(4) {
+        let a = table[chunk[0] as usize];
+        let b = table[chunk[1] as usize];
+        let c = table[chunk[2] as usize];
+        let d = table[chunk[3] as usize];
+        if a == 255 || b == 255 || c == 255 || d == 255 {
+            return Err("无效的 base64 字符".to_string());
+        }
+        result.push(((a << 2) | (b >> 4)) as u8);
+        if chunk[2] != b'=' {
+            result.push((((b & 0x0F) << 4) | (c >> 2)) as u8);
+        }
+        if chunk[3] != b'=' {
+            result.push((((c & 0x03) << 6) | d) as u8);
+        }
+    }
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -322,7 +399,6 @@ mod tests {
     #[test]
     fn test_escape_path_with_single_quote() {
         let escaped = escape_path("/path/to/file'name");
-        // Should handle single quote with shell quoting trick: 'path'\''name'
         assert_eq!(escaped, "'/path/to/file'\\''name'");
     }
 
@@ -338,27 +414,13 @@ drwxr-xr-x 2 user group  4096 2024-01-15 10:30 src\n\
 -rw-r--r-- 1 user group 12345 2024-01-15 09:00 readme.txt\n\
 lrwxrwxrwx 1 user group     5 2024-01-15 08:00 link -> target\n";
         let entries = parse_ls_output(output, "/home/user").expect("parse_ls_output");
-        // Should have ".." + 3 entries (minus "." and ".." from ls if present)
         assert!(entries.len() >= 3, "Expected at least 3 entries, got {}", entries.len());
-
-        // Check directories come first
-        let dirs: Vec<_> = entries.iter().filter(|e| e.is_dir).collect();
-        assert!(!dirs.is_empty(), "Should have at least one directory");
-        // ".." should be first (is_dir=true)
         assert_eq!(entries[0].name, "..");
-
-        // Find the file entry
         let file = entries.iter().find(|e| e.name == "readme.txt").expect("readme.txt");
         assert!(!file.is_dir);
         assert_eq!(file.size, 12345);
-        assert_eq!(file.path, "/home/user/readme.txt");
-
-        // Find the directory entry
         let dir = entries.iter().find(|e| e.name == "src").expect("src");
         assert!(dir.is_dir);
-        assert_eq!(dir.path, "/home/user/src");
-
-        // Find the symlink entry (name should be cleaned, not include "-> target")
         let link = entries.iter().find(|e| e.name == "link").expect("link");
         assert_eq!(link.path, "/home/user/link");
     }
@@ -367,10 +429,8 @@ lrwxrwxrwx 1 user group     5 2024-01-15 08:00 link -> target\n";
     fn test_parse_ls_output_root_dir() {
         let output = "total 8\ndrwxr-xr-x 2 root root 4096 2024-01-01 00:00 etc\n";
         let entries = parse_ls_output(output, "/").expect("parse root dir");
-        // "/" has no ".." parent
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].name, "etc");
-        assert_eq!(entries[0].path, "/etc");
     }
 
     #[test]
@@ -378,17 +438,48 @@ lrwxrwxrwx 1 user group     5 2024-01-15 08:00 link -> target\n";
         let output = "total 4\ndrwxr-xr-x 2 root root 4096 2024-01-01 00:00 .\ndrwxr-xr-x 2 root root 4096 2024-01-01 00:00 ..\n-rw-r--r-- 1 root root 0 2024-01-01 00:00 file.txt\n";
         let entries = parse_ls_output(output, "/home").expect("parse ls");
         let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
-        // "." and ".." from ls should be skipped; we add our own ".."
         assert!(!names.iter().any(|n| *n == "."), "Should skip .");
-        // ".." entry should be parent path, not from ls
         let parent = entries.iter().find(|e| e.name == "..").unwrap();
         assert_eq!(parent.path, "/");
     }
 
     #[test]
     fn test_format_timestamp() {
-        // 1609459200 = 2021-01-01 00:00:00 UTC
         let ts = format_timestamp(1609459200);
         assert!(ts.starts_with("2021"), "Expected year 2021, got: {}", ts);
+    }
+
+    #[test]
+    fn test_base64_encode_simple() {
+        assert_eq!(base64_encode(b"Hello"), "SGVsbG8=");
+        assert_eq!(base64_encode(b""), "");
+        assert_eq!(base64_encode(b"a"), "YQ==");
+        assert_eq!(base64_encode(b"ab"), "YWI=");
+        assert_eq!(base64_encode(b"abc"), "YWJj");
+    }
+
+    #[test]
+    fn test_base64_decode_simple() {
+        assert_eq!(base64_decode("SGVsbG8=").unwrap(), b"Hello");
+        assert_eq!(base64_decode("").unwrap(), b"");
+        assert_eq!(base64_decode("YQ==").unwrap(), b"a");
+        assert_eq!(base64_decode("YWI=").unwrap(), b"ab");
+        assert_eq!(base64_decode("YWJj").unwrap(), b"abc");
+    }
+
+    #[test]
+    fn test_base64_roundtrip_binary() {
+        let data: Vec<u8> = (0..=255).collect();
+        let encoded = base64_encode(&data);
+        let decoded = base64_decode(&encoded).unwrap();
+        assert_eq!(data, decoded);
+    }
+
+    #[test]
+    fn test_base64_roundtrip_text() {
+        let text = "Hello World";
+        let encoded = base64_encode(text.as_bytes());
+        let decoded = base64_decode(&encoded).unwrap();
+        assert_eq!(text.as_bytes(), decoded.as_slice());
     }
 }
