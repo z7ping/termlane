@@ -29,7 +29,7 @@ import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { SearchAddon } from 'xterm-addon-search'
 import { WebLinksAddon } from 'xterm-addon-web-links'
-import { invoke, listen } from '../utils/tauri.js'
+import { invoke, listen, isTauri } from '../utils/tauri.js'
 import 'xterm/css/xterm.css'
 
 const props = defineProps({ tab: Object, active: Boolean })
@@ -105,11 +105,16 @@ async function initTerminal() {
   const isLocal = !conn || conn.host === 'localhost'
 
   if (isLocal) {
-    showWelcome(term, '本地演示（浏览器模式）')
-    term.write('\r\n\x1b[1;32m$ \x1b[0m')
-    isConnected = true
-    // Fallback: exec mode for browser testing
-    term.onData((data) => handleLocalInput(term, data))
+    if (isTauri) {
+      // Real local shell via portable-pty
+      await startLocalShell(term)
+    } else {
+      // Browser fallback
+      showWelcome(term, '浏览器模式')
+      term.write('\r\n\x1b[1;32m$ \x1b[0m')
+      isConnected = true
+      term.onData((data) => handleLocalInput(term, data))
+    }
   } else {
     await startPtyShell(term, conn)
   }
@@ -170,6 +175,48 @@ function showWelcome(t, mode) {
   t.writeln(`  模式: \x1b[1;33m${mode}\x1b[0m`)
   t.writeln('  快捷键: Ctrl+Shift+F 搜索 | Ctrl+L 清屏 | Ctrl+C 中断')
   t.writeln('')
+}
+
+// ─── Local Shell (real local PTY via portable-pty) ───
+
+async function startLocalShell(t) {
+  t.writeln('\x1b[1;33m启动本地 Shell...\x1b[0m')
+  try {
+    const dims = fitAddon?.proposeDimensions() || { cols: 80, rows: 24 }
+    shellId = await invoke('local_start_shell', { cols: dims.cols, rows: dims.rows })
+    isConnected = true
+    reconnectAttempts = 0
+    t.writeln('\x1b[1;32m✓ 本地 Shell 已启动\x1b[0m')
+    showToast('本地终端已启动', 'success')
+    emit('connected', shellId)
+
+    // Listen for output
+    unlisten = await listen(`local-output:${shellId}`, (event) => {
+      if (term && !term.disposed) {
+        term.write(event.payload)
+      }
+      if (event.payload.includes('[Shell 已退出]')) {
+        isConnected = false
+        emit('disconnected')
+      }
+    })
+
+    // Send input
+    t.onData(async (data) => {
+      lastActivity = Date.now()
+      if (shellId && isConnected) {
+        try { await invoke('local_shell_input', { sessionId: shellId, data }) }
+        catch (err) { console.error('Local input failed:', err) }
+      }
+    })
+  } catch (err) {
+    t.writeln(`\x1b[1;31m✗ 本地 Shell 启动失败: ${err}\x1b[0m`)
+    showToast('本地终端启动失败', 'error')
+    // Fallback
+    t.write('\r\n\x1b[1;32m$ \x1b[0m')
+    isConnected = true
+    term.onData((data) => handleLocalInput(term, data))
+  }
 }
 
 // ─── PTY Shell (real interactive terminal) ───
@@ -366,7 +413,9 @@ onUnmounted(async () => {
   resizeObserver?.disconnect()
   unlisten?.()
   if (shellId) {
+    // Try both SSH and local close
     await invoke('ssh_close_shell', { sessionId: shellId }).catch(() => {})
+    await invoke('local_close_shell', { sessionId: shellId }).catch(() => {})
   }
   splitTerm?.dispose(); term?.dispose()
 })

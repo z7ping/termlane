@@ -17,6 +17,7 @@ aes-gcm = "0.10"
 rand = "0.8"
 dirs = "5"
 crossbeam-channel = "0.5"
+portable-pty = "0.8"
 
 [features]
 default = ["custom-protocol"]

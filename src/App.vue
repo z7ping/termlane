@@ -14,6 +14,7 @@
         @duplicate="onDuplicateConnection"
         @test="onTestConnection"
         @quick-command="onQuickCommand"
+          @favorite="onToggleFavorite"
       />
 
       <div class="flex-1 flex flex-col overflow-hidden bg-gray-900">
@@ -48,6 +49,7 @@
             <ProxyConfig v-if="viewMode === 'proxy'" />
             <QuickCommands v-if="viewMode === 'commands'" @run="onQuickCommand" />
             <PortForward v-if="viewMode === 'forward'" />
+          <ScheduledTasks v-if="viewMode === 'tasks'" />
           </ErrorBoundary>
           <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center text-gray-500">
             <div class="text-center">
@@ -86,6 +88,8 @@ import Bookmarks from './components/Bookmarks.vue'
 import ProxyConfig from './components/ProxyConfig.vue'
 import QuickCommands from './components/QuickCommands.vue'
 import PortForward from './components/PortForward.vue'
+import ScheduledTasks from './components/ScheduledTasks.vue'
+import Settings from './components/Settings.vue'
 import StatusBar from './components/StatusBar.vue'
 import ConnectionDialog from './components/ConnectionDialog.vue'
 import Toast from './components/Toast.vue'
@@ -113,6 +117,7 @@ const viewModes = [
   { value: 'proxy', label: '🌐 代理' },
   { value: 'commands', label: '⚡ 命令' },
   { value: 'forward', label: '🔗 转发' },
+  { value: 'tasks', label: '⏰ 定时' },
 ]
 
 const connections = ref([
@@ -274,9 +279,17 @@ function onQuickCommand(cmd) {
 }
 
 function onBookmarkNav(bm) {
-  // Navigate to bookmarked path in SFTP
   viewMode.value = 'sftp'
   showToast(`跳转到: ${bm.path}`, 'info')
+}
+
+function onToggleFavorite(conn) {
+  const idx = connections.value.findIndex(c => c.id === conn.id)
+  if (idx >= 0) {
+    connections.value[idx].favorite = !connections.value[idx].favorite
+    invoke('save_connection', { conn: connections.value[idx] }).catch(() => {})
+    showToast(connections.value[idx].favorite ? '已收藏' : '已取消收藏', 'success')
+  }
 }
 
 function toggleFullscreen() {

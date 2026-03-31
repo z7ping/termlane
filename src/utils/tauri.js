@@ -96,6 +96,14 @@ export const invoke = isTauri
           return '';
         case 'get_recording_dir':
           return '/tmp/recordings';
+        case 'local_start_shell':
+          return `mock_local_${Date.now()}`;
+        case 'local_shell_input':
+        case 'local_shell_resize':
+        case 'local_close_shell':
+          return null;
+        case 'local_list_shells':
+          return [];
         default:
           throw new Error(`Unknown command: ${cmd}`);
       }

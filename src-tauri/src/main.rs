@@ -1,4 +1,5 @@
 mod config;
+mod local_pty;
 mod sftp;
 mod ssh;
 
@@ -180,6 +181,33 @@ fn read_recording_file(filename: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("读取录制文件失败: {}", e))
 }
 
+// ─── Local PTY Shell ───
+
+#[tauri::command]
+fn local_start_shell(app: tauri::AppHandle, cols: Option<u16>, rows: Option<u16>, shell: Option<String>, cwd: Option<String>) -> Result<String, String> {
+    local_pty::start_local_shell(app, cols.unwrap_or(80), rows.unwrap_or(24), shell.as_deref(), cwd.as_deref())
+}
+
+#[tauri::command]
+fn local_shell_input(session_id: String, data: String) -> Result<(), String> {
+    local_pty::local_input(&session_id, &data)
+}
+
+#[tauri::command]
+fn local_shell_resize(session_id: String, cols: u16, rows: u16) -> Result<(), String> {
+    local_pty::local_resize(&session_id, cols, rows)
+}
+
+#[tauri::command]
+fn local_close_shell(session_id: String) -> Result<(), String> {
+    local_pty::close_local_shell(&session_id)
+}
+
+#[tauri::command]
+fn local_list_shells() -> Vec<String> {
+    local_pty::list_local_shells()
+}
+
 // ─── SFTP ───
 
 #[tauri::command]
@@ -223,6 +251,8 @@ fn main() {
             ssh_connect_jump,
             // PTY Shell
             ssh_start_shell, ssh_shell_input, ssh_shell_resize, ssh_close_shell, ssh_list_shells,
+            // Local PTY Shell
+            local_start_shell, local_shell_input, local_shell_resize, local_close_shell, local_list_shells,
             // Monitoring
             ssh_monitor,
             // TCP Ping
