@@ -172,3 +172,8 @@ npm run dev
 ## License
 
 MIT
+
+## 开发工作流
+- 默认在 dev 分支开发
+- 完成后创建 PR: dev → main
+- 由维护者审核合并
