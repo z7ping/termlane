@@ -72,30 +72,34 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted, inject, defineAsyncComponent } from 'vue'
 import { invoke } from './utils/tauri.js'
+
+// Critical - 首屏必需（同步加载）
 import TitleBar from './components/TitleBar.vue'
 import Sidebar from './components/Sidebar.vue'
 import TabBar from './components/TabBar.vue'
 import TerminalPanel from './components/TerminalPanel.vue'
-import SftpPanel from './components/SftpPanel.vue'
-import BatchCommand from './components/BatchCommand.vue'
-import ConnectionMonitor from './components/ConnectionMonitor.vue'
-import SpeedTest from './components/SpeedTest.vue'
-import SessionRecorder from './components/SessionRecorder.vue'
-import Notes from './components/Notes.vue'
-import Bookmarks from './components/Bookmarks.vue'
-import ProxyConfig from './components/ProxyConfig.vue'
-import QuickCommands from './components/QuickCommands.vue'
-import PortForward from './components/PortForward.vue'
-import ScheduledTasks from './components/ScheduledTasks.vue'
-import Settings from './components/Settings.vue'
 import StatusBar from './components/StatusBar.vue'
-import ConnectionDialog from './components/ConnectionDialog.vue'
 import Toast from './components/Toast.vue'
-import UpdateNotifier from './components/UpdateNotifier.vue'
-import ShortcutHelp from './components/ShortcutHelp.vue'
-import ErrorBoundary from './components/ErrorBoundary.vue'
+
+// Lazy - 按需加载（异步分包）
+const SftpPanel = defineAsyncComponent(() => import('./components/SftpPanel.vue'))
+const BatchCommand = defineAsyncComponent(() => import('./components/BatchCommand.vue'))
+const ConnectionMonitor = defineAsyncComponent(() => import('./components/ConnectionMonitor.vue'))
+const SpeedTest = defineAsyncComponent(() => import('./components/SpeedTest.vue'))
+const SessionRecorder = defineAsyncComponent(() => import('./components/SessionRecorder.vue'))
+const Notes = defineAsyncComponent(() => import('./components/Notes.vue'))
+const Bookmarks = defineAsyncComponent(() => import('./components/Bookmarks.vue'))
+const ProxyConfig = defineAsyncComponent(() => import('./components/ProxyConfig.vue'))
+const QuickCommands = defineAsyncComponent(() => import('./components/QuickCommands.vue'))
+const PortForward = defineAsyncComponent(() => import('./components/PortForward.vue'))
+const ScheduledTasks = defineAsyncComponent(() => import('./components/ScheduledTasks.vue'))
+const Settings = defineAsyncComponent(() => import('./components/Settings.vue'))
+const ConnectionDialog = defineAsyncComponent(() => import('./components/ConnectionDialog.vue'))
+const UpdateNotifier = defineAsyncComponent(() => import('./components/UpdateNotifier.vue'))
+const ShortcutHelp = defineAsyncComponent(() => import('./components/ShortcutHelp.vue'))
+const ErrorBoundary = defineAsyncComponent(() => import('./components/ErrorBoundary.vue'))
 
 const isDark = ref(true)
 const sidebarOpen = ref(true)
@@ -136,6 +140,9 @@ const activeSessionId = computed(() => sessionMap.value[activeTabId.value] || nu
 function showToast(msg, type = 'info') { toastRef.value?.show(msg, type) }
 
 onMounted(async () => {
+  // Mark app as ready to show (prevent FOUC)
+  document.getElementById('app')?.classList.add('ready')
+
   // Restore connections
   try {
     const saved = await invoke('load_connections')
