@@ -3,3 +3,18 @@ dist/
 target/
 .DS_Store
 *.log
+
+# Build artifacts
+*.deb
+*.dmg
+*.msi
+*.rpm
+*.AppImage
+*.exe
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
