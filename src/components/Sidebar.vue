@@ -17,7 +17,7 @@
     <!-- Tree -->
     <div class="flex-1 overflow-y-auto py-1">
       <template v-for="node in tree" :key="node.key">
-        <TreeItem :node="node" :active-id="activeId" :depth="0"
+        <TreeItem :node="node" :active-id="activeId" :depth="0" :latency-map="latencyMap"
           @select="$emit('select', $event)" @toggle="toggleNode" @ctx="onCtxEvent" />
       </template>
       <div v-if="tree.length === 0" class="text-center py-10">
@@ -58,7 +58,7 @@
 <script setup>
 import { computed, reactive, ref, h, defineComponent } from 'vue'
 
-const props = defineProps({ connections: Array, activeId: String })
+const props = defineProps({ connections: Array, activeId: String, latencyMap: { type: Object, default: () => ({}) } })
 const emit = defineEmits(['select', 'add', 'delete', 'quick-command', 'edit', 'duplicate', 'test', 'favorite'])
 
 const searchQuery = ref('')
@@ -158,10 +158,11 @@ function startResize(e) {
 <!-- TreeItem recursive component -->
 <script>
 import { defineComponent, h } from 'vue'
+import { Folder, Monitor, Star, ChevronDown, ChevronRight } from 'lucide-vue-next'
 
 const TreeItem = defineComponent({
   name: 'TreeItem',
-  props: { node: Object, activeId: String, depth: Number },
+  props: { node: Object, activeId: String, depth: Number, latencyMap: { type: Object, default: () => ({}) } },
   emits: ['select', 'toggle', 'ctx'],
   setup(props, { emit }) {
     const indent = props.depth * 16
@@ -174,13 +175,13 @@ const TreeItem = defineComponent({
             class: 'flex items-center gap-1.5 px-2 py-[5px] cursor-pointer hover:bg-white/5 transition-colors group',
             style: { paddingLeft: (8 + indent) + 'px' }
           }, [
-            h('span', { class: `text-[10px] text-gray-600 transition-transform duration-150 ${n.collapsed ? '-rotate-90' : ''}` }, '▼'),
-            h('span', { class: 'text-xs' }, n.icon || '📁'),
+            h('span', { class: 'flex items-center justify-center w-3 h-3 text-gray-600 transition-transform duration-150' }, [n.collapsed ? h(ChevronRight, { size: 12 }) : h(ChevronDown, { size: 12 })]),
+            h('span', { class: 'flex items-center' }, [h(Folder, { size: 14 })]),
             h('span', { class: 'text-xs text-gray-400 truncate flex-1 font-medium' }, n.label),
             h('span', { class: 'text-[10px] text-gray-600 px-1 rounded', style: 'background:#1e1e1e' }, String(n.count)),
           ]),
           ...(n.collapsed ? [] : (n.children || []).map(child =>
-            h(TreeItem, { node: child, activeId: props.activeId, depth: props.depth + 1, onSelect: (c) => emit('select', c), onToggle: (p) => emit('toggle', p), onCtx: (e) => emit('ctx', e) })
+            h(TreeItem, { node: child, activeId: props.activeId, depth: props.depth + 1, latencyMap: props.latencyMap, onSelect: (c) => emit('select', c), onToggle: (p) => emit('toggle', p), onCtx: (e) => emit('ctx', e) })
           ))
         ])
       } else {
@@ -193,10 +194,19 @@ const TreeItem = defineComponent({
           style: { paddingLeft: (12 + indent) + 'px' }
         }, [
           c.color ? h('span', { class: 'w-1.5 h-1.5 rounded-full flex-shrink-0', style: `background:${{ red:'#ef4444', yellow:'#eab308', green:'#22c55e', blue:'#3b82f6', purple:'#a855f7' }[c.color] || '#6b7280'}` }) : null,
-          h('span', { class: 'text-xs' }, c.icon || '🖥️'),
+          h('span', { class: 'flex items-center' }, [h(Monitor, { size: 14 })]),
           h('span', { class: `text-xs truncate flex-1 ${isActive ? 'text-blue-200' : 'text-gray-300'}` }, c.name),
-          c.favorite ? h('span', { class: 'text-[10px]' }, '⭐') : null,
+          c.favorite ? h('span', { class: 'flex items-center' }, [h(Star, { size: 12, fill: '#eab308', color: '#eab308' })]) : null,
           c.host && c.host !== 'localhost' ? h('span', { class: 'text-[10px] text-gray-600 font-mono truncate max-w-[70px]' }, c.host) : null,
+          // Latency indicator
+          (() => {
+            const isLocal = !c.host || c.host === 'localhost' || c.host === '127.0.0.1'
+            if (isLocal) return null
+            const ms = props.latencyMap[c.id]
+            if (ms == null) return h('span', { class: 'text-[10px] font-mono flex-shrink-0 ml-auto', style: 'color: var(--fg-muted)' }, '—')
+            const color = ms < 50 ? 'var(--success)' : ms < 150 ? 'var(--warning)' : 'var(--danger)'
+            return h('span', { class: 'text-[10px] font-mono flex-shrink-0 ml-auto', style: `color: ${color}` }, `${ms}ms`)
+          })(),
         ])
       }
     }

@@ -2,9 +2,9 @@
   <div class="flex flex-col h-full bg-gray-900">
     <!-- Toolbar -->
     <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-2 gap-2">
-      <button @click="createRemoteDir" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50">📁+</button>
-      <button @click="batchDelete" :disabled="!sessionId || selectedRemoteSet.size === 0" class="px-2 py-0.5 text-xs rounded bg-gray-700 text-gray-300 hover:bg-red-600/50 disabled:opacity-50">🗑 {{ selectedRemoteSet.size || '' }}</button>
-      <button @click="refreshRemote" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50">⟳</button>
+      <button @click="createRemoteDir" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 flex items-center gap-1"><FolderPlus :size="14" /></button>
+      <button @click="batchDelete" :disabled="!sessionId || selectedRemoteSet.size === 0" class="px-2 py-0.5 text-xs rounded bg-gray-700 text-gray-300 hover:bg-red-600/50 disabled:opacity-50 flex items-center gap-1"><Trash2 :size="14" /> {{ selectedRemoteSet.size || '' }}</button>
+      <button @click="refreshRemote" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 flex items-center gap-1"><RefreshCw :size="14" /></button>
       <div class="flex-1" />
       <span class="text-xs text-gray-500">{{ selectedRemoteSet.size ? `已选 ${selectedRemoteSet.size} 个` : '' }}</span>
       <span class="text-xs text-gray-500">{{ connection?.name || '未连接' }}</span>
@@ -165,6 +165,7 @@
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { invoke } from '../utils/tauri.js'
 import VirtualList from './VirtualList.vue'
+import { FolderPlus, Trash2, RefreshCw } from 'lucide-vue-next'
 
 const props = defineProps({ connection: Object, sessionId: String, active: Boolean })
 

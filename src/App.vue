@@ -7,6 +7,7 @@
         v-if="sidebarOpen"
         :connections="connections"
         :active-id="activeConnectionId"
+        :latency-map="latencyMap"
         @select="onSelectConnection"
         @add="showAddConnection = true"
         @delete="onDeleteConnection"
@@ -128,6 +129,8 @@ const connections = ref([
   { id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' },
 ])
 
+const latencyMap = ref({})
+
 const tabs = ref([])
 const activeTabId = ref(null)
 const sessionMap = ref({})
@@ -192,6 +195,9 @@ onMounted(async () => {
     if (e.key === 'F11') { toggleFullscreen(); e.preventDefault() }
     if (e.key === '?' && !e.ctrlKey && !e.altKey && !['INPUT','TEXTAREA'].includes(e.target.tagName)) { showShortcuts.value = !showShortcuts.value }
   })
+
+  // Start latency polling
+  startPingPolling()
 })
 
 function saveTabsState() {
@@ -305,4 +311,22 @@ function toggleFullscreen() {
 
 function onSessionConnected(tabId, sid) { sessionMap.value[tabId] = sid; saveTabsState() }
 function onSessionDisconnected(tabId) { delete sessionMap.value[tabId] }
+
+// Latency polling
+async function pingConnections() {
+  const targets = connections.value.filter(c => c.host && c.host !== 'localhost' && c.host !== '127.0.0.1')
+  for (const conn of targets) {
+    try {
+      const ms = await invoke('tcp_ping', { host: conn.host, port: conn.port || 22 })
+      latencyMap.value[conn.id] = ms
+    } catch {
+      latencyMap.value[conn.id] = null
+    }
+  }
+}
+let pingTimer = null
+function startPingPolling() {
+  pingConnections()
+  pingTimer = setInterval(pingConnections, 30000)
+}
 </script>
