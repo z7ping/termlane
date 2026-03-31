@@ -51,6 +51,7 @@
             <QuickCommands v-if="viewMode === 'commands'" @run="onQuickCommand" />
             <PortForward v-if="viewMode === 'forward'" />
           <ScheduledTasks v-if="viewMode === 'tasks'" />
+          <MacroRecorder v-if="viewMode === 'macro'" :session-id="activeSessionId" />
           </ErrorBoundary>
           <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center text-gray-500">
             <div class="text-center">
@@ -97,6 +98,7 @@ const ProxyConfig = defineAsyncComponent(() => import('./components/ProxyConfig.
 const QuickCommands = defineAsyncComponent(() => import('./components/QuickCommands.vue'))
 const PortForward = defineAsyncComponent(() => import('./components/PortForward.vue'))
 const ScheduledTasks = defineAsyncComponent(() => import('./components/ScheduledTasks.vue'))
+const MacroRecorder = defineAsyncComponent(() => import('./components/MacroRecorder.vue'))
 const Settings = defineAsyncComponent(() => import('./components/Settings.vue'))
 const ConnectionDialog = defineAsyncComponent(() => import('./components/ConnectionDialog.vue'))
 const UpdateNotifier = defineAsyncComponent(() => import('./components/UpdateNotifier.vue'))
@@ -125,6 +127,7 @@ const viewModes = [
   { value: 'commands', label: '⚡ 命令' },
   { value: 'forward', label: '🔗 转发' },
   { value: 'tasks', label: '⏰ 定时' },
+  { value: 'macro', label: '🎯 宏' },
 ]
 
 const connections = ref([

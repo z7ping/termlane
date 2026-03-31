@@ -4,6 +4,40 @@ mod sftp;
 mod ssh;
 
 use std::io::{Read, Write};
+use tauri::Manager;
+
+// ─── Window state auto-save helpers ───
+
+fn save_window_state_now(window: &tauri::WebviewWindow) {
+    if let (Ok(pos), Ok(size), Ok(maximized)) = (window.outer_position(), window.outer_size(), window.is_maximized()) {
+        let monitor_name = window.current_monitor().ok().flatten().map(|m| m.name().cloned().unwrap_or_default());
+
+        let _ = config::save_window_state(config::WindowState {
+            x: Some(pos.x),
+            y: Some(pos.y),
+            width: Some(size.width),
+            height: Some(size.height),
+            maximized: Some(maximized),
+            display_id: monitor_name,
+        });
+    }
+}
+
+/// Check if a point is within any of the available monitors
+fn is_position_on_monitor(window: &tauri::WebviewWindow, x: i32, y: i32) -> bool {
+    if let Ok(monitors) = window.available_monitors() {
+        for monitor in &monitors {
+            let pos = monitor.position();
+            let size = monitor.size();
+            if x >= pos.x && x < pos.x + size.width as i32
+                && y >= pos.y && y < pos.y + size.height as i32
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
 
 // ─── Exec-based SSH (legacy) ───
 
@@ -139,7 +173,10 @@ fn keyring_delete_password(conn_id: String) -> Result<(), String> {
 
 #[tauri::command]
 fn save_window_state(x: Option<i32>, y: Option<i32>, width: Option<u32>, height: Option<u32>, maximized: Option<bool>) -> Result<(), String> {
-    config::save_window_state(config::WindowState { x, y, width, height, maximized })
+    config::save_window_state(config::WindowState {
+        x, y, width, height, maximized,
+        display_id: None,
+    })
 }
 
 #[tauri::command]
@@ -245,6 +282,60 @@ fn open_file_dialog() -> Result<String, String> { Err("请在完整Tauri环境�
 
 fn main() {
     tauri::Builder::default()
+        .setup(|app| {
+            let window = app.get_webview_window("main")
+                .expect("failed to get main window");
+
+            // ─── Restore window state on startup ───
+            if let Ok(state) = config::load_window_state() {
+                // Set size first (before position)
+                if let (Some(w), Some(h)) = (state.width, state.height) {
+                    let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+                        width: w,
+                        height: h,
+                    }));
+                }
+
+                // Restore position if it's on a valid monitor
+                if let (Some(x), Some(y)) = (state.x, state.y) {
+                    if is_position_on_monitor(&window, x, y) {
+                        let _ = window.set_position(tauri::Position::Physical(
+                            tauri::PhysicalPosition { x, y },
+                        ));
+                    } else {
+                        // Saved position is outside current monitors, center on primary
+                        let _ = window.center();
+                    }
+                }
+
+                // Restore maximized state last
+                if state.maximized == Some(true) {
+                    let _ = window.maximize();
+                }
+            }
+
+            // ─── Auto-save window state on events ───
+            let win_for_move = window.clone();
+            let win_for_resize = window.clone();
+            let win_for_close = window.clone();
+
+            window.on_window_event(move |event| {
+                match event {
+                    tauri::WindowEvent::Moved(_) => {
+                        save_window_state_now(&win_for_move);
+                    }
+                    tauri::WindowEvent::Resized(_) => {
+                        save_window_state_now(&win_for_resize);
+                    }
+                    tauri::WindowEvent::Destroyed => {
+                        save_window_state_now(&win_for_close);
+                    }
+                    _ => {}
+                }
+            });
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             // SSH
             ssh_connect, ssh_connect_key, ssh_execute, ssh_disconnect, ssh_list_sessions,

@@ -70,6 +70,26 @@
           </div>
         </div>
 
+        <!-- Charts Row -->
+        <div v-if="s.data" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+          <div class="bg-gray-900 rounded p-2">
+            <div class="text-xs text-gray-500 mb-1">CPU 趋势</div>
+            <canvas :ref="el => setChartRef(s.id, 'cpu', el)" height="120"></canvas>
+          </div>
+          <div class="bg-gray-900 rounded p-2">
+            <div class="text-xs text-gray-500 mb-1">内存趋势</div>
+            <canvas :ref="el => setChartRef(s.id, 'memory', el)" height="120"></canvas>
+          </div>
+          <div class="bg-gray-900 rounded p-2">
+            <div class="text-xs text-gray-500 mb-1">磁盘趋势</div>
+            <canvas :ref="el => setChartRef(s.id, 'disk', el)" height="120"></canvas>
+          </div>
+          <div class="bg-gray-900 rounded p-2">
+            <div class="text-xs text-gray-500 mb-1">负载趋势</div>
+            <canvas :ref="el => setChartRef(s.id, 'load', el)" height="120"></canvas>
+          </div>
+        </div>
+
         <!-- No data yet -->
         <div v-else-if="!s.error" class="text-center text-gray-500 text-sm py-4">
           {{ s.loading ? '加载中...' : '点击刷新获取数据' }}
@@ -86,12 +106,132 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { invoke } from '../utils/tauri.js'
+import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler } from 'chart.js'
+
+Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler)
+
+const MAX_HISTORY = 20
 
 const props = defineProps({ connections: Array, activeSessionId: String })
 
 const servers = ref([])
 const autoRefresh = ref(false)
 let refreshTimer = null
+
+// History data: { [serverId]: { cpu: [], memory: [], disk: [], load: [] } }
+const history = {}
+// Chart instances: { [serverId]: { cpu: Chart, memory: Chart, disk: Chart, load: Chart } }
+const chartInstances = {}
+// Canvas refs: { [serverId_key]: HTMLElement }
+const chartRefs = {}
+
+const chartConfigs = {
+  cpu:    { label: 'CPU %',  color: '#22c55e', max: 100 },
+  memory: { label: '内存 %', color: '#3b82f6', max: 100 },
+  disk:   { label: '磁盘 %', color: '#eab308', max: 100 },
+  load:   { label: '负载',   color: '#a855f7', max: null },
+}
+
+function setChartRef(serverId, key, el) {
+  if (!el) return
+  const refKey = `${serverId}_${key}`
+  chartRefs[refKey] = el
+  // If we already have data, try to create chart
+  initChartIfReady(serverId, key)
+}
+
+function initChartIfReady(serverId, key) {
+  const refKey = `${serverId}_${key}`
+  const canvas = chartRefs[refKey]
+  if (!canvas) return
+  if (chartInstances[serverId]?.[key]) return // already created
+
+  const cfg = chartConfigs[key]
+  const data = history[serverId]?.[key] || []
+
+  const labels = data.map((_, i) => i + 1)
+
+  const chart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: [...data],
+        borderColor: cfg.color,
+        backgroundColor: cfg.color + '20',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 0,
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: true },
+      },
+      scales: {
+        x: {
+          display: false,
+        },
+        y: {
+          display: true,
+          min: 0,
+          max: cfg.max || undefined,
+          ticks: { color: '#9ca3af', font: { size: 9 }, maxTicksLimit: 5 },
+          grid: { color: '#374151' },
+          border: { display: false },
+        }
+      }
+    }
+  })
+
+  if (!chartInstances[serverId]) chartInstances[serverId] = {}
+  chartInstances[serverId][key] = chart
+}
+
+function updateChartData(serverId, key, newData) {
+  const chart = chartInstances[serverId]?.[key]
+  if (!chart) return
+  const data = history[serverId][key]
+  chart.data.labels = data.map((_, i) => i + 1)
+  chart.data.datasets[0].data = [...data]
+  chart.update('none')
+}
+
+function pushHistory(serverId, data) {
+  if (!history[serverId]) {
+    history[serverId] = { cpu: [], memory: [], disk: [], load: [] }
+  }
+  const h = history[serverId]
+
+  h.cpu.push(data.cpu_usage)
+  h.memory.push(data.memory_percent)
+  h.disk.push(data.disk_percent)
+  h.load.push(data.load_1)
+
+  // Keep only last MAX_HISTORY
+  for (const key of ['cpu', 'memory', 'disk', 'load']) {
+    if (h[key].length > MAX_HISTORY) h[key].shift()
+  }
+
+  // Update charts
+  for (const key of ['cpu', 'memory', 'disk', 'load']) {
+    initChartIfReady(serverId, key)
+    updateChartData(serverId, key)
+  }
+}
+
+function destroyCharts(serverId) {
+  if (!chartInstances[serverId]) return
+  for (const key of Object.keys(chartInstances[serverId])) {
+    chartInstances[serverId][key]?.destroy()
+  }
+  delete chartInstances[serverId]
+}
 
 function barColor(pct) {
   if (pct > 85) return 'bg-red-500'
@@ -121,6 +261,8 @@ function fmtUptime(secs) {
 async function loadServers() {
   try {
     const conns = await invoke('load_connections')
+    // Destroy old charts before re-creating
+    for (const s of servers.value) destroyCharts(s.id)
     servers.value = (conns || []).map(c => ({
       id: c.id,
       name: c.name,
@@ -136,16 +278,14 @@ async function loadServers() {
 }
 
 async function refreshAll() {
-  // We need an active session to query monitoring data
-  // For each server, try to get monitor data via the active session
-  // In a real implementation, each server would need its own session
   for (const s of servers.value) {
     s.loading = true
     s.error = null
     try {
-      // If we have an active session ID, use it for monitoring
       if (props.activeSessionId) {
         s.data = await invoke('ssh_monitor', { sessionId: props.activeSessionId })
+        // Push to history
+        pushHistory(s.id, s.data)
       } else {
         s.error = '未连接'
       }
@@ -167,5 +307,8 @@ watch(autoRefresh, (on) => {
 })
 
 onMounted(() => loadServers())
-onUnmounted(() => clearInterval(refreshTimer))
+onUnmounted(() => {
+  clearInterval(refreshTimer)
+  for (const s of servers.value) destroyCharts(s.id)
+})
 </script>

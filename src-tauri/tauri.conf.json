@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "XTerminal Pro",
         "width": 1200,
         "height": 800,
