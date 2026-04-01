@@ -1,28 +1,32 @@
 # XTerminal Pro CI/CD
-# 宸ヤ綔娴佺▼锛歞ev 鍒嗘敮寮€ PR 鈫?鍚堝苟鍒?main 鈫?鑷姩鏋勫缓
-# Runner 閰嶇疆锛圙itea Act Runner锛夛細
-#   runner-22796302: linux, x64, desktop, docker, container锛圥odman 瀹瑰櫒鏋勫缓锛?#   runner-22796306: windows, x64, desktop锛堝師鐢?MSVC 鏋勫缓锛?# 瀹瑰櫒闀滃儚锛歺terminal-builder锛堥渶鍦?Runner 瀹夸富鏈洪鏋勫缓锛歱odman build -f Dockerfile.builder -t xterminal-builder .锛?# 榛樿瑙﹀彂锛歝heck (Linux) + Windows .msi
-# 鎵嬪姩瑙﹀彂锛歀inux .deb / macOS .dmg
+# Workflow: PR merge to main -> auto build
+# Runners:
+#   runner-22796302: linux, x64, docker (Podman container build)
+#   runner-22796306: windows, x64 (native MSVC build)
+# Container image: xterminal-builder (build on runner host: podman build -f Dockerfile.builder -t xterminal-builder .)
+# Default: check (Linux) + Windows .msi
+# Manual: Linux .deb / macOS .dmg
 
 name: Build XTerminal Pro
 
 on:
-  # PR 鍚堝苟鍒?main 鏃惰Е鍙戞瀯寤猴紙鎵嬪姩鍚堝苟 鈫?鑷姩鏋勫缓锛?  pull_request:
+  # PR merged to main triggers build
+  pull_request:
     branches: [main]
     types: [closed]
-  # tag 浠嶇劧鐩存帴瑙﹀彂
+  # Tag push triggers build
   push:
     tags: ['v*']
-  # 鎵嬪姩瑙﹀彂
+  # Manual trigger
   workflow_dispatch:
     inputs:
       build_linux:
-        description: '鏋勫缓 Linux .deb'
+        description: 'Build Linux .deb'
         required: false
         type: boolean
         default: false
       build_macos:
-        description: '鏋勫缓 macOS .dmg'
+        description: 'Build macOS .dmg'
         required: false
         type: boolean
         default: false
@@ -32,7 +36,7 @@ env:
   CARGO_BUILD_JOBS: 2
 
 jobs:
-  # ==================== 妫€鏌ワ紙Linux runner + Podman 瀹瑰櫒锛?==================
+  # ==================== Check (Linux runner + Podman container) ====================
   check:
     name: Lint & Test
     runs-on: linux
@@ -67,7 +71,7 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
-  # ==================== Windows .msi锛圵indows runner锛岄粯璁よЕ鍙戯級====================
+  # ==================== Windows .msi (Windows runner, default) ====================
   build-windows:
     name: Windows (.msi)
     runs-on: windows
@@ -113,7 +117,7 @@ jobs:
           path: src-tauri\target\release\bundle\msi\*.msi
           retention-days: 30
 
-  # ==================== Linux .deb锛圠inux runner + Podman锛屾墜鍔ㄨЕ鍙戯級====================
+  # ==================== Linux .deb (Linux runner + Podman, manual) ====================
   build-linux:
     name: Linux (.deb)
     runs-on: linux
@@ -154,7 +158,7 @@ jobs:
           path: src-tauri/target/release/bundle/deb/*.deb
           retention-days: 30
 
-  # ==================== macOS .dmg锛圠inux runner + Podman锛屾墜鍔ㄨЕ鍙戯級====================
+  # ==================== macOS .dmg (Linux runner + Podman, manual) ====================
   build-macos:
     name: macOS (.dmg)
     runs-on: linux
@@ -195,7 +199,7 @@ jobs:
           path: src-tauri/target/release/bundle/dmg/*.dmg
           retention-days: 30
 
-  # ==================== Release锛堜粎 tag 瑙﹀彂锛?==================
+  # ==================== Release (tag only) ====================
   release:
     name: Create Release
     needs: [build-windows, build-linux, build-macos]
@@ -222,7 +226,7 @@ jobs:
             -d "{
               \"tag_name\": \"${TAG}\",
               \"name\": \"XTerminal Pro ${TAG}\",
-              \"body\": \"鑷姩鏋勫缓锛岃闄勪欢涓嬭浇銆俓"
+              \"body\": \"Auto build, see attachments.\"
             }"
 
           RELEASE_ID=$(curl -s \
