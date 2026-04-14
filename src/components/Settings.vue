@@ -193,7 +193,8 @@ watch(() => settings.scrollback, (val) => localStorage.setItem('xterminal-scroll
 watch(() => settings.cursorBlink, (val) => localStorage.setItem('xterminal-cursorBlink', val))
 watch(() => settings.sshTimeout, (val) => localStorage.setItem('xterminal-sshTimeout', val))
 
-const shortcuts = [
+// 默认快捷键
+const defaultShortcuts = [
   { name: '搜索', key: 'Ctrl+Shift+F' },
   { name: '清屏', key: 'Ctrl+L' },
   { name: '中断', key: 'Ctrl+C' },
@@ -202,6 +203,12 @@ const shortcuts = [
   { name: '分屏', key: 'Ctrl+Shift+D' },
   { name: '全屏', key: 'F11' },
 ]
+
+// 从 localStorage 读取快捷键
+const shortcuts = defaultShortcuts.map(s => ({
+  name: s.name,
+  key: localStorage.getItem(`shortcut_${s.name}`) || s.key
+}))
 
 function setTheme(value) {
   currentTheme.value = value
@@ -245,6 +252,10 @@ function saveShortcut() {
   if (editingShortcut.value && newShortcutKey.value) {
     editingShortcut.value.key = newShortcutKey.value
     localStorage.setItem(`shortcut_${editingShortcut.value.name}`, newShortcutKey.value)
+    // 触发自定义事件通知 App.vue
+    window.dispatchEvent(new CustomEvent('shortcut-changed', {
+      detail: { name: editingShortcut.value.name, key: newShortcutKey.value }
+    }))
   }
   editingShortcut.value = null
 }

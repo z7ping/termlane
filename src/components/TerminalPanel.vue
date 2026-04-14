@@ -79,13 +79,38 @@ let idleTimer = null
 let lastActivity = Date.now()
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
-const theme = {
-  background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#aeafad', selection: '#264f78',
-  black: '#000000', red: '#cd3131', green: '#0dbc79', yellow: '#e5e510',
-  blue: '#2472c8', magenta: '#bc3fbc', cyan: '#11a8cd', white: '#e5e5e5',
-  brightBlack: '#666666', brightRed: '#f14c4c', brightGreen: '#23d18b', brightYellow: '#f5f543',
-  brightBlue: '#3b8eea', brightMagenta: '#d670d6', brightCyan: '#29b8db', brightWhite: '#e5e5e5',
+// 主题定义
+const themes = {
+  dark: {
+    background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#aeafad', selection: '#264f78',
+    black: '#000000', red: '#cd3131', green: '#0dbc79', yellow: '#e5e510',
+    blue: '#2472c8', magenta: '#bc3fbc', cyan: '#11a8cd', white: '#e5e5e5',
+    brightBlack: '#666666', brightRed: '#f14c4c', brightGreen: '#23d18b', brightYellow: '#f5f543',
+    brightBlue: '#3b8eea', brightMagenta: '#d670d6', brightCyan: '#29b8db', brightWhite: '#e5e5e5',
+  },
+  light: {
+    background: '#ffffff', foreground: '#3e3e3e', cursor: '#3e3e3e', selection: '#cce0ff',
+    black: '#000000', red: '#cd3131', green: '#0dbc79', yellow: '#e5e510',
+    blue: '#2472c8', magenta: '#bc3fbc', cyan: '#11a8cd', white: '#e5e5e5',
+    brightBlack: '#666666', brightRed: '#f14c4c', brightGreen: '#23d18b', brightYellow: '#f5f543',
+    brightBlue: '#3b8eea', brightMagenta: '#d670d6', brightCyan: '#29b8db', brightWhite: '#e5e5e5',
+  },
+  nord: {
+    background: '#2e3440', foreground: '#d8dee9', cursor: '#d8dee9', selection: '#434c5e',
+    black: '#3b4252', red: '#bf616a', green: '#a3be8c', yellow: '#ebcb8b',
+    blue: '#5e81ac', magenta: '#b48ead', cyan: '#88c0d0', white: '#eceff4',
+    brightBlack: '#4c566a', brightRed: '#bf616a', brightGreen: '#a3be8c', brightYellow: '#ebcb8b',
+    brightBlue: '#81a1c1', brightMagenta: '#b48ead', brightCyan: '#8fbcbb', brightWhite: '#eceff4',
+  },
 }
+
+// 获取当前主题
+function getTheme() {
+  const themeName = localStorage.getItem('xterminal-theme') || 'dark'
+  return themes[themeName] || themes.dark
+}
+
+const theme = ref(getTheme())
 
 function createTerminal(container) {
   const fontSize = parseInt(localStorage.getItem('xterminal-fontSize')) || 14
@@ -93,7 +118,7 @@ function createTerminal(container) {
   const t = new Terminal({
     cursorBlink: true, fontSize,
     fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-    theme, scrollback,
+    theme: theme.value, scrollback,
   })
   const fit = new FitAddon()
   const search = new SearchAddon()
@@ -152,9 +177,36 @@ async function initTerminal() {
     } catch {}
   })
 
+  //获取快捷键
+  const getShortcut = (actionName) => localStorage.getItem(`shortcut_${actionName}`) || {
+    '搜索': 'Ctrl+Shift+F',
+    '清屏': 'Ctrl+L',
+    '中断': 'Ctrl+C',
+  }[actionName]
+  
+  // 解析快捷键
+  const parseShortcut = (keyStr) => {
+    const parts = keyStr.toLowerCase().split('+')
+    const ctrl = parts.includes('ctrl')
+    const alt = parts.includes('alt')
+    const shift = parts.includes('shift')
+    const meta = parts.includes('meta')
+    const key = parts.filter(p => !['ctrl', 'alt', 'shift', 'meta'].includes(p)).pop()?.toUpperCase() || ''
+    return (e) => {
+      if (e.ctrlKey !== ctrl) return false
+      if (e.altKey !== alt) return false
+      if (e.shiftKey !== shift) return false
+      if (e.metaKey !== meta) return false
+      return e.key.toUpperCase() === key
+    }
+  }
+  
+  const searchKey = parseShortcut(getShortcut('搜索'))
+  const clearKey = parseShortcut(getShortcut('清屏'))
+  
   // Keyboard shortcuts
   term.attachCustomKeyEventHandler((e) => {
-    if (e.ctrlKey && e.shiftKey && e.key === 'F') { toggleSearch(); return false }
+    if (searchKey(e)) { toggleSearch(); return false }
     if (e.ctrlKey && e.key === 'c' && term.hasSelection()) {
       // Ctrl+C with selection → copy, not interrupt
       navigator.clipboard.writeText(term.getSelection()).catch(() => {})
@@ -446,11 +498,20 @@ onMounted(() => {
       emit('disconnected')
     }
   }, 60000)
+
+  // 监听主题变化
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'xterminal-theme') {
+      theme.value = getTheme()
+      if (term) term.options.theme = theme.value
+      if (splitTerm) splitTerm.options.theme = theme.value
+    }
+  })
 })
 
 onUnmounted(async () => {
   clearInterval(idleTimer)
-  resizeObserver?.disconnect()
+  resizeObserver?.?.disconnect()
   unlisten?.()
   if (shellId) {
     // Try both SSH and local close

@@ -192,13 +192,41 @@ onMounted(async () => {
     } catch {}
   })
 
-  // Global keyboard shortcuts
+  // Global keyboard shortcuts (支持自定义快捷键)
+  const setupGlobalShortcuts = () => {
+    const handlers = []
+    
+    // 新建标签
+    const newTabKey = parseShortcut(getShortcut('新建标签'))
+    handlers.push((e) => { if (newTabKey(e)) { openLocalTerminal(); e.preventDefault() } })
+    
+    // 关闭标签
+    const closeTabKey = parseShortcut(getShortcut('关闭标签'))
+    handlers.push((e) => { if (closeTabKey(e) && activeTabId.value) { closeTab(activeTabId.value); e.preventDefault() } })
+    
+    // 切换侧边栏
+    const toggleSidebarKey = parseShortcut(getShortcut('切换侧边栏') || 'Ctrl+B')
+    handlers.push((e) => { if (toggleSidebarKey(e)) { sidebarOpen.value = !sidebarOpen.value; e.preventDefault() } })
+    
+    // 全屏
+    const fullscreenKey = parseShortcut(getShortcut('全屏'))
+    handlers.push((e) => { if (fullscreenKey(e)) { toggleFullscreen(); e.preventDefault() } })
+    
+    // 帮助
+    const helpKey = parseShortcut(getShortcut('帮助') || '?')
+    handlers.push((e) => { if (helpKey(e) && !e.ctrlKey && !e.altKey && !['INPUT','TEXTAREA'].includes(e.target.tagName)) { showShortcuts.value = !showShortcuts.value } })
+    
+    return handlers
+  }
+  
+  let shortcutHandlers = setupGlobalShortcuts()
   document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 't') { openLocalTerminal(); e.preventDefault() }
-    if (e.ctrlKey && e.key === 'w' && activeTabId.value) { closeTab(activeTabId.value); e.preventDefault() }
-    if (e.ctrlKey && e.key === 'b') { sidebarOpen.value = !sidebarOpen.value; e.preventDefault() }
-    if (e.key === 'F11') { toggleFullscreen(); e.preventDefault() }
-    if (e.key === '?' && !e.ctrlKey && !e.altKey && !['INPUT','TEXTAREA'].includes(e.target.tagName)) { showShortcuts.value = !showShortcuts.value }
+    shortcutHandlers.forEach(handler => handler(e))
+  })
+  
+  // 监听快捷键变化
+  window.addEventListener('shortcut-changed', () => {
+    shortcutHandlers = setupGlobalShortcuts()
   })
 
   // Start latency polling
@@ -316,6 +344,36 @@ function toggleFullscreen() {
 
 function onSessionConnected(tabId, sid) { sessionMap.value[tabId] = sid; saveTabsState() }
 function onSessionDisconnected(tabId) { delete sessionMap.value[tabId] }
+
+// 快捷键工具函数
+function getShortcut(actionName) {
+  return localStorage.getItem(`shortcut_${actionName}`) || {
+    '搜索': 'Ctrl+Shift+F',
+    '清屏': 'Ctrl+L',
+    '中断': 'Ctrl+C',
+    '新建标签': 'Ctrl+T',
+    '关闭标签': 'Ctrl+W',
+    '分屏': 'Ctrl+Shift+D',
+    '全屏': 'F11',
+  }[actionName]
+}
+
+// 解析快捷键字符串为按键检测函数
+function parseShortcut(keyStr) {
+  const parts = keyStr.toLowerCase().split('+')
+  const ctrl = parts.includes('ctrl')
+  const alt = parts.includes('alt')
+  const shift = parts.includes('shift')
+  const meta = parts.includes('meta')
+  const key = parts.filter(p => !['ctrl', 'alt', 'shift', 'meta'].includes(p)).pop()?.toUpperCase() || ''
+  return (e) => {
+    if (e.ctrlKey !== ctrl) return false
+    if (e.altKey !== alt) return false
+    if (e.shiftKey !== shift) return false
+    if (e.metaKey !== meta) return false
+    return e.key.toUpperCase() === key
+  }
+}
 
 // Latency polling
 async function pingConnections() {

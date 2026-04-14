@@ -199,28 +199,40 @@ const form = reactive({
 })
 
 async function testConnection() {
-  testing.value = true
-  testResult.value = null
-  try {
-    let sid
-    if (form.authType === 'key') {
-      sid = await invoke('ssh_connect_key', {
-        host: form.host, port: form.port, username: form.username,
-        keyPath: form.keyPath, passphrase: form.passphrase,
-      })
-    } else {
-      sid = await invoke('ssh_connect', {
-        host: form.host, port: form.port, username: form.username,
-        password: form.password,
-      })
+    testing.value = true
+    testResult.value = null
+    try {
+      let sid
+      // 如果启用了跳板机，使用 ssh_connect_jump
+      if (form.useJumpHost) {
+        sid = await invoke('ssh_connect_jump', {
+          jumpHost: form.jumpHost,
+          jumpPort: form.jumpPort || 22,
+          jumpUser: form.jumpUsername,
+          jumpPass: form.jumpPassword,
+          targetHost: form.host,
+          targetPort: form.port || 22,
+          targetUser: form.username,
+          targetPass: form.password || '',
+        })
+      } else if (form.authType === 'key') {
+        sid = await invoke('ssh_connect_key', {
+          host: form.host, port: form.port, username: form.username,
+          keyPath: form.keyPath, passphrase: form.passphrase,
+        })
+      } else {
+        sid = await invoke('ssh_connect', {
+          host: form.host, port: form.port, username: form.username,
+          password: form.password,
+        })
+      }
+      testResult.value = { success: true, message: `✓ 连接成功！` }
+      await invoke('ssh_disconnect', { sessionId: sid }).catch(() => {})
+    } catch (err) {
+      testResult.value = { success: false, message: `✗ 连接失败: ${err}` }
+    } finally {
+      testing.value = false
     }
-    testResult.value = { success: true, message: `✓ 连接成功！` }
-    await invoke('ssh_disconnect', { sessionId: sid }).catch(() => {})
-  } catch (err) {
-    testResult.value = { success: false, message: `✗ 连接失败: ${err}` }
-  } finally {
-    testing.value = false
-  }
 }
 
 function save() {
