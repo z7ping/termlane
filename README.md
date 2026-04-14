@@ -24,6 +24,101 @@ npm run dev
 
 ---
 
+## 环境要求
+
+| 工具 | 版本 |
+|------|------|
+| Node.js | ≥18.0.0 |
+| Rust | ≥1.70.0 |
+| npm | ≥9.0.0 |
+
+## 系统依赖
+
+### Ubuntu/Debian
+```bash
+sudo apt install build-essential libssl-dev pkg-config
+```
+
+### macOS
+```bash
+xcode-select --xinstall
+```
+
+### Windows
+安装 Visual Studio Build Tools + Rust
+
+## 安装
+
+### 从源码构建
+```bash
+npm install
+npm run tauri build
+```
+
+### 预构建包
+前往 [Releases](https://github.com/7ping/XTerminal-Pro/releases) 页面下载对应平台的安装包。
+
+## 配置
+
+- **配置文件**：
+  - Linux/macOS：`~/.config/xterminal-pro/`
+  - Windows：`%APPDATA%\xterminal-pro\`
+- **连接配置**：`~/.config/xterminal-pro/connections.json`
+- **凭证存储**：系统密钥链（keyring）
+
+---
+
+## 故障排除
+
+### 连接失败
+- 检查网络连通性：`ping <host>`
+- 确认 SSH 端口（默认 22）开放是否正常
+- 检查用户名密码是否正确
+
+### 密钥认证失败
+- 确保私钥文件权限为 600
+- 检查私钥格式（OpenSSH 格式）
+
+### 编译失败
+- 确保 Rust 工具链已更新：`rustup update`
+- 检查系统依赖是否安装完整
+
+### 应用启动失败
+- 检查配置文件是否损坏，尝试删除 `~/.config/xterminal-pro/` 重新开始
+- 查看应用日志获取详细错误信息
+
+---
+
+## 更新日志
+
+### v2.0.0 (当前)
+- ✅ 完成 33 项核心功能
+- ✅ SSH 密码/密钥/跳板机认证
+- ✅ PTY Shell 持久会话（支持 vim/top/htop）
+- ✅ SFTP 文件管理（上传/下载/编辑/权限）
+- ✅ 连接健康监控 + 速度测试
+- ✅ 会话录制（asciinema v2）
+- ✅ 凭证安全存储（OS 密钥链）
+- ✅ 多级分组 + 标签颜色
+
+---
+
+## 快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| `Ctrl+C` | 复制选中内容（终端内） / 发送中断信号 |
+| `Ctrl+L` | 清空终端屏幕 |
+| `Ctrl+T` | 新建终端标签页 |
+| `Ctrl+W` | 关闭当前标签页 |
+| `Ctrl+F11` | 全屏切换 |
+| `Ctrl+?` | 显示快捷键帮助 |
+| `Ctrl+Shift+F` | 终端内搜索 |
+| `↑/↓` | 命令历史切换 |
+| `右键` | 粘贴剪贴板内容 |
+
+---
+
 ## 功能状态
 
 ### ✅ 已完成（33 项，真实可用）
@@ -138,8 +233,8 @@ npm run dev
 - [x] **虚拟滚动** — SFTP 大目录（>100文件）自动启用 VirtualList
 - [x] **打包** — Linux .deb 构建成功（安装包 4.9MB，二进制 16MB）
 - [x] **启动优化** — 懒加载 18 个组件，24 个异步 chunk，首屏 119KB gzip
-- [ ] **错误边界** — 防止单组件崩溃
-- [ ] **打包** — Linux/Windows/macOS 安装包
+- [x] **错误边界** — 防止单组件崩溃
+- [ ] **打包** — Windows/macOS 安装包
 
 ---
 
