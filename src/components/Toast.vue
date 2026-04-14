@@ -26,9 +26,17 @@ const iconMap = {
   warning: '⚠',
 }
 
-function show(message, type = 'info', duration = 3000) {
+const MAX_TOASTS = 5
+
+function show(message, type = 'info', duration = 2500) {
   const id = Date.now() + Math.random()
   toasts.value.push({ id, message, type })
+  
+  // Limit to 5 toasts max
+  if (toasts.value.length > MAX_TOASTS) {
+    toasts.value = toasts.value.slice(-MAX_TOASTS)
+  }
+  
   setTimeout(() => {
     toasts.value = toasts.value.filter(t => t.id !== id)
   }, duration)

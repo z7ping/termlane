@@ -115,6 +115,30 @@
         </div>
       </section>
 
+      <!-- 快捷键编辑对话框 -->
+      <div v-if="editingShortcut" class="fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.7);" @click.self="editingShortcut = null">
+        <div class="rounded-lg p-6 w-80" style="background: var(--bg-surface); border: 1px solid var(--border);">
+'          <h3 class="text-sm font-medium mb-4" style="color: var(--fg-primary);">编辑快捷键: {{ editingShortcut.name }}</h3>
+          <div class="mb-4">
+            <label class="text-xs block mb-2" style="color: var(--fg-secondary);">按下新的快捷键组合</label>
+            <input
+              ref="shortcutInput"
+              v-model="newShortcutKey"
+              @keydown="captureShortcut"
+              class="w-full px-3 py-2 rounded text-sm font-mono"
+              style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);"
+              placeholder="例如: Ctrl+Shift+K"
+              autocomplete="off"
+            />
+            <p class="text-[10px] mt-2" style="color: var(--fg-muted);">按 Esc 取消，按 Enter 确认</p>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button @click="editingShortcut = null" class="px-3 py-1.5 rounded text-xs" style="background: var(--bg-hover); color: var(--fg-secondary);">取消</button>
+            <button @click="saveShortcut" class="px-3 py-1.5 rounded text-xs" style="background: var(--accent); color: white;">保存</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 代理设置 -->
       <section>
         <h3 class="text-xs uppercase mb-3" style="color: var(--fg-muted);">网络</h3>
@@ -143,7 +167,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, nextTick } from 'vue'
 
 defineEmits(['open-proxy-settings'])
 
@@ -180,7 +204,42 @@ function setTheme(value) {
   settings.darkMode = value !== 'light'
 }
 
+const editingShortcut = ref(null)
+const newShortcutKey = ref('')
+const shortcutInput = ref(null)
+
 function editShortcut(key) {
-  alert(`自定义快捷键功能即将推出\n当前: ${key.name} → ${key.key}`)
+  editingShortcut.value = key
+  newShortcutKey.value = key.key
+  nextTick(() => shortcutInput.value?.focus())
+}
+
+function captureShortcut(e) {
+  e.preventDefault()
+  const modifiers = []
+  if (e.ctrlKey) modifiers.push('Ctrl')
+  if (e.altKey) modifiers.push('Alt')
+  if (e.shiftKey) modifiers.push('Shift')
+  if (e.metaKey) modifiers.push('Meta')
+  
+  // Ignore modifier-only combos
+  if (!modifiers.length && e.key.length > 1) return
+  
+  const keyName = e.key.length === 1 ? e.key.toUpperCase() : e.key
+  newShortcutKey.value = [...modifiers, keyName].join('+')
+  
+  if (e.key === 'Escape') {
+    editingShortcut.value = null
+  } else if (e.key === 'Enter') {
+    saveShortcut()
+  }
+}
+
+function saveShortcut() {
+  if (editingShortcut.value && newShortcutKey.value) {
+    editingShortcut.value.key = newShortcutKey.value
+    localStorage.setItem(`shortcut_${editingShortcut.value.name}`, newShortcutKey.value)
+  }
+  editingShortcut.value = null
 }
 </script>

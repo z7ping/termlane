@@ -2,12 +2,18 @@
   <div class="flex flex-col h-full" v-show="active">
     <!-- Search Bar -->
     <div v-if="showSearch" class="h-8 flex items-center px-2 gap-2" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
-      <input ref="searchInput" v-model="searchTerm" @keydown.enter="searchNext" @keydown.shift.enter="searchPrev" class="flex-1 text-sm px-2 py-1 rounded border focus:outline-none" style="background: var(--bg-base); color: var(--fg-primary); border-color: var(--border);" placeholder="搜索... (Enter下一个, Shift+Enter上一个)" />
+      <input ref="searchInput" v-model="searchTerm" @keydown.enter="searchNext" @keydown.shift.enter="searchPrev" class="flex-1 text-sm px-2 py-1 rounded border focus:outline-none" style="background: var(--bg-base); color: var(--fg-primary); border-color: var(--border););" placeholder="搜索... (Enter下一个, Shift+Enter上一个)" />
       <button @click="closeSearch" style="color: var(--fg-muted);" px-1>✕</button>
     </div>
 
+    <!-- Connection Failed Banner -->
+    <div v-if="connectFailed" class="h-8 flex items-center justify-between px-3" style="background: rgba(220, 38, 38, 0.1); border-bottom: 2px solid var(--danger);">
+      <span class="text-xs font-medium" style="color: var(--danger);">🔴 连接失败</span>
+      <button @click="retryConnection" class="px-3 py-0.5 text-xs rounded" style="background: var(--danger); color: white;">重试</button>
+    </div>
+
     <!-- Terminal Container -->
-    <div class="flex-1 flex overflow-hidden">
+    <div class="flex-1 flex overflow-hidden" :style="connectFailed ? 'border: 2px solid var(--danger);' : ''">
       <div ref="containerRef" class="flex-1 overflow-hidden" :style="splitMode ? { width: splitLeftWidth + '%' } : {}" />
       <div v-if="splitMode" class="w-1 cursor-col-resize hover:bg-blue-500/50 transition-colors flex-shrink-0" @mousedown="startSplitResize" />
       <div v-if="splitMode" ref="splitContainerRef" class="flex-1 overflow-hidden" style="border-left: 1px solid var(--border-subtle);" />
@@ -65,6 +71,7 @@ let searchAddon = null
 let resizeObserver = null
 let shellId = null
 let isConnected = false
+let connectFailed = ref(false)
 let unlisten = null
 let reconnectAttempts = 0
 const MAX_RECONNECT = 3
@@ -107,6 +114,7 @@ async function initTerminal() {
   const isLocal = !conn || conn.host === 'localhost'
 
   if (isLocal) {
+    connectFailed.value = false
     if (isTauri) {
       // Real local shell via portable-pty
       await startLocalShell(term)
@@ -214,10 +222,8 @@ async function startLocalShell(t) {
   } catch (err) {
     t.writeln(`\x1b[1;31m✗ 本地 Shell 启动失败: ${err}\x1b[0m`)
     showToast('本地终端启动失败', 'error')
-    // Fallback
-    t.write('\r\n\x1b[1;32m$ \x1b[0m')
-    isConnected = true
-    term.onData((data) => handleLocalInput(term, data))
+    connectFailed.value = true
+    isConnected = false
   }
 }
 
@@ -287,10 +293,9 @@ async function startPtyShell(t, conn, isReconnect = false) {
   } catch (err) {
     t.writeln(`\x1b[1;31m✗ 连接失败: ${err}\x1b[0m`)
     showToast('连接失败', 'error')
+    connectFailed.value = true
     // Fallback to local mode
-    isConnected = true
-    t.write('\x1b[1;31m$ \x1b[0m')
-    t.onData((data) => handleLocalInput(t, data))
+    isConnected = false
   }
 }
 
@@ -420,6 +425,12 @@ function startSplitResize(e) {
 watch(() => props.active, (active) => {
   if (active && term) setTimeout(() => { fitAddon?.fit(); if (splitMode.value) splitFitAddon?.fit() }, 50)
 })
+
+function retryConnection() {
+  connectFailed.value = false
+  term?.reset()
+  initTerminal()
+}
 
 onMounted(() => {
   initTerminal()

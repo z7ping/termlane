@@ -58,58 +58,8 @@
               </div>
             </div>
 
-            <!-- Step 3: Quick Commands -->
+            <!-- Step 3: Done -->
             <div v-if="current === 2" class="onboarding-step">
-              <div class="onboarding-illustration">
-                <div class="quick-cmd-grid">
-                  <div class="cmd-card" v-for="cmd in quickCommands" :key="cmd.name">
-                    <span class="cmd-icon">{{ cmd.icon }}</span>
-                    <span class="cmd-name">{{ cmd.name }}</span>
-                    <code class="cmd-code">{{ cmd.code }}</code>
-                  </div>
-                </div>
-              </div>
-              <h2 class="onboarding-title">快捷命令</h2>
-              <p class="onboarding-desc">底部工具栏提供常用系统命令快捷入口，一键查看系统负载、磁盘、内存等信息。</p>
-              <div class="cmd-demo-bar">
-                <span v-for="cmd in demoCmds" :key="cmd" class="demo-cmd-item" @click="">{{ cmd }}</span>
-              </div>
-            </div>
-
-            <!-- Step 4: SFTP -->
-            <div v-if="current === 3" class="onboarding-step">
-              <div class="onboarding-illustration">
-                <div class="sftp-preview">
-                  <div class="sftp-toolbar">
-                    <span class="sftp-tab active">📁 文件</span>
-                    <span class="sftp-tab">⌨️ 终端</span>
-                  </div>
-                  <div class="sftp-panels">
-                    <div class="sftp-panel">
-                      <div class="sftp-item folder">📁 /home</div>
-                      <div class="sftp-item folder">📁 /var</div>
-                      <div class="sftp-item file">📄 config.yml</div>
-                      <div class="sftp-item file">📦 backup.tar</div>
-                    </div>
-                    <div class="sftp-divider">⟷</div>
-                    <div class="sftp-panel">
-                      <div class="sftp-item folder">📁 Documents</div>
-                      <div class="sftp-item folder">📁 Downloads</div>
-                      <div class="sftp-item file">📄 notes.txt</div>
-                    </div>
-                  </div>
-                  <div class="sftp-status">
-                    <span>📂 双栏文件管理</span>
-                    <span class="drag-hint">拖拽上传 ↓  拖拽下载 ↑</span>
-                  </div>
-                </div>
-              </div>
-              <h2 class="onboarding-title">SFTP 文件管理</h2>
-              <p class="onboarding-desc">点击顶部视图切换到「文件」模式，双栏文件管理器让上传下载变得轻松直观。支持拖拽、批量操作。</p>
-            </div>
-
-            <!-- Step 5: Done -->
-            <div v-if="current === 4" class="onboarding-step">
               <div class="onboarding-illustration done-illustration">
                 <div class="rocket-burst">🚀</div>
                 <div class="confetti">
@@ -130,10 +80,6 @@
                 <div class="shortcut-row">
                   <kbd>Ctrl+Shift+F</kbd>
                   <span>搜索</span>
-                </div>
-                <div class="shortcut-row">
-                  <kbd>?</kbd>
-                  <span>快捷键帮助</span>
                 </div>
               </div>
             </div>
@@ -165,7 +111,7 @@
               </button>
             </div>
 
-            <button class="btn-skip" @click="skip">跳过引导</button>
+            <button class="btn-skip" @click="skip">稍后提醒</button>
           </div>
         </div>
       </Transition>
@@ -180,21 +126,10 @@ const show = ref(false)
 const current = ref(0)
 
 const steps = [
-  { title: '欢迎' },
-  { title: 'SSH 连接' },
-  { title: '快捷命令' },
-  { title: 'SFTP' },
-  { title: '开始使用' },
+  { title: '欢迎使用 XTerminal Pro' },
+  { title: '添加 SSH 连接' },
+  { title: '一切就绪！' },
 ]
-
-const quickCommands = [
-  { icon: '📊', name: '系统负载', code: 'top' },
-  { icon: '💾', name: '磁盘空间', code: 'df -h' },
-  { icon: '🧠', name: '内存使用', code: 'free -h' },
-  { icon: '🌐', name: '网络连接', code: 'ss -tlnp' },
-]
-
-const demoCmds = ['top', 'df -h', 'free -h', 'uptime', 'ss -tlnp', 'ps aux']
 
 onMounted(() => {
   const onboarded = localStorage.getItem('xterminal_onboarded')
@@ -317,7 +252,7 @@ defineExpose({ show, finish })
 }
 
 /* Step 1: Welcome logo */
-.welcome-illustration {
+.welcome welcome-illustration {
   position: relative;
   width: 160px;
   height: 160px;
@@ -325,7 +260,7 @@ defineExpose({ show, finish })
 }
 
 .logo-glow {
-  font-size: 56px;
+  font: size: 56px;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -449,145 +384,8 @@ defineExpose({ show, finish })
   margin-right: 6px;
 }
 
-/* Step 3: Quick commands */
-.quick-cmd-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  width: 100%;
-  max-width: 380px;
-}
-
-.cmd-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 8px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
-  transition: all var(--transition);
-}
-
-.cmd-icon {
-  font-size: 20px;
-}
-
-.cmd-name {
-  font-size: 12px;
-  color: var(--fg-secondary);
-  font-weight: 500;
-}
-
-.cmd-code {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--accent);
-  background: var(--bg-hover);
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.cmd-demo-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: center;
-  margin-top: 12px;
-}
-
-.demo-cmd-item {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 4px 10px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--fg-secondary);
-  cursor: default;
-  transition: all var(--transition);
-}
-.demo-cmd-item:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* Step 4: SFTP */
-.sftp-preview {
-  width: 100%;
-  max-width: 420px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.sftp-toolbar {
-  display: flex;
-  gap: 4px;
-  padding: 6px 10px;
-  background: var(--bg-hover);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.sftp-tab {
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: var(--radius-sm);
-  color: var(--fg-muted);
-}
-.sftp-tab.active {
-  background: var(--accent);
-  color: white;
-}
-
-.sftp-panels {
-  display: flex;
-  align-items: stretch;
-  min-height: 100px;
-}
-
-.sftp-panel {
-  flex: 1;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.sftp-divider {
-  display: flex;
-  align-items: center;
-  color: var(--fg-muted);
-  font-size: 12px;
-  padding: 0 2px;
-}
-
-.sftp-item {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  color: var(--fg-secondary);
-  background: var(--bg-hover);
-}
-
-.sftp-status {
-  display: flex;
-  justify-content: space-between;
-  padding: 6px 10px;
-  font-size: 10px;
-  color: var(--fg-muted);
-  background: var(--bg-hover);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.drag-hint {
-  font-family: var(--font-mono);
-}
-
-/* Step 5: Done */
-.done-illustration {
+/* Step 3: Done */
+.done done-illustration {
   position: relative;
   height: 120px;
 }
@@ -817,7 +615,7 @@ defineExpose({ show, finish })
   transition: all 350ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .onboarding-scale-leave-active {
-  transition: all 200ms ease-in;
+  transition: all 200 fancubic-bezier(0.55, 0, 1, 0.45);
 }
 .onboarding-scale-enter-from {
   opacity: 0;
