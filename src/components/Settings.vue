@@ -167,7 +167,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, nextTick } from 'vue'
+import { reactive, ref, nextTick, watch } from 'vue'
 
 defineEmits(['open-proxy-settings'])
 
@@ -177,15 +177,21 @@ const themes = [
   { value: 'nord', label: '❄️ Nord' },
 ]
 
-const currentTheme = ref(localStorage.getItem('xterminal_theme') || 'dark')
+const currentTheme = ref(localStorage.getItem('xterminal-theme') || 'dark')
 
 const settings = reactive({
   darkMode: currentTheme.value !== 'light',
-  fontSize: 14,
+  fontSize: parseInt(localStorage.getItem('xterminal-fontSize')) || 14,
   cursorBlink: true,
-  scrollback: 10000,
+  scrollback: parseInt(localStorage.getItem('xterminal-scrollback')) || 10000,
   sshTimeout: 30,
 })
+
+// Watch settings changes and save to localStorage
+watch(() => settings.fontSize, (val) => localStorage.setItem('xterminal-fontSize', val))
+watch(() => settings.scrollback, (val) => localStorage.setItem('xterminal-scrollback', val))
+watch(() => settings.cursorBlink, (val) => localStorage.setItem('xterminal-cursorBlink', val))
+watch(() => settings.sshTimeout, (val) => localStorage.setItem('xterminal-sshTimeout', val))
 
 const shortcuts = [
   { name: '搜索', key: 'Ctrl+Shift+F' },
@@ -200,7 +206,7 @@ const shortcuts = [
 function setTheme(value) {
   currentTheme.value = value
   document.documentElement.setAttribute('data-theme', value)
-  localStorage.setItem('xterminal_theme', value)
+  localStorage.setItem('xterminal-theme', value)
   settings.darkMode = value !== 'light'
 }
 

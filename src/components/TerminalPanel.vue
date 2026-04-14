@@ -88,10 +88,12 @@ const theme = {
 }
 
 function createTerminal(container) {
+  const fontSize = parseInt(localStorage.getItem('xterminal-fontSize')) || 14
+  const scrollback = parseInt(localStorage.getItem('xterminal-scrollback')) || 10000
   const t = new Terminal({
-    cursorBlink: true, fontSize: 14,
+    cursorBlink: true, fontSize,
     fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-    theme, scrollback: 10000,
+    theme, scrollback,
   })
   const fit = new FitAddon()
   const search = new SearchAddon()
