@@ -1,23 +1,23 @@
 <template>
-  <div class="flex flex-col h-full bg-gray-900">
+  <div class="flex flex-col h-full" style="background: var(--bg-base);">
     <!-- Toolbar -->
-    <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-2 gap-2">
-      <button @click="createRemoteDir" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 flex items-center gap-1"><FolderPlus :size="14" /></button>
-      <button @click="batchDelete" :disabled="!sessionId || selectedRemoteSet.size === 0" class="px-2 py-0.5 text-xs rounded bg-gray-700 text-gray-300 hover:bg-red-600/50 disabled:opacity-50 flex items-center gap-1"><Trash2 :size="14" /> {{ selectedRemoteSet.size || '' }}</button>
-      <button @click="refreshRemote" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 flex items-center gap-1"><RefreshCw :size="14" /></button>
+    <div class="h-9 flex items-center px-2 gap-2" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
+      <button @click="createRemoteDir" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded disabled:opacity-50 flex items-center gap-1" style="background: var(--bg-elevated); color:; hover:background: var(--bg-hover);"><FolderPlus :size="14" /></button>
+      <button @click="batchDelete" :disabled="!sessionId || selectedRemoteSet.size === 0" class="px-2 py-0.5 text-xs rounded disabled:opacity-50 flex items-center gap-1" style="background: var(--bg-elevated); color:; hover:background: rgba(220, 38, 38, 0.2);"><Trash2 :size="14" /> {{ selectedRemoteSet.size || '' }}</button>
+      <button @click="refreshRemote" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded disabled:opacity-50 flex items-center gap-1" style="background: var(--bg-elevated); color:; hover:background: var(--bg-hover);"><RefreshCw :size="14" /></button>
       <div class="flex-1" />
-      <span class="text-xs text-gray-500">{{ selectedRemoteSet.size ? `已选 ${selectedRemoteSet.size} 个` : '' }}</span>
-      <span class="text-xs text-gray-500">{{ connection?.name || '未连接' }}</span>
+      <span class="text-xs" style="color: var(--fg-muted);">{{ selectedRemoteSet.size ? `已选 ${selectedRemoteSet.size} 个` : '' }}</span>
+      <span class="text-xs" style="color: var(--fg-muted);">{{ connection?.name || '未连接' }}</span>
     </div>
 
     <!-- SFTP Panels -->
     <div class="flex-1 flex">
       <!-- Local Panel -->
       <div class="flex flex-col overflow-hidden" :style="{ width: localWidth + '%' }">
-        <div class="h-8 bg-gray-800 border-b border-gray-700 flex items-center px-2 gap-1">
-          <span class="text-xs text-green-400">🏠 本地</span>
-          <input v-model="localPath" @keydown.enter="loadLocal" class="flex-1 bg-gray-900 text-xs text-gray-300 px-2 py-0.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500" />
-          <button @click="loadLocal" class="text-xs text-gray-400 hover:text-white">⟳</button>
+        <div class="h-8 flex items-center px-2 gap-1" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
+          <span class="text-xs" style="color: var(--success);">🏠 本地</span>
+          <input v-model="localPath" @keydown.enter="loadLocal" class="flex-1 text-xs px-2 py-0.5 rounded border focus:outline-none" style="background: var(--bg-base); color: var(--fg-secondary); border-color: var(--border);" />
+          <button @click="loadLocal" class="text-xs" style="color: var(--fg-muted);">⟳</button>
         </div>
         <div class="flex-1 overflow-y-auto" @click.self="selectedLocalSet.clear()">
           <!-- Virtual list for large directories -->
@@ -25,10 +25,10 @@
             <template #default="{ item: file }">
               <div @click="onLocalClick($event, file)" @dblclick="onLocalDblClick(file)" @dragstart="onLocalDragStart($event, file)" draggable="true"
                 class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-xs select-none h-full"
-                :class="selectedLocalSet.has(file.path) ? 'bg-blue-600/20 text-blue-300' : ''">
+                :style="selectedLocalSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : ''">
                 <span class="w-4 text-center text-xs">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
-                <span class="flex-1 truncate text-gray-300">{{ file.name }}</span>
-                <span class="text-[10px] text-gray-500 w-14 text-right">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+                <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name.name }}</span>
+                <span class="text-[10px] w-14 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
               </div>
             </template>
           </VirtualList>
@@ -39,11 +39,11 @@
             @dblclick="onLocalDblClick(file)"
             @dragstart="onLocalDragStart($event, file)"
             draggable="true"
-            class="flex items-center gap-2 px-3 py-1 cursor-pointer hover:bg-gray-700 text-sm select-none"
-            :class="selectedLocalSet.has(file.path) ? 'bg-blue-600/20 text-blue-300' : ''">
+            class="flex items-center gap-2 px-3 py-1 cursor-pointer text-sm select-none hover:bg-white/5"
+            :style="selectedLocalSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : ''">
             <span class="w-5 text-center">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
-            <span class="flex-1 truncate text-gray-300">{{ file.name }}</span>
-            <span class="text-xs text-gray-500 w-16 text-right">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+            <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name }}</span>
+            <span class="text-xs w-16 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
           </div>
           </template>
         </div>
@@ -53,12 +53,14 @@
       <div class="w-1 cursor-col-resize hover:bg-blue-500/50 transition-colors flex-shrink-0" @mousedown="startLocalResize" />
 
       <!-- Transfer Buttons -->
-      <div class="w-10 bg-gray-800 flex flex-col items-center justify-center gap-2 border-r border-gray-700">
+      <div class="w-10 flex flex-col items-center justify-center gap-2" style="background: var(--bg-surface); border-right: 1px solid var(--border-subtle);">
         <button @click="doUpload" :disabled="selectedLocalSet.size === 0 && !selectedLocal || !sessionId"
-          class="w-8 h-8 rounded text-lg disabled:opacity-30 bg-blue-600 hover:bg-blue-500 text-white"
+          class="w-8 h-8 rounded text-lg disabled:opacity-30 text-white"
+          style="background: var(--accent); hover:background: var(--accent-hover);"
           :title="selectedLocalSet.size > 1 ? `上传 ${selectedLocalSet.size} 个文件` : '上传'">→</button>
         <button @click="doDownload" :disabled="selectedRemoteSet.size === 0 && !selectedRemote || !sessionId"
-          class="w-8 h-8 rounded text-lg disabled:opacity-30 bg-blue-600 hover:bg-blue-500 text-white"
+          class="w-8 h-8 rounded text-lg disabled:opacity-30 text-white"
+          style="background: var(--accent); hover:background: var(--accent-hover);"
           :title="selectedRemoteSet.size > 1 ? `下载 ${selectedRemoteSet.size} 个文件` : '下载'">←</button>
       </div>
 
@@ -67,11 +69,12 @@
         @dragover.prevent="remoteDragOver = true"
         @dragleave="remoteDragOver = false"
         @drop.prevent="onRemoteDrop"
-        :class="remoteDragOver ? 'ring-2 ring-blue-500/50' : ''">
-        <div class="h-8 bg-gray-800 border-b border-gray-700 flex items-center px-2 gap-1">
-          <span class="text-xs text-blue-400">🌐 远程</span>
-          <input v-model="remotePath" @keydown.enter="loadRemote" class="flex-1 bg-gray-900 text-xs text-gray-300 px-2 py-0.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500" />
-          <button @click="loadRemote" class="text-xs text-gray-400 hover:text-white">⟳</button>
+        :class="remoteDragOver ? 'ring-2' : ''"
+        :style="remoteDragOver ? '--tw-ring-color: var(--accent-hover);' : ''">
+        <div class="h-8 flex items-center px-2 gap-1" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
+          <span class="text-xs" style="color: var(--accent);">🌐 远程</span>
+          <input v-model="remotePath" @keydown.enter="loadRemote" class="flex-1 text-xs px-2 py-0.5 rounded border focus:outline-none" style="background: var(--bg-base); color: var(--fg-secondary); border-color: var(--border);" />
+          <button @click="loadRemote" class="text-xs" style="color: var(--fg-muted);">⟳</button>
         </div>
 
         <!-- Inline Editor (replaces file list when editing) -->
@@ -99,11 +102,11 @@
               <div @click="onRemoteClick($event, file)" @dblclick="onRemoteDblClick(file)" @contextmenu.prevent="showRemoteMenu($event, file)"
                 @dragstart="onRemoteDragStart($event, file)" :draggable="true"
                 class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-xs select-none h-full"
-                :class="selectedRemoteSet.has(file.path) ? 'bg-blue-600/20 text-blue-300' : ''">
+                :style="selectedRemoteSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : ''">
                 <span class="w-4 text-center text-xs">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
-                <span class="flex-1 truncate text-gray-300">{{ file.name }}</span>
-                <span class="text-[10px] text-gray-500 w-14 text-right">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
-                <span class="text-[10px] text-gray-600 w-16 text-right">{{ file.permissions || '' }}</span>
+                <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name }}</span>
+                <span class="text-[10px] w-14 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+                <span class="text-[10px] w-16 text-right" style="color: var(--fg-muted);">{{ file.permissions || '' }}</span>
               </div>
             </template>
           </VirtualList>
@@ -118,48 +121,48 @@
             @dragleave="file._dragOver = false"
             @drop.prevent.stop="onRemoteDirDrop($event, file)"
             :draggable="true"
-            class="flex items-center gap-2 px-3 py-1 cursor-pointer hover:bg-gray-700 text-sm select-none"
-            :class="[
-              selectedRemoteSet.has(file.path) ? 'bg-blue-600/20 text-blue-300' : '',
-              file._dragOver && file.is_dir ? 'bg-blue-500/20 ring-1 ring-blue-400' : ''
+            class="flex items-center gap-2 px-3 py-1 cursor-pointer text-sm select-none hover:bg-white/5"
+            :style="[
+              selectedRemoteSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : '',
+              file._dragOver && file.is_dir ? 'background: var(--accent-hover); --tw-ring-color: var(--accent);' : ''
             ]">
             <span class="w-5 text-center">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
-            <span class="flex-1 truncate text-gray-300">{{ file.name }}</span>
-            <span class="text-xs text-gray-500 w-16 text-right">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
-            <span class="text-xs text-gray-600 w-20 text-right">{{ file.permissions || '' }}</span>
+            <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name }}</span>
+            <span class="text-xs w-16 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+            <span class="text-xs w-20 text-right" style="color: var(--fg-muted);">{{ file.permissions || '' }}</span>
           </div>
-          <div v-if="remoteFiles.length === 0" class="p-4 text-center text-gray-500 text-sm">{{ sessionId ? '空目录' : '未连接' }}</div>
+          <div v-if="remoteFiles.length === 0" class="p-4 text-center text-sm" style="color: var(--fg-muted);">{{ sessionId ? '空目录' : '未连接' }}</div>
           </template>
         </div>
       </div>
     </div>
 
     <!-- Transfer Queue -->
-    <div v-if="transfers.length > 0" class="h-20 border-t border-gray-700 overflow-y-auto" style="background: #1a1a1a;">
-      <div class="px-2 py-1 text-xs text-gray-500 border-b border-gray-700 flex items-center justify-between">
+    <div v-if="transfers.length > 0" class="h-20 overflow-y-auto" style="background: var(--bg-base); border-top: 1px solid var(--border-subtle);">
+      <div class="px-2 py-1 text-xs flex items-center justify-between" style="color: var(--fg-muted); border-bottom: 1px solid var(--border-subtle);">
         <span>传输队列 ({{ transfers.filter(t => t.status === 'pending').length }} 进行中)</span>
-        <button @click="transfers = transfers.filter(t => t.status === 'pending')" class="text-gray-500 hover:text-white">清除已完成</button>
+        <button @click="transfers = transfers.filter(t => t.status === 'pending')" style="color: var(--fg-muted);">清除已完成</button>
       </div>
       <div v-for="t in transfers" :key="t.id" class="px-2 py-1 flex items-center gap-2 text-xs">
-        <span :class="t.status === 'done' ? 'text-green-400' : t.status === 'error' ? 'text-red-400' : 'text-yellow-400'">
+        <span :style="t.status === 'done' ? 'color: var(--success);' : t.status === 'error' ? 'color: var(--danger);' : 'color: var(--warning);'">
           {{ t.status === 'done' ? '✓' : t.status === 'error' ? '✗' : '⏳' }}
         </span>
-        <span class="flex-1 truncate text-gray-300">{{ t.label }}</span>
-        <span v-if="t.status === 'pending'" class="text-gray-500">{{ t.progress || '' }}</span>
-        <button v-if="t.status !== 'pending'" @click="transfers = transfers.filter(x => x.id !== t.id)" class="text-gray-500 hover:text-white">✕</button>
+        <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ t.label }}</span>
+        <span v-if="t.status === 'pending'" style="color: var(--fg-muted);">{{ t.progress || '' }}</span>
+        <button v-if="t.status !== 'pending'" @click="transfers = transfers.filter(x => x.id !== t.id)" style="color: var(--fg-muted);">✕</button>
       </div>
     </div>
 
     <!-- Context Menu -->
-    <div v-if="ctxMenu.show" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }" class="fixed bg-gray-800 border border-gray-600 rounded shadow-lg z-50 py-1 text-xs min-w-[140px]" @click.stop>
-      <div @click="ctxEdit" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-gray-300">📝 在线编辑</div>
-      <div @click="ctxRename" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-gray-300">✏️ 重命名</div>
-      <div @click="ctxDownload" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-gray-300">📥 下载</div>
-      <div class="border-t border-gray-700 my-1" />
-      <div @click="ctxChmod" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-gray-300">🔒 修改权限</div>
-      <div @click="ctxCopyPath" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-gray-300">📋 复制路径</div>
-      <div class="border-t border-gray-700 my-1" />
-      <div @click="ctxDelete" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-red-400">🗑 删除</div>
+    <div v-if="ctxMenu.show" :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }" class="fixed rounded shadow-lg z-50 py-1 text-xs min-w-[140px]" style="background: var(--bg-surface); border: 1px solid var(--border);" @click.stop>
+      <div @click="ctxEdit" class="px-4 py-1.5 cursor-pointer" style="color: var(--fg-secondary); hover:background: var(--bg-hover);">📝 在线编辑</div>
+      <div @click="ctxRename" class="px-4 py-1.5 cursor-pointer" style="color: var(--fg-secondary); hover:background: var(--bg-hover);">✏️ 重命名</div>
+      <div @click="ctxDownload" class="px-4 py-1.5 cursor-pointer" style="color: var(--fg-secondary); hover:background: var(--bg-hover);">📥 下载</div>
+      <div class="my-1" style="border-top: 1px solid var(--border);" />
+      <div @click="ctxChmod" class="px-4 py-1.5 cursor-pointer" style="color: var(--fg-secondary); hover:background: var(--bg-hover);">🔒 修改权限</div>
+      <div @click="ctxCopyPath" class="px-4 py-1.5 cursor-pointer" style="color: var(--fg-secondary); hover:background: var(--bg-hover);">📋 复制路径</div>
+      <div class="my-1" style="border-top: 1px solid var(--border);" />
+      <div @click="ctxDelete" class="px-4 py-1.5 cursor-pointer" style="color: var(--danger); hover:background: var(--bg-hover);">🗑 删除</div>
     </div>
 
   </div>

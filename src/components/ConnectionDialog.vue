@@ -5,36 +5,36 @@
     <div class="rounded-xl w-[480px] max-h-[90vh] overflow-y-auto shadow-2xl" style="background: var(--bg-elevated); border: 1px solid var(--border);">
       <div class="p-4 flex items-center justify-between" style="border-bottom: 1px solid var(--border-subtle);">
         <h3 class="text-sm font-semibold" style="color: var(--fg-primary);">{{ editing ? '编辑连接' : '新建连接' }}</h3>
-        <button @click="$emit('close')" class="text-gray-400 hover:text-white">✕</button>
+        <button @click="$emit('close')" style="color: var(--fg-muted);">✕</button>
       </div>
 
       <div class="p-4 space-y-3">
         <!-- 基本信息 -->
-        <div class="text-xs text-gray-500 uppercase mb-1">基本信息</div>
+        <div class="text-xs uppercase mb-1" style="color: var(--fg-muted);">基本信息</div>
 
         <div>
-          <label class="text-xs text-gray-400 block mb-1">名称</label>
-          <input v-model="form.name" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="生产服务器" />
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">名称</label>
+          <input v-model="form.name" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="生产服务器" />
         </div>
 
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="text-xs text-gray-400 block mb-1">主机</label>
-            <input v-model="form.host" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="192.168.1.1" />
+            <label class="text-xs block mb-1" style="color: var(--fg-secondary);">主机</label>
+            <input v-model="form.host" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="192.168.1.1" />
           </div>
           <div class="w-20">
-            <label class="text-xs text-gray-400 block mb-1">端口</label>
-            <input v-model.number="form.port" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" />
+            <label class="text-xs block mb-1" style="color: var(--fg-secondary);">端口</label>
+            <input v-model.number="form.port" type="number" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" />
           </div>
         </div>
 
         <div>
-          <label class="text-xs text-gray-400 block mb-1">用户名</label>
-          <input v-model="form.username" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="root" />
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">用户名</label>
+          <input v-model="form.username" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="root" />
         </div>
 
         <!-- 认证 -->
-        <div class="text-xs text-gray-500 uppercase mb-1 mt-4">认证</div>
+        <div class="text-xs uppercase mb-1 mt-4" style="color: var(--fg-muted);">认证</div>
 
         <div class="flex gap-2">
           <button
@@ -42,39 +42,40 @@
             :key="auth.value"
             @click="form.authType = auth.value"
             class="flex-1 px-3 py-1.5 text-sm rounded border"
-            :class="form.authType === auth.value ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'border-gray-600 text-gray-400 hover:border-gray-500'"
+            :style="form.authType === auth.value ? 'background: var(--accent-hover); border-color: var(--accent); color: var(--accent);' : 'background: var(--bg-elevated); border-color: var(--border); color: var(--fg-muted);'"
+            class="flex-1 px-3 py-1.5 text-sm rounded border"
           >{{ auth.label }}</button>
         </div>
 
         <div v-if="form.authType === 'password'">
-          <label class="text-xs text-gray-400 block mb-1">密码</label>
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">密码</label>
           <div class="relative">
-            <input v-model="form.password" :type="showPassword ? 'text' : 'password'" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 pr-8" />
-            <button @click="showPassword = !showPassword" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 text-xs">{{ showPassword ? '🙈' : '👁️' }}</button>
+            <input v-model="form.password" :type="showPassword ? 'text' : 'password'" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none pr-8" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" />
+            <button @click="showPassword = !showPassword" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs" style="color: var(--fg-muted);">{{ showPassword ? '🙈' : '👁️' }}</button>
           </div>
         </div>
 
         <div v-if="form.authType === 'key'">
-          <label class="text-xs text-gray-400 block mb-1">密钥路径</label>
-          <input v-model="form.keyPath" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="~/.ssh/id_rsa" />
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">密钥路径</label>
+          <input v-model="form.keyPath" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="~/.ssh/id_rsa" />
         </div>
         <div v-if="form.authType === 'key'">
-          <label class="text-xs text-gray-400 block mb-1">密钥密码（可选）</label>
-          <input v-model="form.passphrase" type="password" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" />
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">密钥密码（可选）</label>
+          <input v-model="form.passphrase" type="password" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" />
         </div>
 
         <!-- 代理跳板 -->
-        <div class="text-xs text-gray-500 uppercase mb-1 mt-4">代理跳板（可选）</div>
+        <div class="text-xs uppercase mb-1 mt-4" style="color: var(--fg-muted);">代理跳板（可选）</div>
 
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-sm text-gray-200">启用跳板机</div>
-            <div class="text-xs text-gray-500">通过中间服务器连接</div>
+            <div class="text-sm" style="color: var(--fg-primary);">启用跳板机</div>
+            <div class="text-xs" style="color: var(--fg-muted);">通过中间服务器连接</div>
           </div>
           <button
             @click="form.useJumpHost = !form.useJumpHost"
             class="w-10 h-5 rounded-full relative transition-colors"
-            :class="form.useJumpHost ? 'bg-blue-600' : 'bg-gray-600'"
+            :style="form.useJumpHost ? 'background: var(--accent);' : 'background: var(--border);'"
           >
             <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" :class="form.useJumpHost ? 'left-5' : 'left-0.5'" />
           </button>
@@ -83,29 +84,29 @@
         <template v-if="form.useJumpHost">
           <div class="flex gap-2">
             <div class="flex-1">
-              <label class="text-xs text-gray-400 block mb-1">跳板机主机</label>
-              <input v-model="form.jumpHost" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="jump.example.com" />
+              <label class="text-xs block mb-1" style="color: var(--fg-secondary);">跳板机主机</label>
+              <input v-model="form.jumpHost" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="jump.example.com" />
             </div>
             <div class="w-20">
-              <label class="text-xs text-gray-400 block mb-1">端口</label>
-              <input v-model.number="form.jumpPort" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" />
+              <label class="text-xs block mb-1" style="color: var(--fg-secondary);">端口</label>
+              <input v-model.number="form.jumpPort" type="number" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" />
             </div>
           </div>
           <div>
-            <label class="text-xs text-gray-400 block mb-1">跳板机用户名</label>
-            <input v-model="form.jumpUsername" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="root" />
+            <label class="text-xs block mb-1" style="color: var(--fg-secondary);">跳板机用户名</label>
+            <input v-model="form.jumpUsername" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="root" />
           </div>
           <div>
-            <label class="text-xs text-gray-400 block mb-1">跳板机密码</label>
-            <input v-model="form.jumpPassword" type="password" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" />
+            <label class="text-xs block mb-1" style="color: var(--fg-secondary);">跳板机密码</label>
+            <input v-model="form.jumpPassword" type="password" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" />
           </div>
         </template>
 
         <!-- 分组 + 标签颜色 -->
-        <div class="text-xs text-gray-500 uppercase mb-1 mt-4">分组 & 标签</div>
+        <div class="text-xs uppercase mb-1 mt-4" style="color: var(--fg-muted);">分组 & 标签</div>
         <div class="flex gap-2">
-          <input v-model="form.group" class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="默认" />
-          <select v-model="form.icon" class="bg-gray-900 border border-gray-600 rounded px-2 text-sm">
+          <input v-model="form.group" class="flex-1 rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="默认" />
+          <select v-model="form.icon" class="rounded px-2 text-sm" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);">
             <option value="🖥️">🖥️</option>
             <option value="☁️">☁️</option>
             <option value="🏠">🏠</option>
@@ -123,8 +124,8 @@
           </div>
         </div>
         <div>
-          <label class="text-xs text-gray-400 block mb-1">标签（逗号分隔）</label>
-          <input v-model="tagsInput" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="生产, Web, 数据库" />
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">标签（逗号分隔）</label>
+          <input v-model="tagsInput" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="生产, Web, 数据库" />
         </div>
       </div>
 
@@ -135,13 +136,13 @@
         </div>
       </div>
 
-      <div class="p-4 border-t border-gray-700 flex justify-between">
-        <button @click="testConnection" :disabled="testing || !form.host || !form.username" class="px-4 py-1.5 text-sm text-gray-400 hover:text-white disabled:opacity-50">
+      <div class="p-4 flex justify-between" style="border-top: 1px solid var(--border-subtle);">
+        <button @click="testConnection" :disabled="testing || !form.host || !form.username" class="px-4 py-1.5 text-sm disabled:opacity-50" style="color: var(--fg-muted);">
           {{ testing ? '测试中...' : '🔗 测试连接' }}
         </button>
         <div class="flex gap-2">
-          <button @click="$emit('close')" class="px-4 py-1.5 text-sm text-gray-400 hover:text-white">取消</button>
-          <button @click="save" :disabled="!form.name || !form.host || !form.username" class="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 rounded text-white disabled:opacity-50">保存</button>
+          <button @click="$emit('close')" class="px-4 py-1.5 text-sm" style="color: var(--fg-muted);">取消</button>
+          <button @click="save" :disabled="!form.name || !form.host || !form.username" class="px-4 py-1.5 text-sm rounded text-white disabled:opacity-50" style="background: var(--accent);">保存</button>
         </div>
       </div>
     </div>

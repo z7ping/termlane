@@ -1,22 +1,22 @@
 <template>
   <div class="flex flex-col h-full" v-show="active">
     <!-- Search Bar -->
-    <div v-if="showSearch" class="h-8 bg-gray-800 border-b border-gray-700 flex items-center px-2 gap-2">
-      <input ref="searchInput" v-model="searchTerm" @keydown.enter="searchNext" @keydown.shift.enter="searchPrev" class="flex-1 bg-gray-900 text-sm text-gray-200 px-2 py-1 rounded border border-gray-600 focus:outline-none focus:border-blue-500" placeholder="搜索... (Enter下一个, Shift+Enter上一个)" />
-      <button @click="closeSearch" class="text-gray-400 hover:text-white px-1">✕</button>
+    <div v-if="showSearch" class="h-8 flex items-center px-2 gap-2" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
+      <input ref="searchInput" v-model="searchTerm" @keydown.enter="searchNext" @keydown.shift.enter="searchPrev" class="flex-1 text-sm px-2 py-1 rounded border focus:outline-none" style="background: var(--bg-base); color: var(--fg-primary); border-color: var(--border);" placeholder="搜索... (Enter下一个, Shift+Enter上一个)" />
+      <button @click="closeSearch" style="color: var(--fg-muted);" px-1>✕</button>
     </div>
 
     <!-- Terminal Container -->
     <div class="flex-1 flex overflow-hidden">
       <div ref="containerRef" class="flex-1 overflow-hidden" :style="splitMode ? { width: splitLeftWidth + '%' } : {}" />
       <div v-if="splitMode" class="w-1 cursor-col-resize hover:bg-blue-500/50 transition-colors flex-shrink-0" @mousedown="startSplitResize" />
-      <div v-if="splitMode" ref="splitContainerRef" class="flex-1 overflow-hidden border-l border-gray-700" />
+      <div v-if="splitMode" ref="splitContainerRef" class="flex-1 overflow-hidden" style="border-left: 1px solid var(--border-subtle);" />
     </div>
 
     <!-- Quick Actions -->
     <div v-if="active" class="absolute bottom-8 right-2 flex gap-1 z-10">
-      <button @click="toggleSearch" class="w-7 h-7 bg-gray-700 hover:bg-gray-600 rounded text-xs text-gray-300 flex items-center justify-center" title="搜索 (Ctrl+Shift+F)">🔍</button>
-      <button @click="toggleSplit" class="w-7 h-7 rounded text-xs flex items-center justify-center" :class="splitMode ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'" title="分屏">⊞</button>
+      <button @click="toggleSearch" class="w-7 h-7 rounded text-xs flex items-center justify-center" style="background: var(--bg-elevated); color: var(--fg-secondary); hover:background: var(--bg-hover);" title="搜索 (Ctrl+Shift+F)">🔍</button>
+      <button @click="toggleSplit" class="w-7 h-7 rounded text-xs flex items-center justify-center" :style="splitMode ? 'background: var(--accent); color: white;' : 'background: var(--bg-elevated); color: var(--fg-secondary); hover:background: var(--bg-hover);'" title="分屏">⊞</button>
     </div>
 
     <!-- Toast -->
