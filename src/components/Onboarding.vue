@@ -252,7 +252,7 @@ defineExpose({ show, finish })
 }
 
 /* Step 1: Welcome logo */
-.welcome welcome-illustration {
+.welcome-illustration {
   position: relative;
   width: 160px;
   height: 160px;
@@ -260,7 +260,7 @@ defineExpose({ show, finish })
 }
 
 .logo-glow {
-  font: size: 56px;
+  font-size: 56px;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -385,7 +385,7 @@ defineExpose({ show, finish })
 }
 
 /* Step 3: Done */
-.done done-illustration {
+.done-illustration {
   position: relative;
   height: 120px;
 }
@@ -615,7 +615,7 @@ defineExpose({ show, finish })
   transition: all 350ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .onboarding-scale-leave-active {
-  transition: all 200 fancubic-bezier(0.55, 0, 1, 0.45);
+  transition: all 200ms cubic-bezier(0.55, 0, 1, 0.45);
 }
 .onboarding-scale-enter-from {
   opacity: 0;

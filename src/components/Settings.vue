@@ -118,7 +118,7 @@
       <!-- 快捷键编辑对话框 -->
       <div v-if="editingShortcut" class="fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.7);" @click.self="editingShortcut = null">
         <div class="rounded-lg p-6 w-80" style="background: var(--bg-surface); border: 1px solid var(--border);">
-'          <h3 class="text-sm font-medium mb-4" style="color: var(--fg-primary);">编辑快捷键: {{ editingShortcut.name }}</h3>
+'          <h3 class="text-sm font-medium mb-4" style="color: var(--fg-primary);">编辑快捷键: {{ editingShortcut?.name }}</h3>
           <div class="mb-4">
             <label class="text-xs block mb-2" style="color: var(--fg-secondary);">按下新的快捷键组合</label>
             <input
