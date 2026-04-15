@@ -43,7 +43,6 @@
             @click="form.authType = auth.value"
             class="flex-1 px-3 py-1.5 text-sm rounded border"
             :style="form.authType === auth.value ? 'background: var(--accent-hover); border-color: var(--accent); color: var(--accent);' : 'background: var(--bg-elevated); border-color: var(--border); color: var(--fg-muted);'"
-            class="flex-1 px-3 py-1.5 text-sm rounded border"
           >{{ auth.label }}</button>
         </div>
 

@@ -511,7 +511,7 @@ onMounted(() => {
 
 onUnmounted(async () => {
   clearInterval(idleTimer)
-  resizeObserver?.?.disconnect()
+  resizeObserver?.disconnect()
   unlisten?.()
   if (shellId) {
     // Try both SSH and local close
