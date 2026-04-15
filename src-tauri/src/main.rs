@@ -2,6 +2,7 @@ mod config;
 mod local_pty;
 mod sftp;
 mod ssh;
+mod updater;
 
 use std::io::{Read, Write};
 use tauri::Manager;
@@ -360,6 +361,8 @@ fn main() {
             // SFTP
             sftp_list_local, sftp_list_remote, sftp_upload, sftp_download,
             sftp_rename, sftp_delete, sftp_mkdir, sftp_chmod, sftp_read_file, sftp_write_file,
+            // Updater
+            updater::check_update,
             // Misc
             open_file_dialog,
         ])

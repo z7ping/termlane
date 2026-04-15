@@ -37,6 +37,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 
 const showUpdate = ref(false)
 const currentVersion = ref('0.1.0')
@@ -45,28 +46,30 @@ const releaseNotes = ref([])
 const downloading = ref(false)
 const downloadProgress = ref(0)
 
-// Check for updates
+// Check for updates via Tauri backend (bypasses CORS)
 async function checkForUpdates() {
   try {
-    // In production, this would fetch from your update server
-    // For now, simulate checking Gitea releases
-    const response = await fetch('https://gitea.7ping.site/api/v1/repos/ai-area/xterminal-pro/releases/latest', {
-      headers: { 'Accept': 'application/json' },
-    }).catch(() => null)
+    // Optional: skip update check in development
+    if (import.meta.env.DEV) {
+      console.log('Development mode: skipping update check')
+      return
+    }
 
-    if (response && response.ok) {
-      const release = await response.json()
-      const latestVersion = release.tag_name?.replace('v', '') || ''
+    const updateInfo = await invoke('check_update', { currentVersion: currentVersion.value })
 
-      if (latestVersion && latestVersion !== currentVersion.value) {
-        newVersion.value = latestVersion
-        releaseNotes.value = (release.body || '无更新说明').split('\n').filter(l => l.trim())
-        showUpdate.value = true
-      }
+    if (updateInfo) {
+      // Has new update
+      newVersion.value = updateInfo.version
+      releaseNotes.value = updateInfo.body.split('\n').filter(l => l.trim())
+      showUpdate.value = true
+      console.log(`发现新版本: v${updateInfo.version}`)
+    } else {
+      // No update or no release - silent
+      console.log('Already on latest version or no release available')
     }
   } catch (err) {
     // Silent fail - don't bother user if update check fails
-    // Update check failed silently
+    console.warn('Update check failed:', err)
   }
 }
 
