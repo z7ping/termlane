@@ -23,11 +23,11 @@
           <!-- Virtual list for large directories -->
           <VirtualList v-if="localVirtual" :items="localFiles" :item-height="28" :height="400">
             <template #default="{ item: file }">
-              <div @click="onLocalClick($event, file)" @dblclick="onLocalDblClick(file)" @dragstart="onLocalDragStart($event, file)" draggable="true"
+              <div @click="onLocalClick($event, file)" @dblclick="onLocalDblClick(file)" @dragEvent="onLocalDragStart($event, file)" draggable="true"
                 class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-xs select-none h-full"
                 :style="selectedLocalSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : ''">
                 <span class="w-4 text-center text-xs">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
-                <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name.name }}</span>
+                <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name }}</span>
                 <span class="text-[10px] w-14 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
               </div>
             </template>

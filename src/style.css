@@ -14,12 +14,14 @@
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 14px;
 }
 
 * {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 1rem;
 }
 
 code, pre, .font-mono, input[placeholder*="命令"], textarea {

@@ -268,17 +268,29 @@ function closeAllTabs() { [...tabs.value].forEach(t => closeTab(t.id)) }
 
 function openLocalTerminal() { const local = connections.value.find(c => c.id === 'local'); if (local) onSelectConnection(local) }
 
-function onSaveConnection(conn) {
+async function onSaveConnection(conn) {
   const newConn = editingConnection.value ? { ...editingConnection.value, ...conn } : { ...conn, id: `conn_${Date.now()}` }
-  if (editingConnection.value) {
-    const idx = connections.value.findIndex(c => c.id === editingConnection.value.id)
-    if (idx >= 0) connections.value[idx] = newConn
-  } else {
-    connections.value.push(newConn)
+  try {
+    // Save password to keyring if using password auth
+    if (conn.authType === 'password' && conn.password) {
+      await invoke('keyring_save_password', { connId: newConn.id, password: conn.password })
+    }
+    // Save connection config (without password in JSON)
+    await invoke('save_connection', { conn: newConn })
+    
+    // Reload connections from storage to ensure sync
+    const saved = await invoke('load_connections')
+    if (saved?.length > 0) {
+      const localExists = saved.some(c => c.id === 'local')
+      connections.value = localExists ? saved : [{ id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' }, ...saved]
+    }
+    
+    showAddConnection.value = false
+    editingConnection.value = null
+    showToast('连接已保存', 'success')
+  } catch (err) {
+    showToast('保存失败: ' + err, 'error')
   }
-  showAddConnection.value = false; editingConnection.value = null
-  invoke('save_connection', { conn: newConn }).catch(() => {})
-  showToast('连接已保存', 'success')
 }
 
 function onDeleteConnection(id) {
