@@ -1,11 +1,11 @@
 <template>
   <Transition name="fade">
-  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm" @click.self="$emit('close')">
+  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm" @click.self="$emit('close')" role="dialog" :aria-label="editing ? '编辑SSH连接' : '新建SSH连接'" aria-modal="true">
     <Transition name="slide-up">
     <div class="rounded-xl w-[480px] max-h-[90vh] overflow-y-auto shadow-2xl" style="background: var(--bg-elevated); border: 1px solid var(--border);">
       <div class="p-4 flex items-center justify-between" style="border-bottom: 1px solid var(--border-subtle);">
         <h3 class="text-sm font-semibold" style="color: var(--fg-primary);">{{ editing ? '编辑连接' : '新建连接' }}</h3>
-        <button @click="$emit('close')" style="color: var(--fg-muted);">✕</button>
+        <button @click="$emit('close')" aria-label="关闭对话框" style="color: var(--fg-muted);">✕</button>
       </div>
 
       <div class="p-4 space-y-3">
@@ -13,54 +13,56 @@
         <div class="text-xs uppercase mb-1" style="color: var(--fg-muted);">基本信息</div>
 
         <div>
-          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">名称</label>
-          <input v-model="form.name" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="生产服务器" />
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);" for="conn-name">名称</label>
+          <input v-model="form.name" id="conn-name" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="生产服务器" aria-required="true" />
         </div>
 
         <div class="flex gap-2">
           <div class="flex-1">
-            <label class="text-xs block mb-1" style="color: var(--fg-secondary);">主机</label>
-            <input v-model="form.host" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="192.168.1.1" />
+            <label class="text-xs block mb-1" style="color: var(--fg-secondary);" for="conn-host">主机</label>
+            <input v-model="form.host" id="conn-host" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="192.168.1.1" aria-required="true" />
           </div>
           <div class="w-20">
-            <label class="text-xs block mb-1" style="color: var(--fg-secondary);">端口</label>
-            <input v-model.number="form.port" type="number" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" />
+            <label class="text-xs block mb-1" style="color: var(--fg-secondary);" for="conn-port">端口</label>
+            <input v-model.number="form.port" id="conn-port" type="number" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" aria-required="true" />
           </div>
         </div>
 
         <div>
-          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">用户名</label>
-          <input v-model="form.username" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="root" />
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);" for="conn-username">用户名</label>
+          <input v-model="form.username" id="conn-username" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="root" aria-required="true" />
         </div>
 
         <!-- 认证 -->
         <div class="text-xs uppercase mb-1 mt-4" style="color: var(--fg-muted);">认证</div>
 
-        <div class="flex gap-2">
+        <div class="flex gap-2" role="radiogroup" aria-label="认证方式">
           <button
             v-for="auth in authTypes"
             :key="auth.value"
             @click="form.authType = auth.value"
             class="flex-1 px-3 py-1.5 text-sm rounded border"
             :style="form.authType === auth.value ? 'background: var(--accent-hover); border-color: var(--accent); color: var(--accent);' : 'background: var(--bg-elevated); border-color: var(--border); color: var(--fg-muted);'"
+            :aria-pressed="form.authType === auth.value"
+            :aria-label="auth.label"
           >{{ auth.label }}</button>
         </div>
 
         <div v-if="form.authType === 'password'">
-          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">密码</label>
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);" for="conn-password">密码</label>
           <div class="relative">
-            <input v-model="form.password" :type="showPassword ? 'text' : 'password'" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none pr-8" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" />
-            <button @click="showPassword = !showPassword" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs" style="color: var(--fg-muted);">{{ showPassword ? '🙈' : '👁️' }}</button>
+            <input v-model="form.password" id="conn-password" :type="showPassword ? 'text' : 'password'" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none pr-8" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" aria-required="true" />
+            <button @click="showPassword = !showPassword" type="button" :aria-label="showPassword ? '隐藏密码' : '显示密码'" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs" style="color: var(--fg-muted);">{{ showPassword ? '🙈' : '👁️' }}</button>
           </div>
         </div>
 
         <div v-if="form.authType === 'key'">
-          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">密钥路径</label>
-          <input v-model="form.keyPath" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="~/.ssh/id_rsa" />
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);" for="conn-keypath">密钥路径</label>
+          <input v-model="form.keyPath" id="conn-keypath" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" placeholder="~/.ssh/id_rsa" aria-required="true" />
         </div>
         <div v-if="form.authType === 'key'">
-          <label class="text-xs block mb-1" style="color: var(--fg-secondary);">密钥密码（可选）</label>
-          <input v-model="form.passphrase" type="password" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" />
+          <label class="text-xs block mb-1" style="color: var(--fg-secondary);" for="conn-passphrase">密钥密码（可选）</label>
+          <input v-model="form.passphrase" id="conn-passphrase" type="password" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);" />
         </div>
 
         <!-- 代理跳板 -->
@@ -73,6 +75,10 @@
           </div>
           <button
             @click="form.useJumpHost = !form.useJumpHost"
+            type="button"
+            role="switch"
+            :aria-checked="form.useJumpHost"
+            aria-label="启用跳板机"
             class="w-10 h-5 rounded-full relative transition-colors"
             :style="form.useJumpHost ? 'background: var(--accent);' : 'background: var(--border);'"
           >
@@ -136,12 +142,12 @@
       </div>
 
       <div class="p-4 flex justify-between" style="border-top: 1px solid var(--border-subtle);">
-        <button @click="testConnection" :disabled="testing || !form.host || !form.username" class="px-4 py-1.5 text-sm disabled:opacity-50" style="color: var(--fg-muted);">
+        <button @click="testConnection" :disabled="testing || !form.host || !form.username" type="button" aria-label="测试连接" class="px-4 py-1.5 text-sm disabled:opacity-50" style="color: var(--fg-muted);">
           {{ testing ? '测试中...' : '🔗 测试连接' }}
         </button>
         <div class="flex gap-2">
-          <button @click="$emit('close')" class="px-4 py-1.5 text-sm" style="color: var(--fg-muted);">取消</button>
-          <button @click="save" :disabled="!form.name || !form.host || !form.username" class="px-4 py-1.5 text-sm rounded text-white disabled:opacity-50" style="background: var(--accent);">保存</button>
+          <button @click="$emit('close')" type="button" aria-label="取消" class="px-4 py-1.5 text-sm" style="color: var(--fg-muted);">取消</button>
+          <button @click="save" :disabled="!form.name || !form.host || !form.username" type="button" aria-label="保存连接" class="px-4 py-1.5 text-sm rounded text-white disabled:opacity-50" style="background: var(--accent);">保存</button>
         </div>
       </div>
     </div>

@@ -32,23 +32,28 @@ npm run dev
 ### 🔴 高优先级问题
 
 #### 1. 安全漏洞
-- **Vite 高危漏洞**：vite <=6.4.1 存在两个高危安全漏洞
-  - 路径遍历漏洞 (GHSA-4w7w-66w2-5vf9)
-  - 任意文件读取漏洞 (GHSA-p9ff-h696-f583)
-  - 修复：运行 `npm audit fix`
-- **xterm 依赖过时**：使用 `xterm@^5`（已弃用），应迁移到 `@xterm/xterm`
-- **localStorage 敏感存储**：58处使用 localStorage，可能存储敏感信息
+- ✅ **Vite 高危漏洞**：已修复（commit 68da92b）
+  - ~~路径遍历漏洞 (GHSA-4w7w-66w2-5vf9)~~
+  - ~~任意文件读取漏洞 (GHSA-p9ff-h696-f583)~~
+- ✅ **xterm 依赖过时**：已迁移到 @xterm/xterm（commit 68da92b）
+- ⚠️ **localStorage 敏感存储**：58处使用 localStorage，可能存储敏感信息
+  - 当前状态：连接配置已迁移到加密存储，但部分偏好设置仍使用 localStorage
+  - 建议：审计所有 localStorage 使用，确保敏感信息不落地
 
 #### 2. TDD/测试问题（违反 superpowers-tdd）
-- ❌ **只有一个 smoke.test.js**，没有真正的单元测试
-- ❌ **没有遵循 RED-GREEN-REFACTOR 循环**
-- ❌ **核心功能无测试**：SSH连接、SFTP、配置管理、窗口状态管理等都没有测试
+- ⚠️ **前端测试覆盖率不足**：仅有一个 smoke.test.js
+- ⚠️ **没有遵循 RED-GREEN-REFACTOR 循环**：功能开发未先写测试
+- ⚠️ **核心功能无测试**：SSH连接、SFTP、配置管理、窗口状态管理等都没有测试
+- ✅ **Rust 后端有测试**：18 个 Rust 测试用例（commit effd9fb）
 - ⚠️ **建议**：所有新功能必须先写测试再写实现
+  - 查看测试指南：[docs/TESTING.md](docs/TESTING.md)
 
 #### 3. UI/UX 问题
-- ❌ **可访问性为 0**：0处使用 aria-* 标签
-- ⚠️ **字体太小**：不符合UI标准
-- ⚠️ **弹窗点击背景关闭**：新建连接弹窗点击背景会自动关闭
+- ⚠️ **可访问性为 0**：0处使用 aria-* 标签，影响屏幕阅读器用户
+- ⚠️ **字体太小**：默认字体 12px，不符合WCAG标准（最小16px）
+- ✅ **弹窗点击背景关闭**：已修复（commit 68da92b）
+- ✅ **FOUC（Flash of Unstyled Content）**：已修复（commit 0f02c07）
+- ✅ **点击文件报错**：已修复（commit 9faabfa）
 
 ### 🟡 中优先级问题
 
@@ -64,6 +69,109 @@ npm run dev
 - 💡 **建议添加环境配置**：没有 .env 文件
 - 💡 **建议添加预提交钩子**：确保代码质量
 - 💡 **建议添加代码格式化配置**：统一代码风格
+
+### 📊 代码质量报告
+
+#### 代码规模
+| 组件 | 行数 | 状态 |
+|------|------|------|
+| Onboarding.vue | 628 | ⚠️ 需拆分 |
+| TerminalPanel.vue | 523 | ⚠️ 需拆分 |
+| SftpPanel.vue | 516 | ⚠️ 需拆分 |
+| ConnectionDialog.vue | ~400 | ⚠️ 需拆分 |
+| App.vue | ~400 | ✅ 可接受 |
+
+#### 技术债务
+- ⚠️ **未使用 TypeScript**：使用 `main.js` 而非 `main.ts`，类型安全不足
+- ⚠️ **错误处理粒度粗**：虽有99处 try/catch/throw，但错误信息不够具体
+- ⚠️ **缺少 TypeScript 配置**：没有 tsconfig.json
+- 💡 **建议添加预提交钩子**：使用 husky + lint-staged 确保代码质量
+- 💡 **建议添加代码格式化**：统一 Prettier 配置
+
+#### 安全加固记录
+| 日期 | 修复内容 | Commit |
+|------|----------|--------|
+| 2026-04-15 | 修复 Vite 高危漏洞（路径遍历、任意文件读取） | 68da92b |
+| 2026-04-15 | 迁移 xterm 到 @xterm/xterm，修复依赖过时问题 | 68da92b |
+| 2026-04-15 | 添加 CSP 安全策略，防止 XSS | 2f728f7 |
+| 2026-04-16 | localStorage key 冲突修复，数据隔离 | 0f02c07 |
+
+#### 测试覆盖率
+- **Rust 后端**：18 个测试用例 ✅
+- **前端组件**：1 个 smoke 测试，覆盖率 <10% ⚠️
+- **集成测试**：无 ⚠️
+
+## 📚 文档
+
+| 文档 | 描述 |
+|------|------|
+| [API.md](docs/API.md) | Rust 后端 API 和前端 IPC 接口文档 |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 系统架构设计文档 |
+| [TESTING.md](docs/TESTING.md) | 测试指南和 TDD 工作流 |
+| [SPEC.md](docs/SPEC.md) | 产品设计文档 |
+| [PLAN.md](docs/PLAN.md) | 开发计划和进度 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本更新日志 |
+
+---
+
+## 贡献指南
+
+欢迎贡献！请遵循以下流程：
+
+### 1. 开发流程
+```bash
+# 1. Fork 项目并克隆
+git clone https://github.com/<your-username>/XTerminal-Pro.git
+cd XTerminal-Pro
+
+# 2. 创建功能分支
+git checkout -b feat/your-feature-name
+
+# 3. 安装依赖
+npm install
+
+# 4. 启动开发服务器
+npm run dev
+
+# 5. 构建测试
+npm run tauri build
+```
+
+### 2. 代码规范
+- 使用 Prettier 格式化代码
+- 组件命名使用 PascalCase
+- 文件命名与组件名保持一致
+- 添加必要的注释和文档
+
+### 3. 测试要求
+- **新功能必须先写测试**（遵循 RED-GREEN-REFACTOR 循环）
+- 提交前确保所有测试通过
+- 前端测试：`npm run test:unit`
+- Rust 测试：`cargo test`
+
+### 4. 提交规范
+使用 Conventional Commits 规范：
+
+- `feat:` 新功能
+- `fix:` 修复 bug
+- `docs:` 文档变更
+- `style:` 代码格式（不影响逻辑）
+- `refactor:` 重构
+- `test:` 测试相关
+- `chore:` 构建/工具相关
+
+示例：
+```
+git commit -m "feat: 添加 SFTP 批量上传功能"
+git commit -m "fix: 修复连接超时未释放资源的问题"
+```
+
+### 5. Pull Request
+- 推送到你的 fork 仓库
+- 创建 PR 到 `dev` 分支
+- PR 标题清晰描述变更
+- 关联相关 issue（如有）
+- 等待 code review
 
 ---
 

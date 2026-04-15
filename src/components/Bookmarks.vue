@@ -55,6 +55,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { getBookmarks, storeBookmarks } from '../utils/secure-store'
 
 defineEmits(['navigate'])
 
@@ -73,18 +74,26 @@ const groupedBookmarks = computed(() => {
   return Object.values(groups)
 })
 
-function loadBookmarks() {
-  try { bookmarks.value = JSON.parse(localStorage.getItem('xterminal_bookmarks') || '[]') }
-  catch { bookmarks.value = [] }
+async function loadBookmarks() {
+  try {
+    const data = await getBookmarks()
+    bookmarks.value = data || []
+  } catch {
+    bookmarks.value = []
+  }
 }
 
-function saveBookmarks() {
-  localStorage.setItem('xterminal_bookmarks', JSON.stringify(bookmarks.value))
+async function saveBookmarks() {
+  try {
+    await storeBookmarks(bookmarks.value)
+  } catch (error) {
+    console.error('Failed to save bookmarks:', error)
+  }
 }
 
 function addBookmark() { newBm.name = ''; newBm.path = ''; newBm.host = ''; showAdd.value = true }
 
-function saveBookmark() {
+async function saveBookmark() {
   if (!newBm.path) return
   bookmarks.value.push({
     id: `bm_${Date.now()}`,
@@ -93,13 +102,13 @@ function saveBookmark() {
     host: newBm.host || '',
     icon: '📁',
   })
-  saveBookmarks()
+  await saveBookmarks()
   showAdd.value = false
 }
 
 function showMenu(e, bm) { ctx.show = true; ctx.x = e.clientX; ctx.y = e.clientY; ctx.bm = bm }
 function copyPath() { navigator.clipboard.writeText(ctx.bm?.path || '').catch(() => {}); ctx.show = false }
-function delBookmark() { bookmarks.value = bookmarks.value.filter(b => b.id !== ctx.bm?.id); saveBookmarks(); ctx.show = false }
+async function delBookmark() { bookmarks.value = bookmarks.value.filter(b => b.id !== ctx.bm?.id); await saveBookmarks(); ctx.show = false }
 
-onMounted(loadBookmarks)
+onMounted(() => loadBookmarks())
 </script>

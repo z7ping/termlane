@@ -101,6 +101,7 @@
 <script setup>
 import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { invoke } from '../utils/tauri.js'
+import { secureStore } from '../utils/secure-store'
 
 const STORAGE_KEY = 'xterminal_macros'
 
@@ -123,19 +124,23 @@ const replayIndex = ref(0)
 const replayTotal = ref(0)
 let replayAbort = false
 
-// Load macros from localStorage
-function loadMacros() {
+// Load macros from secure storage
+async function loadMacros() {
   try {
-    const data = localStorage.getItem(STORAGE_KEY)
-    macros.value = data ? JSON.parse(data) : []
+    const data = await secureStore.get(STORAGE_KEY)
+    macros.value = data || []
   } catch {
     macros.value = []
   }
 }
 
-// Save macros to localStorage
-function saveMacros() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(macros.value))
+// Save macros to secure storage
+async function saveMacros() {
+  try {
+    await secureStore.set(STORAGE_KEY, macros.value)
+  } catch (error) {
+    console.error('Failed to save macros:', error)
+  }
 }
 
 // Toggle recording
@@ -177,8 +182,9 @@ function saveMacro() {
     commands: [...currentCommands.value],
     createdAt: new Date().toISOString(),
   })
-  saveMacros()
-  showSave.value = false
+  saveMacros().then(() => { 
+    showSave.value = false
+  }).catch(err => console.error('Failed to save macro:', err))
   currentCommands.value = []
   macroName.value = ''
 }
@@ -191,9 +197,9 @@ function cancelSave() {
 }
 
 // Delete macro
-function deleteMacro(id) {
+async function deleteMacro(id) {
   macros.value = macros.value.filter(m => m.id !== id)
-  saveMacros()
+  await saveMacros()
 }
 
 // Replay macro
@@ -244,5 +250,5 @@ function formatDate(iso) {
   }
 }
 
-onMounted(loadMacros)
+onMounted(() => loadMacros())
 </script>

@@ -1,21 +1,21 @@
 <template>
-  <div class="relative flex flex-col overflow-hidden select-none" :style="{ width: sidebarWidth + 'px' }" style="background: var(--bg-surface); border-right: 1px solid var(--border-subtle);">
+  <div class="relative flex flex-col overflow-hidden select-none" role="navigation" aria-label="SSH连接侧边栏" :style="{ width: sidebarWidth + 'px' }" style="background: var(--bg-surface); border-right: 1px solid var(--border-subtle);">
     <!-- Header -->
     <div class="px-4 py-3 flex items-center" style="border-bottom: 1px solid var(--border-subtle);">
       <template v-if="!collapsedSidebar">
         <span class="text-[10px] font-semibold uppercase tracking-widest" style="color: var(--fg-muted);">连接</span>
         <div class="flex-1"></div>
-        <span class="text-[10px] px-1.5 py-0.5 rounded" style="background: var(--bg-base); color: var(--fg-muted);">{{ connections.length }}</span>
-        <button @click="$emit('add')" class="w-5 h-5 flex items-center justify-center rounded text-sm transition-colors ml-1.5" style="color: var(--fg-muted); hover:background: var(--bg-hover);" title="添加连接">+</button>
+        <span class="text-[10px] px-1.5 py-0.5 rounded" aria-live="polite" style="background: var(--bg-base); color: var(--fg-muted);">{{ connections.length }}</span>
+        <button @click="$emit('add')" type="button" aria-label="添加新连接" class="w-5 h-5 flex items-center justify-center rounded text-sm transition-colors ml-1.5" style="color: var(--fg-muted);" title="添加连接">+</button>
       </template>
-      <button @click="toggleCollapse" class="w-5 h-5 flex items-center justify-center rounded text-sm transition-colors" :class="{ 'ml-auto': !collapsedSidebar }" style="color: var(--fg-muted); hover:background: var(--bg-hover);" :title="collapsedSidebar ? '展开侧栏' : '收起侧栏'">
+      <button @click="toggleCollapse" type="button" :aria-label="collapsedSidebar ? '展开侧栏' : '收起侧栏'" class="w-5 h-5 flex items-center justify-center rounded text-sm transition-colors" :class="{ 'ml-auto': !collapsedSidebar }" style="color: var(--fg-muted);" :title="collapsedSidebar ? '展开侧栏' : '收起侧栏'">
         {{ collapsedSidebar ? '→' : '←' }}
       </button>
     </div>
 
     <!-- Search -->
     <div v-if="!collapsedSidebar" class="px-2 py-1.5" style="border-bottom: 1px solid var(--border-subtle);">
-      <input v-model="searchQuery" class="w-full text-xs px-2 py-1 rounded border focus:outline-none transition-colors" style="background: var(--bg-base); color: var(--fg-secondary); border-color: var(--border);" placeholder="🔍 搜索..." />
+      <input v-model="searchQuery" aria-label="搜索连接" placeholder="🔍 搜索..." class="w-full text-xs px-2 py-1 rounded border focus:outline-none transition-colors" style="background: var(--bg-base); color: var(--fg-secondary); border-color: var(--border);" />
     </div>
 
     <!-- Tree -->
@@ -45,17 +45,17 @@
     <div v-if="!collapsedSidebar" class="absolute right-0 top-0 bottom-0 w-0.5 cursor-col-resize hover:bg-blue-500/50" @mousedown="startResize" />
 
     <!-- Context Menu -->
-    <div v-if="ctx.show" class="fixed z-50 rounded-lg shadow-2xl py-1 min-w-[150px]" style="background: var(--bg-elevated); border: 1px solid var(--border);" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
-      <button @click="doCtx('select')" class="ctx-item">📂 连接</button>
-      <button @click="doCtx('edit')" class="ctx-item">✏️ 编辑</button>
-      <button @click="doCtx('duplicate')" class="ctx-item">📋 复制</button>
-      <button @click="doCtx('test')" class="ctx-item">🔗 测试</button>
+    <div v-if="ctx.show" role="menu" aria-label="连接操作菜单" class="fixed z-50 rounded-lg shadow-2xl py-1 min-w-[150px]" style="background: var(--bg-elevated); border: 1px solid var(--border);" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+      <button @click="doCtx('select')" type="button" role="menuitem" aria-label="连接到服务器" class="ctx-item">📂 连接</button>
+      <button @click="doCtx('edit')" type="button" role="menuitem" aria-label="编辑连接信息" class="ctx-item">✏️ 编辑</button>
+      <button @click="doCtx('duplicate')" type="button" role="menuitem" aria-label="复制连接" class="ctx-item">📋 复制</button>
+      <button @click="doCtx('test')" type="button" role="menuitem" aria-label="测试连接" class="ctx-item">🔗 测试</button>
       <div class="border-t my-1" style="border-color: var(--border);" />
-      <button @click="doCtx('fav')" class="ctx-item">⭐ {{ ctx.conn?.favorite ? '取消收藏' : '收藏' }}</button>
+      <button @click="doCtx('fav')" type="button" role="menuitem" :aria-label="ctx.conn?.favorite ? '取消收藏' : '收藏连接'" class="ctx-item">⭐ {{ ctx.conn?.favorite ? '取消收藏' : '收藏' }}</button>
       <div class="border-t my-1" style="border-color: var(--border);" />
-      <button @click="doCtx('delete')" class="ctx-item" style="color: var(--danger);">🗑 删除</button>
+      <button @click="doCtx('delete')" type="button" role="menuitem" aria-label="删除连接" class="ctx-item" style="color: var(--danger);">🗑 删除</button>
     </div>
-    <div v-if="ctx.show" class="fixed inset-0 z-40" @click="ctx.show = false" />
+    <div v-if="ctx.show" class="fixed inset-0 z-40" @click="ctx.show = false" aria-label="关闭菜单" />
   </div>
 </template>
 
@@ -172,13 +172,15 @@ const TreeItem = defineComponent({
   emits: ['select', 'toggle', 'ctx'],
   template: `
     <template v-if="node.isGroup">
-      <div>
+      <div role="treeitem" :aria-expanded="!node.collapsed" :aria-label="node.label + ' 分组 (' + node.count + '个连接)'">
         <div
           @click="$emit('toggle', node.path)"
+          role="button"
+          tabindex="0"
           class="flex items-center gap-1.5 px-2 py-[5px] cursor-pointer hover:bg-white/5 transition-colors group"
           :style="{ paddingLeft: (8 + depth * 16) + 'px' }"
         >
-          <span class="flex items-center justify-center w-3 h-3 transition-transform duration-150" :class="{ 'rotate-90': !node.collapsed }" style="color: var(--fg-muted);">
+          <span class="flex items-center justify-center w-3 h-3 transition-transform duration-150" :class="{ 'rotate-90': !node.collapsed }" style="color: var(--fg-muted);" aria-hidden="true">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6" />
             </svg>
