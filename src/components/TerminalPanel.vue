@@ -32,12 +32,12 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { Terminal } from 'xterm'
-import { FitAddon } from 'xterm-addon-fit'
-import { SearchAddon } from 'xterm-addon-search'
-import { WebLinksAddon } from 'xterm-addon-web-links'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 import { invoke, listen, isTauri } from '../utils/tauri.js'
-import 'xterm/css/xterm.css'
+import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps({ tab: Object, active: Boolean })
 const emit = defineEmits(['connected', 'disconnected'])
