@@ -30,6 +30,7 @@
     "vue": "^3"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
     "@vitejs/plugin-vue": "^5",
     "@vitest/coverage-v8": "^4.1.4",
     "autoprefixer": "^10",
