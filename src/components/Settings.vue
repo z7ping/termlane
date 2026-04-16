@@ -130,7 +130,7 @@
               placeholder="例如: Ctrl+Shift+K"
               autocomplete="off"
             />
-            <p class="text-[10px] mt-2" style="color: var(--fg-muted);">按 Esc 取消，按 Enter 确认</p>
+            <p class="text-xs mt-2" style="color: var(--fg-muted);">按 Esc 取消，按 Enter 确认</p>
           </div>
           <div class="flex justify-end gap-2">
             <button @click="editingShortcut = null" class="px-3 py-1.5 rounded text-xs" style="background: var(--bg-hover); color: var(--fg-secondary);">取消</button>

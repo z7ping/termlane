@@ -28,7 +28,7 @@
                 :style="selectedLocalSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : ''">
                 <span class="w-4 text-center text-xs">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
                 <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name }}</span>
-                <span class="text-[10px] w-14 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+                <span class="text-xs w-14 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
               </div>
             </template>
           </VirtualList>
@@ -83,7 +83,7 @@
           <div class="flex items-center justify-between px-4 py-2" style="border-bottom: 1px solid var(--border-subtle);">
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium" style="color: var(--fg-primary);">📝 {{ editFile.path.split('/').pop() }}</span>
-              <span v-if="editFile.dirty" class="text-[10px] px-1.5 py-0.5 rounded-full animate-pulse-dot" style="background: var(--warning); color: #000;">未保存</span>
+              <span v-if="editFile.dirty" class="text-xs px-1.5 py-0.5 rounded-full animate-pulse-dot" style="background: var(--warning); color: #000;">未保存</span>
             </div>
             <div class="flex items-center gap-1">
               <button @click="saveEdit" class="px-3 py-1 text-xs rounded-lg font-medium" style="background: var(--accent); color: white;">保存</button>
@@ -105,8 +105,8 @@
                 :style="selectedRemoteSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : ''">
                 <span class="w-4 text-center text-xs">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
                 <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name }}</span>
-                <span class="text-[10px] w-14 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
-                <span class="text-[10px] w-16 text-right" style="color: var(--fg-muted);">{{ file.permissions || '' }}</span>
+                <span class="text-xs w-14 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+                <span class="text-xs w-16 text-right" style="color: var(--fg-muted);">{{ file.permissions || '' }}</span>
               </div>
             </template>
           </VirtualList>

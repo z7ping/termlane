@@ -6,7 +6,7 @@
     <span class="text-sm font-medium" style="color: var(--fg-primary);">XTerminal Pro</span>
     <div class="flex-1" />
     <div class="flex gap-1 no-drag">
-      <button @click="cycleTheme" class="p-1 hover:bg-white/10 rounded text-[10px]" style="color: var(--fg-muted);" :title="'主题: ' + themeNames[currentTheme]">
+      <button @click="cycleTheme" class="p-1 hover:bg-white/10 rounded text-xs" style="color: var(--fg-muted);" :title="'主题: ' + themeNames[currentTheme]">
         {{ themeIcons[currentTheme] }}
       </button>
       <button @click="$emit('toggle-fullscreen')" class="p-1 hover:bg-white/10 rounded text-xs" style="color: var(--fg-muted);" title="全屏 (F11)">⛶</button>

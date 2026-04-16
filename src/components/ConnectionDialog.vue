@@ -1,6 +1,6 @@
 <template>
   <Transition name="fade">
-  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm" @click.self="$emit('close')" role="dialog" :aria-label="editing ? '编辑SSH连接' : '新建SSH连接'" aria-modal="true">
+  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm" role="dialog" :aria-label="editing ? '编辑SSH连接' : '新建SSH连接'" aria-modal="true">
     <Transition name="slide-up">
     <div class="rounded-xl w-[480px] max-h-[90vh] overflow-y-auto shadow-2xl" style="background: var(--bg-elevated); border: 1px solid var(--border);">
       <div class="p-4 flex items-center justify-between" style="border-bottom: 1px solid var(--border-subtle);">
@@ -206,6 +206,17 @@ const form = reactive({
 async function testConnection() {
     testing.value = true
     testResult.value = null
+    // 校验必填字段
+    if (!form.host || !form.username) {
+      testResult.value = { success: false, message: '✗ 请填写主机和用户名' }
+      testing.value = false
+      return
+    }
+    if (form.authType === 'password' && !form.password) {
+      testResult.value = { success: false, message: '✗ 请输入密码' }
+      testing.value = false
+      return
+    }
     try {
       let sid
       // 如果启用了跳板机，使用 ssh_connect_jump

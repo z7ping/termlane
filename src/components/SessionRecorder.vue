@@ -29,7 +29,7 @@
           </div>
         </div>
         <div v-if="rec.tags?.length" class="flex gap-1 mt-2">
-          <span v-for="tag in rec.tags" :key="tag" class="text-[10px] px-1.5 py-0.5 bg-gray-700 rounded text-gray-400">{{ tag }}</span>
+          <span v-for="tag in rec.tags" :key="tag" class="text-xs px-1.5 py-0.5 bg-gray-700 rounded text-gray-400">{{ tag }}</span>
         </div>
       </div>
       <div v-if="recordings.length === 0" class="text-center text-gray-500 text-sm mt-10">

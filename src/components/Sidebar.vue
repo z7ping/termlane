@@ -3,9 +3,9 @@
     <!-- Header -->
     <div class="px-4 py-3 flex items-center" style="border-bottom: 1px solid var(--border-subtle);">
       <template v-if="!collapsedSidebar">
-        <span class="text-[10px] font-semibold uppercase tracking-widest" style="color: var(--fg-muted);">连接</span>
+        <span class="text-xs font-semibold uppercase tracking-widest" style="color: var(--fg-muted);">连接</span>
         <div class="flex-1"></div>
-        <span class="text-[10px] px-1.5 py-0.5 rounded" aria-live="polite" style="background: var(--bg-base); color: var(--fg-muted);">{{ connections.length }}</span>
+        <span class="text-xs px-1.5 py-0.5 rounded" aria-live="polite" style="background: var(--bg-base); color: var(--fg-muted);">{{ connections.length }}</span>
         <button @click="$emit('add')" type="button" aria-label="添加新连接" class="w-5 h-5 flex items-center justify-center rounded text-sm transition-colors ml-1.5" style="color: var(--fg-muted);" title="添加连接">+</button>
       </template>
       <button @click="toggleCollapse" type="button" :aria-label="collapsedSidebar ? '展开侧栏' : '收起侧栏'" class="w-5 h-5 flex items-center justify-center rounded text-sm transition-colors" :class="{ 'ml-auto': !collapsedSidebar }" style="color: var(--fg-muted);" :title="collapsedSidebar ? '展开侧栏' : '收起侧栏'">
@@ -32,10 +32,10 @@
 
     <!-- Quick Commands -->
     <div v-if="!collapsedSidebar" class="border-t px-2 py-2" style="border-color: var(--border-subtle);">
-      <div class="text-[10px] px-1 mb-1.5 uppercase tracking-wider" style="color: var(--fg-muted);">快捷命令</div>
+      <div class="text-xs px-1 mb-1.5 uppercase tracking-wider" style="color: var(--fg-muted);">快捷命令</div>
       <div class="flex flex-wrap gap-1">
         <button v-for="cmd in quickCommands" :key="cmd.l" @click="$emit('quick-command', cmd.c)"
-          class="text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors" style="background: var(--bg-base); color: var(--fg-muted); hover:background: var(--bg-hover);">
+          class="text-xs px-1.5 py-0.5 rounded font-mono transition-colors" style="background: var(--bg-base); color: var(--fg-muted); hover:background: var(--bg-hover);">
           {{ cmd.l }}
         </button>
       </div>
@@ -222,10 +222,10 @@ const TreeItem = defineComponent({
           </svg>
         </span>
         <span class="text-xs truncate flex-1" :style="{ color: activeId === node.conn.id ? 'var(--accent)' : 'var(--fg-secondary)' }">{{ node.conn.name }}</span>
-        <span v-if="node.conn.favorite" class="text-[10px]" style="color: #eab308;">⭐</span>
-        <span v-if="node.conn.host && node.conn.host !== 'localhost'" class="text-[10px] font-mono truncate max-w-[70px]" style="color: var(--fg-muted);">{{ node.conn.host }}</span>
+        <span v-if="node.conn.favorite" class="text-xs" style="color: #eab308;">⭐</span>
+        <span v-if="node.conn.host && node.conn.host !== 'localhost'" class="text-xs font-mono truncate max-w-[70px]" style="color: var(--fg-muted);">{{ node.conn.host }}</span>
         <span v-if="!node.conn.host || node.conn.host === 'localhost' || node.conn.host === '127.0.0.1'"></span>
-        <span v-else class="text-[10px] font-mono flex-shrink-0 ml-auto" :style="{ color: latencyMap[node.conn.id] == null ? 'var(--fg-muted)' : latencyMap[node.conn.id] < 50 ? 'var(--success)' : latencyMap[node.conn.id] < 150 ? 'var(--warning)' : 'var(--danger)' }">
+        <span v-else class="text-xs font-mono flex-shrink-0 ml-auto" :style="{ color: latencyMap[node.conn.id] == null ? 'var(--fg-muted)' : latencyMap[node.conn.id] < 50 ? 'var(--success)' : latencyMap[node.conn.id] < 150 ? 'var(--warning)' : 'var(--danger)' }">
           {{ latencyMap[node.conn.id] == null ? '—' : latencyMap[node.conn.id] + 'ms' }}
         </span>
       </div>

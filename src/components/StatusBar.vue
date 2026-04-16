@@ -1,5 +1,5 @@
 <template>
-  <div class="h-7 flex items-center px-3 text-[10px] select-none justify-between" style="background: var(--accent); color: white;">
+  <div class="h-7 flex items-center px-3 text-xs select-none justify-between" style="background: var(--accent); color: white;">
     <div class="flex items-center gap-3">
       <span class="font-medium">⌨️ XTerminal Pro</span>
       <span v-if="connection" class="flex items-center gap-1 opacity-90">
