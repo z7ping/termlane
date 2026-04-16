@@ -3,13 +3,11 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [vue()],
-  root: '.',
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-  },
   server: {
     port: 1420,
     strictPort: true,
+    host: 'localhost'
   },
+  clearScreen: false,
+  envPrefix: ['VITE_', 'TAURI_']
 })

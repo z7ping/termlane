@@ -25,7 +25,11 @@ export const invoke = _isTauri
   : async (cmd, args = {}) => {
       // 浏览器 mock
       switch (cmd) {
-        case 'ssh_connect': return `mock_session_${Date.now()}`;
+        case 'ssh_connect': {
+          if (!args.password) throw new Error('认证失败: 密码不能为空');
+          // mock 无法真正认证，统一返回失败提示
+          throw new Error('认证失败: 用户名或密码错误（浏览器演示模式不支持真实连接）');
+        }
         case 'ssh_connect_key': return `mock_session_key_${Date.now()}`;
         case 'ssh_connect_jump': return `mock_session_jump_${Date.now()}`;
         case 'ssh_execute': return mockExecute(args.command);
