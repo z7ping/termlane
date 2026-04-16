@@ -12,8 +12,8 @@ export function saveScheduledTasks(tasks) {
 
 export function addScheduledTask(task) {
   const tasks = getScheduledTasks()
-  tasks.push({
-    id: Date.now().toString(),
+  const newTask = {
+    id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9),
     name: task.name,
     command: task.command,
     schedule: task.schedule, // cron-like: '0 9 * * *' = every day at 9am
@@ -22,7 +22,8 @@ export function addScheduledTask(task) {
     lastRun: null,
     nextRun: calculateNextRun(task.schedule),
     createdAt: new Date().toISOString(),
-  })
+  }
+  tasks.push(newTask)
   saveScheduledTasks(tasks)
   return tasks
 }
@@ -35,8 +36,10 @@ export function removeScheduledTask(id) {
 
 export function toggleScheduledTask(id) {
   const tasks = getScheduledTasks().map(t => {
-    if (t.id === id) t.enabled = !t.enabled
-    return t
+    if (t.id === id) {
+      return { ...t, enabled: !t.enabled }
+    }
+    return { ...t }
   })
   saveScheduledTasks(tasks)
   return tasks

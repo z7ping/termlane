@@ -283,6 +283,7 @@ fn open_file_dialog() -> Result<String, String> { Err("请在完整Tauri环境�
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_stronghold::Builder::new().build())
         .setup(|app| {
             let window = app.get_webview_window("main")
                 .expect("failed to get main window");

@@ -12,7 +12,7 @@ export function getTags() {
 
 export function addTag(name, color) {
   const tags = getTags()
-  tags.push({ id: `tag_${Date.now()}`, name, color })
+  tags.push({ id: `tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, name, color })
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tags))
   return tags
 }
