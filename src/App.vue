@@ -77,10 +77,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, inject, defineAsyncComponent } from 'vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { invoke } from './utils/tauri.js'
-import { safeInvoke } from './utils/invoke.js'
 import { parseShortcut, getShortcut } from './utils/shortcuts.js'
+import { useAppState, setToast } from './composables/useAppState.js'
 
 // Critical - 首屏必需（同步加载）
 import TitleBar from './components/TitleBar.vue'
@@ -110,6 +110,18 @@ const ShortcutHelp = defineAsyncComponent(() => import('./components/ShortcutHel
 const ErrorBoundary = defineAsyncComponent(() => import('./components/ErrorBoundary.vue'))
 const Onboarding = defineAsyncComponent(() => import('./components/Onboarding.vue'))
 
+// ── Shared state from composable ──
+const {
+  connections, latencyMap, tabs, activeTabId, sessionMap,
+  activeConnectionId, activeTab, activeConnection, activeSessionId,
+  loadConnections, loadTabsState, saveTabsState,
+  startPingPolling, stopPingPolling,
+  onSelectConnection, closeTab, closeOtherTabs, closeAllTabs, openLocalTerminal,
+  onSaveConnection, onDeleteConnection, onDuplicateConnection, onTestConnection, onToggleFavorite,
+  onSessionConnected, onSessionDisconnected, onQuickCommand,
+} = useAppState()
+
+// ── View-only state (stays in App.vue) ──
 const isDark = ref(true)
 const sidebarOpen = ref(true)
 const showAddConnection = ref(false)
@@ -134,44 +146,32 @@ const viewModes = [
   { value: 'macro', label: '🎯 宏' },
 ]
 
-const connections = ref([
-  { id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' },
-])
-
-const latencyMap = ref({})
-
-const tabs = ref([])
-const activeTabId = ref(null)
-const sessionMap = ref({})
-
-const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value))
-const activeConnectionId = ref(null)
-const activeConnection = computed(() => connections.value.find(c => c.id === activeConnectionId.value))
-const activeSessionId = computed(() => sessionMap.value[activeTabId.value] || null)
-
 function showToast(msg, type = 'info') { toastRef.value?.show(msg, type) }
 
+function onEditConnection(conn) { editingConnection.value = conn; showAddConnection.value = true }
+
+function onBookmarkNav(bm) {
+  viewMode.value = 'sftp'
+  showToast(`跳转到: ${bm.path}`, 'info')
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen()
+  else document.exitFullscreen()
+}
+
+// ── Lifecycle ──
+
 onMounted(async () => {
+  // Wire up toast callback so the composable can show notifications
+  setToast(showToast)
+
   // Mark app as ready to show (prevent FOUC)
   document.getElementById('app')?.classList.add('ready')
 
-  // Restore connections
-  try {
-    const saved = await invoke('load_connections')
-    if (saved?.length > 0) {
-      const localExists = saved.some(c => c.id === 'local')
-      connections.value = localExists ? saved : [{ id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' }, ...saved]
-    }
-  } catch (e) { console.warn("[XTerminal] Load error:", e) }
-
-  // Restore tabs
-  try {
-    const savedTabs = JSON.parse(localStorage.getItem('xterminal_tabs') || '[]')
-    if (savedTabs.length > 0) {
-      tabs.value = savedTabs
-      activeTabId.value = localStorage.getItem('xterminal_active_tab') || savedTabs[0]?.id
-    }
-  } catch (e) { console.warn("[XTerminal] Load error:", e) }
+  // Restore persisted state
+  await loadConnections()
+  loadTabsState()
 
   // Restore window state
   try {
@@ -184,7 +184,6 @@ onMounted(async () => {
   // Save window state on close
   window.addEventListener('beforeunload', () => {
     saveTabsState()
-    // Save window state (only works in Tauri)
     try {
       invoke('save_window_state', {
         x: window.screenX,
@@ -199,35 +198,35 @@ onMounted(async () => {
   // Global keyboard shortcuts (支持自定义快捷键)
   const setupGlobalShortcuts = () => {
     const handlers = []
-    
+
     // 新建标签
     const newTabKey = parseShortcut(getShortcut('新建标签'))
     handlers.push((e) => { if (newTabKey(e)) { openLocalTerminal(); e.preventDefault() } })
-    
+
     // 关闭标签
     const closeTabKey = parseShortcut(getShortcut('关闭标签'))
     handlers.push((e) => { if (closeTabKey(e) && activeTabId.value) { closeTab(activeTabId.value); e.preventDefault() } })
-    
+
     // 切换侧边栏
     const toggleSidebarKey = parseShortcut(getShortcut('切换侧边栏') || 'Ctrl+B')
     handlers.push((e) => { if (toggleSidebarKey(e)) { sidebarOpen.value = !sidebarOpen.value; e.preventDefault() } })
-    
+
     // 全屏
     const fullscreenKey = parseShortcut(getShortcut('全屏'))
     handlers.push((e) => { if (fullscreenKey(e)) { toggleFullscreen(); e.preventDefault() } })
-    
+
     // 帮助
     const helpKey = parseShortcut(getShortcut('帮助') || '?')
     handlers.push((e) => { if (helpKey(e) && !e.ctrlKey && !e.altKey && !['INPUT','TEXTAREA'].includes(e.target.tagName)) { showShortcuts.value = !showShortcuts.value } })
-    
+
     return handlers
   }
-  
+
   let shortcutHandlers = setupGlobalShortcuts()
   document.addEventListener('keydown', (e) => {
     shortcutHandlers.forEach(handler => handler(e))
   })
-  
+
   // 监听快捷键变化
   window.addEventListener('shortcut-changed', () => {
     shortcutHandlers = setupGlobalShortcuts()
@@ -237,145 +236,7 @@ onMounted(async () => {
   startPingPolling()
 })
 
-function saveTabsState() {
-  localStorage.setItem('xterminal_tabs', JSON.stringify(tabs.value.map(t => ({ id: t.id, name: t.name, connectionId: t.connectionId, connection: t.connection }))))
-  localStorage.setItem('xterminal_active_tab', activeTabId.value || '')
-}
-
-function onSelectConnection(conn) {
-  activeConnectionId.value = conn.id
-  const existing = tabs.value.find(t => t.connectionId === conn.id)
-  if (existing) {
-    activeTabId.value = existing.id
-  } else {
-    const tab = { id: `tab_${Date.now()}`, name: conn.name, connectionId: conn.id, connection: conn, type: 'terminal' }
-    tabs.value.push(tab)
-    activeTabId.value = tab.id
-  }
-  saveTabsState()
-}
-
-function closeTab(tabId) {
-  const sid = sessionMap.value[tabId]
-  if (sid) { safeInvoke('ssh_disconnect', { sessionId: sid }).catch(() => {}); delete sessionMap.value[tabId] }
-  const idx = tabs.value.findIndex(t => t.id === tabId)
-  tabs.value.splice(idx, 1)
-  if (activeTabId.value === tabId) activeTabId.value = tabs.value[Math.min(idx, tabs.value.length - 1)]?.id || null
-  saveTabsState()
-}
-
-function closeOtherTabs(keepId) {
-  tabs.value.filter(t => t.id !== keepId).forEach(t => closeTab(t.id))
-}
-
-function closeAllTabs() { [...tabs.value].forEach(t => closeTab(t.id)) }
-
-function openLocalTerminal() { const local = connections.value.find(c => c.id === 'local'); if (local) onSelectConnection(local) }
-
-async function onSaveConnection(conn) {
-  const newConn = editingConnection.value ? { ...editingConnection.value, ...conn } : { ...conn, id: `conn_${Date.now()}` }
-  try {
-    // Save password to keyring if using password auth
-    if (conn.authType === 'password' && conn.password) {
-      await invoke('keyring_save_password', { connId: newConn.id, password: conn.password })
-    }
-    // Save connection config (without password in JSON)
-    await invoke('save_connection', { conn: newConn })
-    
-    // Reload connections from storage to ensure sync
-    const saved = await invoke('load_connections')
-    if (saved?.length > 0) {
-      const localExists = saved.some(c => c.id === 'local')
-      connections.value = localExists ? saved : [{ id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' }, ...saved]
-    }
-    
-    showAddConnection.value = false
-    editingConnection.value = null
-    showToast('连接已保存', 'success')
-  } catch (err) {
-    showToast('保存失败: ' + err, 'error')
-  }
-}
-
-function onDeleteConnection(id) {
-  connections.value = connections.value.filter(c => c.id !== id)
-  tabs.value.filter(t => t.connectionId === id).forEach(t => closeTab(t.id))
-  safeInvoke('delete_connection', { id }).catch(() => {})
-  showToast('已删除', 'info')
-}
-
-function onEditConnection(conn) { editingConnection.value = conn; showAddConnection.value = true }
-
-function onDuplicateConnection(conn) {
-  const dup = { ...conn, id: `conn_${Date.now()}`, name: conn.name + ' (副本)' }
-  connections.value.push(dup)
-  safeInvoke('save_connection', { conn: dup }).catch(() => {})
-  showToast('已复制', 'success')
-}
-
-async function onTestConnection(conn) {
-  showToast('正在测试连接...', 'info')
-  try {
-    let sid
-    if (conn.authType === 'key') {
-      sid = await invoke('ssh_connect_key', { host: conn.host, port: conn.port || 22, username: conn.username, keyPath: conn.keyPath || '', passphrase: conn.passphrase || '' })
-    } else {
-      sid = await invoke('ssh_connect', { host: conn.host, port: conn.port || 22, username: conn.username, password: conn.password || '' })
-    }
-    showToast(`✓ ${conn.name} 连接成功`, 'success')
-    await invoke('ssh_disconnect', { sessionId: sid })
-  } catch (err) {
-    showToast(`✗ ${conn.name} 连接失败: ${err}`, 'error')
-  }
-}
-
-function onQuickCommand(cmd) {
-  // Send to active terminal session
-  if (activeSessionId.value) {
-    safeInvoke('ssh_shell_input', { sessionId: activeSessionId.value, data: cmd + '\r' }).catch(() => {})
-    viewMode.value = 'terminal'
-  } else {
-    showToast(`请先连接服务器`, 'info')
-  }
-}
-
-function onBookmarkNav(bm) {
-  viewMode.value = 'sftp'
-  showToast(`跳转到: ${bm.path}`, 'info')
-}
-
-function onToggleFavorite(conn) {
-  const idx = connections.value.findIndex(c => c.id === conn.id)
-  if (idx >= 0) {
-    connections.value[idx].favorite = !connections.value[idx].favorite
-    safeInvoke('save_connection', { conn: connections.value[idx] }).catch(() => {})
-    showToast(connections.value[idx].favorite ? '已收藏' : '已取消收藏', 'success')
-  }
-}
-
-function toggleFullscreen() {
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen()
-  else document.exitFullscreen()
-}
-
-function onSessionConnected(tabId, sid) { sessionMap.value[tabId] = sid; saveTabsState() }
-function onSessionDisconnected(tabId) { delete sessionMap.value[tabId] }
-
-// Latency polling
-async function pingConnections() {
-  const targets = connections.value.filter(c => c.host && c.host !== 'localhost' && c.host !== '127.0.0.1')
-  for (const conn of targets) {
-    try {
-      const ms = await invoke('tcp_ping', { host: conn.host, port: conn.port || 22 })
-      latencyMap.value[conn.id] = ms
-    } catch {
-      latencyMap.value[conn.id] = null
-    }
-  }
-}
-let pingTimer = null
-function startPingPolling() {
-  pingConnections()
-  pingTimer = setInterval(pingConnections, 30000)
-}
+onUnmounted(() => {
+  stopPingPolling()
+})
 </script>
