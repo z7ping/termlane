@@ -103,7 +103,8 @@ import { ref, nextTick, onMounted } from 'vue'
 import { invoke } from '../utils/tauri.js'
 import { secureStore } from '../utils/secure-store-browser'
 
-const STORAGE_KEY = 'xterminal_macros'
+import { STORAGE_KEYS } from '@/utils/storage-keys'
+const STORAGE_KEY = STORAGE_KEYS.MACROS
 
 const props = defineProps({
   sessionId: String,

@@ -1,5 +1,5 @@
 // 定时任务调度器
-const STORAGE_KEY = 'xterminal_scheduled_tasks'
+import { STORAGE_KEYS } from './storage-keys'
 
 export function getScheduledTasks() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [] }

@@ -120,6 +120,7 @@
 </template>
 
 <script setup>
+import { STORAGE_KEYS } from '@/utils/storage-keys'
 import { ref, onMounted } from 'vue'
 
 const show = ref(false)
@@ -132,19 +133,19 @@ const steps = [
 ]
 
 onMounted(() => {
-  const onboarded = localStorage.getItem('xterminal_onboarded')
+  const onboarded = localStorage.getItem(STORAGE_KEYS.ONBOARDED)
   if (!onboarded) {
     show.value = true
   }
 })
 
 function finish() {
-  localStorage.setItem('xterminal_onboarded', 'true')
+  localStorage.setItem(STORAGE_KEYS.ONBOARDED, 'true')
   show.value = false
 }
 
 function skip() {
-  localStorage.setItem('xterminal_onboarded', 'true')
+  localStorage.setItem(STORAGE_KEYS.ONBOARDED, 'true')
   show.value = false
 }
 

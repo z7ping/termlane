@@ -103,7 +103,6 @@ const QuickCommands = defineAsyncComponent(() => import('./components/QuickComma
 const PortForward = defineAsyncComponent(() => import('./components/PortForward.vue'))
 const ScheduledTasks = defineAsyncComponent(() => import('./components/ScheduledTasks.vue'))
 const MacroRecorder = defineAsyncComponent(() => import('./components/MacroRecorder.vue'))
-const Settings = defineAsyncComponent(() => import('./components/Settings.vue'))
 const ConnectionDialog = defineAsyncComponent(() => import('./components/ConnectionDialog.vue'))
 const UpdateNotifier = defineAsyncComponent(() => import('./components/UpdateNotifier.vue'))
 const ShortcutHelp = defineAsyncComponent(() => import('./components/ShortcutHelp.vue'))

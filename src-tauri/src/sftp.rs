@@ -323,8 +323,10 @@ pub fn create_dir(session_id: &str, path: &str) -> Result<String, String> {
 
 pub fn chmod(session_id: &str, path: &str, mode: &str) -> Result<String, String> {
     // Validate mode to prevent command injection
-    let is_valid_octal = regex::Regex::new(r"^0?[0-7]{3,4}$").unwrap().is_match(mode);
-    let is_valid_symbolic = regex::Regex::new(r"^[ugoa]*[+-=][rwxXst]*([,][ugoa]*[+-=][rwxXst]*)*$").unwrap().is_match(mode);
+    static OCTAL_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    static SYMBOLIC_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let is_valid_octal = OCTAL_RE.get_or_init(|| regex::Regex::new(r"^0?[0-7]{3,4}$").unwrap()).is_match(mode);
+    let is_valid_symbolic = SYMBOLIC_RE.get_or_init(|| regex::Regex::new(r"^[ugoa]*[+-=][rwxXst]*([,][ugoa]*[+-=][rwxXst]*)*$").unwrap()).is_match(mode);
     if !is_valid_octal && !is_valid_symbolic {
         return Err(format!("无效的权限模式: {}", mode));
     }

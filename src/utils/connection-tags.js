@@ -1,5 +1,5 @@
 // 连接标签管理
-const STORAGE_KEY = 'xterminal_connection_tags'
+import { STORAGE_KEYS } from './storage-keys'
 
 export function getTags() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [

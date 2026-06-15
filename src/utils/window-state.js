@@ -1,5 +1,5 @@
 // 窗口状态持久化
-const STORAGE_KEY = 'xterminal_window_state'
+import { STORAGE_KEYS } from './storage-keys'
 
 export function saveWindowState() {
   try {

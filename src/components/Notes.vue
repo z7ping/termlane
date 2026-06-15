@@ -33,6 +33,7 @@
 </template>
 
 <script setup>
+import { STORAGE_KEYS } from '@/utils/storage-keys'
 import { ref, onMounted } from 'vue'
 
 const props = defineProps({ connectionName: String })
@@ -42,13 +43,13 @@ const activeNote = ref(null)
 
 function loadNotes() {
   try {
-    const key = `xterminal_notes_${props.connectionName || 'global'}`
+    const key = `${STORAGE_KEYS.NOTES_PREFIX}${props.connectionName || 'global'}`
     notes.value = JSON.parse(localStorage.getItem(key) || '[]')
   } catch { notes.value = [] }
 }
 
 function saveNotes() {
-  const key = `xterminal_notes_${props.connectionName || 'global'}`
+  const key = `${STORAGE_KEYS.NOTES_PREFIX}${props.connectionName || 'global'}`
   localStorage.setItem(key, JSON.stringify(notes.value))
 }
 

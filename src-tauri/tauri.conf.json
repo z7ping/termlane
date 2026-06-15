@@ -43,10 +43,5 @@
       "icons/512x512.png",
       "icons/icon.ico"
     ]
-  },
-  "plugins": {
-    "stronghold": {
-      "path": "stronghold.bin"
-    }
   }
 }

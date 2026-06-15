@@ -5,11 +5,6 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
-macro_rules! lock {
-    ($mutex:expr) => {
-        $mutex.lock().unwrap_or_else(|e| e.into_inner())
-    };
-}
 
 
 use crate::utils;

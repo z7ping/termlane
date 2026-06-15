@@ -1,14 +1,13 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
+#[macro_use]
+mod utils;
 mod commands;
 mod config;
 mod local_pty;
 mod sftp;
 mod ssh;
 mod updater;
-mod utils;
 
-fn main() {
+pub fn run() {
     tauri::Builder::default()
 
         .invoke_handler(tauri::generate_handler![
@@ -62,8 +61,6 @@ fn main() {
             commands::tcp_ping,
             // App Info
             commands::get_app_version,
-            // Greet (保留)
-            commands::greet,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

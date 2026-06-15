@@ -16,7 +16,7 @@ pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>,
     const GITEA_API_URL: &str = "https://gitea.7ping.site/api/v1/repos/ai-area/xterminal-pro/releases/latest";
 
     let client = reqwest::Client::builder()
-        .user_agent("XTerminal-Pro/0.1.0")
+        .user_agent(format!("XTerminal-Pro/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 

@@ -7,11 +7,6 @@ use std::net::TcpStream;
 use std::sync::Mutex;
 use ssh2::Session;
 use tauri::{AppHandle, Emitter};
-macro_rules! lock {
-    ($mutex:expr) => {
-        $mutex.lock().unwrap_or_else(|e| e.into_inner())
-    };
-}
 
 
 use crate::utils;

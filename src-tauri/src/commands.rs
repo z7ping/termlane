@@ -307,8 +307,3 @@ pub fn get_app_version() -> String {
 }
 
 // ─── Greet (保留) ───
-
-#[tauri::command]
-pub fn greet(name: String) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}

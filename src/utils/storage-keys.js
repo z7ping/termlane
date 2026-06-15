@@ -14,6 +14,12 @@ export const STORAGE_KEYS = {
   PROXY: 'xterminal_proxy',
   // 快捷键前缀
   SHORTCUT_PREFIX: 'shortcut_',
+  // 工具模块
+  WINDOW_STATE: 'xterminal_window_state',
+  SCHEDULED_TASKS: 'xterminal_scheduled_tasks',
+  CONNECTION_TAGS: 'xterminal_connection_tags',
+  MACROS: 'xterminal_macros',
+  NOTES_PREFIX: 'xterminal_notes_',
   // 其他
   ONBOARDED: 'xterminal_onboarded',
   LOCALE: 'xterminal_locale',

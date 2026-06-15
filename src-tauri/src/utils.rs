@@ -1,3 +1,10 @@
+#[macro_export]
+macro_rules! lock {
+    ($mutex:expr) => {
+        $mutex.lock().unwrap_or_else(|e| e.into_inner())
+    };
+}
+
 // src-tauri/src/utils.rs — 共享工具函数
 
 /// 获取 Unix 时间戳（秒）
