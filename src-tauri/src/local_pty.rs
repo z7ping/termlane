@@ -71,11 +71,7 @@ pub fn start_local_shell(
         .map_err(|e| format!("获取写入器失败: {}", e))?;
 
     let (input_tx, input_rx) = crossbeam_channel::unbounded::<String>();
-
-    let session_id = format!("local_{}", std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs());
+    let session_id = format!("local-shell-{}", utils::unix_now());
 
     let sid = session_id.clone();
     let sid_for_reader = sid.clone();

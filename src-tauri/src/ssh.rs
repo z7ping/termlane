@@ -94,7 +94,7 @@ pub async fn connect(
         return Err("用户名或密码错误".into());
     }
 
-    let id = format!("ssh_{}_{}", host.replace('.', "_"), utils::unix_now());
+    let id = format!("ssh-exec-{}-{}", host.replace('.', "_"), utils::unix_now());
     lock!(SESSION_INFO).insert(
         id.clone(),
         SshSession {
@@ -144,7 +144,7 @@ pub async fn connect_with_key(
     if !session.authenticated() {
         return Err("密钥认证失败".into());
     }
-    let id = format!("ssh_{}_{}", host.replace('.', "_"), utils::unix_now());
+    let id = format!("ssh-exec-{}-{}", host.replace('.', "_"), utils::unix_now());
     lock!(SESSION_INFO).insert(
         id.clone(),
         SshSession {
@@ -248,7 +248,7 @@ pub fn start_shell(
         .shell()
         .map_err(|e| format!("启动 shell 失败: {}", e))?;
 
-    let session_id = format!("shell_{}_{}", host.replace('.', "_"), utils::unix_now());
+    let session_id = format!("ssh-shell-{}-{}", host.replace('.', "_"), utils::unix_now());
     let sid = session_id.clone();
 
     // 4. Create crossbeam channels for I/O + resize
