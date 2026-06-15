@@ -6,6 +6,7 @@ mod local_pty;
 mod sftp;
 mod ssh;
 mod updater;
+mod utils;
 
 fn main() {
     tauri::Builder::default()

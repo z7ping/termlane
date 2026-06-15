@@ -15,17 +15,11 @@ pub struct FileEntry {
 }
 
 use crate::ssh;
+use crate::utils;
 
 // ─── Shared tokio runtime (avoid creating new runtime per operation) ───
 static RUNTIME: std::sync::LazyLock<tokio::runtime::Runtime> =
     std::sync::LazyLock::new(|| tokio::runtime::Runtime::new().expect("Failed to create tokio runtime"));
-
-fn unix_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
 
 // ─── Local file operations ───
 
@@ -254,7 +248,7 @@ pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, Str
 
     let local_content = std::fs::read(local).map_err(|e| format!("读取本地文件失败: {}", e))?;
     let encoded = base64_encode(&local_content);
-    let remote_tmp = format!("/tmp/xterminal_upload_{}.b64", unix_now());
+    let remote_tmp = format!("/tmp/xterminal_upload_{}.b64", utils::unix_now());
 
     // Write base64 in chunks via printf to avoid argument length limits
     let chunk_size = 4000;
@@ -361,7 +355,7 @@ pub fn read_file(session_id: &str, path: &str) -> Result<String, String> {
 /// Write UTF-8 text to a remote file via base64 (safe for any content).
 pub fn write_file(session_id: &str, path: &str, content: &str) -> Result<String, String> {
     let encoded = base64_encode(content.as_bytes());
-    let remote_tmp = format!("/tmp/xterminal_edit_{}.b64", unix_now());
+    let remote_tmp = format!("/tmp/xterminal_edit_{}.b64", utils::unix_now());
 
     let chunk_size = 4000;
     let chunks: Vec<&str> = encoded.as_bytes()

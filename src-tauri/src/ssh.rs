@@ -7,13 +7,14 @@ use std::net::TcpStream;
 use std::sync::Mutex;
 use ssh2::Session;
 use tauri::{AppHandle, Emitter};
-
-/// Safely lock a Mutex, recovering from poisoned locks
 macro_rules! lock {
     ($mutex:expr) => {
         $mutex.lock().unwrap_or_else(|e| e.into_inner())
     };
 }
+
+
+use crate::utils;
 
 // ─── Types ───
 
@@ -73,13 +74,6 @@ fn create_session(tcp: TcpStream) -> Result<Session, String> {
     Ok(session)
 }
 
-fn unix_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
-
 // ─── Exec-based API (legacy, one-shot commands) ───
 
 pub async fn connect(
@@ -104,7 +98,7 @@ pub async fn connect(
         return Err("用户名或密码错误".into());
     }
 
-    let id = format!("ssh_{}_{}", host.replace('.', "_"), unix_now());
+    let id = format!("ssh_{}_{}", host.replace('.', "_"), utils::unix_now());
     lock!(SESSION_INFO).insert(
         id.clone(),
         SshSession {
@@ -154,7 +148,7 @@ pub async fn connect_with_key(
     if !session.authenticated() {
         return Err("密钥认证失败".into());
     }
-    let id = format!("ssh_{}_{}", host.replace('.', "_"), unix_now());
+    let id = format!("ssh_{}_{}", host.replace('.', "_"), utils::unix_now());
     lock!(SESSION_INFO).insert(
         id.clone(),
         SshSession {
@@ -258,7 +252,7 @@ pub fn start_shell(
         .shell()
         .map_err(|e| format!("启动 shell 失败: {}", e))?;
 
-    let session_id = format!("shell_{}_{}", host.replace('.', "_"), unix_now());
+    let session_id = format!("shell_{}_{}", host.replace('.', "_"), utils::unix_now());
     let sid = session_id.clone();
 
     // 4. Create crossbeam channels for I/O + resize
@@ -585,10 +579,10 @@ mod tests {
 
     #[test]
     fn test_unix_now_returns_positive() {
-        let t = unix_now();
-        assert!(t > 0, "unix_now() should return a value > 0");
+        let t = utils::unix_now();
+        assert!(t > 0, "utils::unix_now() should return a value > 0");
         // Should be reasonable (after 2020-01-01 1577836800)
-        assert!(t > 1_577_836_800, "unix_now() should be after 2020");
+        assert!(t > 1_577_836_800, "utils::unix_now() should be after 2020");
     }
 
     #[test]

@@ -31,6 +31,7 @@
 </template>
 
 <script setup>
+import { STORAGE_KEYS } from "@/utils/storage-keys.js"
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -86,7 +87,7 @@ const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 // 获取当前主题
 function getTheme() {
-  const themeName = localStorage.getItem('xterminal-theme') || 'dark'
+  const themeName = localStorage.getItem(STORAGE_KEYS.THEME) || 'dark'
   return themes[themeName] || themes.dark
 }
 
@@ -95,8 +96,8 @@ const theme = ref(getTheme())
 function safeFit() { fitAddon?.fit() }
 
 function createTerminal(container) {
-  const fontSize = parseInt(localStorage.getItem('xterminal-fontSize')) || 14
-  const scrollback = parseInt(localStorage.getItem('xterminal-scrollback')) || 10000
+  const fontSize = parseInt(localStorage.getItem(STORAGE_KEYS.FONT_SIZE)) || 14
+  const scrollback = parseInt(localStorage.getItem(STORAGE_KEYS.SCROLLBACK)) || 10000
   const t = new Terminal({
     cursorBlink: true, fontSize,
     fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",

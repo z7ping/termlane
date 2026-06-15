@@ -15,6 +15,7 @@
 </template>
 
 <script setup>
+import { STORAGE_KEYS } from "@/utils/storage-keys.js"
 import { ref } from 'vue'
 
 defineEmits(['toggle-sidebar', 'toggle-fullscreen'])
@@ -22,7 +23,7 @@ defineEmits(['toggle-sidebar', 'toggle-fullscreen'])
 const themes = ['dark', 'light', 'nord']
 const themeNames = { dark: '暗色', light: '亮色', nord: 'Nord' }
 const themeIcons = { dark: '🌙', light: '☀️', nord: '❄️' }
-const currentTheme = ref(localStorage.getItem('xterminal-theme') || 'dark')
+const currentTheme = ref(localStorage.getItem(STORAGE_KEYS.THEME) || 'dark')
 
 // Apply theme on mount
 document.documentElement.setAttribute('data-theme', currentTheme.value)
@@ -31,7 +32,7 @@ function cycleTheme() {
   const idx = themes.indexOf(currentTheme.value)
   currentTheme.value = themes[(idx + 1) % themes.length]
   document.documentElement.setAttribute('data-theme', currentTheme.value)
-  localStorage.setItem('xterminal-theme', currentTheme.value)
+  localStorage.setItem(STORAGE_KEYS.THEME, currentTheme.value)
 }
 </script>
 

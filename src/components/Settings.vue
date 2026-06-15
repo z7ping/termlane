@@ -167,6 +167,7 @@
 </template>
 
 <script setup>
+import { STORAGE_KEYS } from "@/utils/storage-keys.js"
 import { reactive, ref, nextTick, watch } from 'vue'
 
 defineEmits(['open-proxy-settings'])
@@ -177,21 +178,21 @@ const themes = [
   { value: 'nord', label: '❄️ Nord' },
 ]
 
-const currentTheme = ref(localStorage.getItem('xterminal-theme') || 'dark')
+const currentTheme = ref(localStorage.getItem(STORAGE_KEYS.THEME) || 'dark')
 
 const settings = reactive({
   darkMode: currentTheme.value !== 'light',
-  fontSize: parseInt(localStorage.getItem('xterminal-fontSize')) || 14,
+  fontSize: parseInt(localStorage.getItem(STORAGE_KEYS.FONT_SIZE)) || 14,
   cursorBlink: true,
-  scrollback: parseInt(localStorage.getItem('xterminal-scrollback')) || 10000,
+  scrollback: parseInt(localStorage.getItem(STORAGE_KEYS.SCROLLBACK)) || 10000,
   sshTimeout: 30,
 })
 
 // Watch settings changes and save to localStorage
-watch(() => settings.fontSize, (val) => localStorage.setItem('xterminal-fontSize', val))
-watch(() => settings.scrollback, (val) => localStorage.setItem('xterminal-scrollback', val))
-watch(() => settings.cursorBlink, (val) => localStorage.setItem('xterminal-cursorBlink', val))
-watch(() => settings.sshTimeout, (val) => localStorage.setItem('xterminal-sshTimeout', val))
+watch(() => settings.fontSize, (val) => localStorage.setItem(STORAGE_KEYS.FONT_SIZE, val))
+watch(() => settings.scrollback, (val) => localStorage.setItem(STORAGE_KEYS.SCROLLBACK, val))
+watch(() => settings.cursorBlink, (val) => localStorage.setItem(STORAGE_KEYS.CURSOR_BLINK, val))
+watch(() => settings.sshTimeout, (val) => localStorage.setItem(STORAGE_KEYS.SSH_TIMEOUT, val))
 
 // 默认快捷键
 const defaultShortcuts = [
@@ -213,7 +214,7 @@ const shortcuts = defaultShortcuts.map(s => ({
 function setTheme(value) {
   currentTheme.value = value
   document.documentElement.setAttribute('data-theme', value)
-  localStorage.setItem('xterminal-theme', value)
+  localStorage.setItem(STORAGE_KEYS.THEME, value)
   settings.darkMode = value !== 'light'
 }
 

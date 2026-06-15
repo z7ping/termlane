@@ -1,3 +1,4 @@
+import { STORAGE_KEYS } from '@/utils/storage-keys.js'
 import { ref, computed } from 'vue'
 import { invoke } from '../utils/tauri.js'
 import { safeInvoke } from '../utils/invoke.js'
@@ -30,8 +31,8 @@ function _toast(msg, type = 'info') { _toastFn?.(msg, type) }
 // ---- Persistence helpers ----
 
 function saveTabsState() {
-  localStorage.setItem('xterminal_tabs', JSON.stringify(tabs.value.map(t => ({ id: t.id, name: t.name, connectionId: t.connectionId, connection: t.connection }))))
-  localStorage.setItem('xterminal_active_tab', activeTabId.value || '')
+  localStorage.setItem(STORAGE_KEYS.TABS, JSON.stringify(tabs.value.map(t => ({ id: t.id, name: t.name, connectionId: t.connectionId, connection: t.connection }))))
+  localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTabId.value || '')
 }
 
 async function loadConnections() {
@@ -46,10 +47,10 @@ async function loadConnections() {
 
 function loadTabsState() {
   try {
-    const savedTabs = JSON.parse(localStorage.getItem('xterminal_tabs') || '[]')
+    const savedTabs = JSON.parse(localStorage.getItem(STORAGE_KEYS.TABS) || '[]')
     if (savedTabs.length > 0) {
       tabs.value = savedTabs
-      activeTabId.value = localStorage.getItem('xterminal_active_tab') || savedTabs[0]?.id
+      activeTabId.value = localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB) || savedTabs[0]?.id
     }
   } catch (e) { console.warn('[XTerminal] Load tabs error:', e) }
 }

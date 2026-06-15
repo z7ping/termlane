@@ -74,7 +74,7 @@
 
 <script setup>
 import { reactive, onMounted } from 'vue'
-import secureStore from '@/utils/secure-store-browser.js'
+import { secureStore } from '@/utils/secure-store-browser.js'
 
 const proxyTypes = [
   { value: 'http', label: 'HTTP' },
