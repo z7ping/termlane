@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col" :class="{ dark: isDark }">
+  <div class="h-screen flex flex-col">
     <TitleBar @toggle-sidebar="sidebarOpen = !sidebarOpen" @toggle-fullscreen="toggleFullscreen" />
 
     <div class="flex flex-1 overflow-hidden">
@@ -123,7 +123,6 @@ const {
 } = useAppState()
 
 // ── View-only state (stays in App.vue) ──
-const isDark = ref(true)
 const sidebarOpen = ref(true)
 const showAddConnection = ref(false)
 const showShortcuts = ref(false)
@@ -171,6 +170,10 @@ onMounted(async () => {
 
   // Mark app as ready to show (prevent FOUC)
   document.getElementById('app')?.classList.add('ready')
+
+  // Restore theme from localStorage
+  const savedTheme = localStorage.getItem('xterminal-theme') || 'dark'
+  document.documentElement.setAttribute('data-theme', savedTheme)
 
   // Restore persisted state
   await loadConnections()
