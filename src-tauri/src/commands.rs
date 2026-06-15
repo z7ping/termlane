@@ -193,7 +193,7 @@ pub fn get_recording_dir() -> Result<std::path::PathBuf, String> {
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn local_start_shell(app: AppHandle, cols: u16, rows: u16) -> Result<String, String> {
-    crate::local_pty::start_local_shell(app, cols, rows)
+    crate::local_pty::start_local_shell(app, cols, rows, None, None)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -218,10 +218,7 @@ pub fn local_list_shells() -> Vec<String> {
 
 // ─── Updater ───
 
-#[tauri::command(rename_all = "snake_case")]
-pub async fn check_update(current_version: String) -> Result<Option<crate::updater::UpdateInfo>, String> {
-    crate::updater::check_update(current_version).await
-}
+
 
 // ─── Network ───
 

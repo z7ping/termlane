@@ -9,7 +9,7 @@ mod updater;
 
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_stronghold::Builder::new().build())
+
         .invoke_handler(tauri::generate_handler![
             // SSH Exec
             commands::ssh_connect,
@@ -56,7 +56,7 @@ fn main() {
             commands::local_close_shell,
             commands::local_list_shells,
             // Updater
-            commands::check_update,
+            updater::check_update,
             // Network
             commands::tcp_ping,
             // App Info

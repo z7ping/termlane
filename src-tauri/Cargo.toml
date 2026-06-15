@@ -26,9 +26,3 @@ regex = "1"
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
-# Disable GTK/gobject dependencies for headless mode
-[patch.crates-io]
-gobject-sys = { git = "https://github.com/gtk-rs/gobject-sys.git", optional = true }
-glib-sys = { git = "https://github.com/gtk-rs/glib-sys.git", optional = true }
-gdk-sys = { git = "https://github.com/gtk-rs/gdk-sys.git", optional = true }
-gtk-sys = { git = "https://github.com/gtk-rs/gtk-sys.git", optional = true }
