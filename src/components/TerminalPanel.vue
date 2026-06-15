@@ -13,10 +13,17 @@
     </div>
 
     <!-- Terminal Container -->
-    <div class="flex-1 flex overflow-hidden" :style="connectFailed ? 'border: 2px solid var(--danger);' : ''">
+    <div class="flex-1 flex overflow-hidden relative" :style="connectFailed ? 'border: 2px solid var(--danger);' : ''">
       <div ref="containerRef" class="flex-1 overflow-hidden" :style="splitMode ? { width: splitLeftWidth + '%' } : {}" />
       <div v-if="splitMode" class="w-1 cursor-col-resize hover:bg-blue-500/50 transition-colors flex-shrink-0" @mousedown="startSplitResize" />
       <div v-if="splitMode" ref="splitContainerRef" class="flex-1 overflow-hidden" style="border-left: 1px solid var(--border-subtle);" />
+      <!-- Connecting Overlay -->
+      <div v-if="connecting" class="absolute inset-0 flex items-center justify-center z-20" style="background: color-mix(in srgb, var(--bg-base) 80%, transparent);">
+        <div class="flex flex-col items-center gap-3">
+          <div class="w-8 h-8 border-2 rounded-full animate-spin" style="border-color: var(--border); border-top-color: var(--accent);"></div>
+          <div class="text-sm" style="color: var(--fg-muted);">正在连接...</div>
+        </div>
+      </div>
     </div>
 
     <!-- Quick Actions -->
@@ -55,6 +62,7 @@ const showSearch = ref(false)
 const searchTerm = ref('')
 const splitMode = ref(false)
 const splitLeftWidth = ref(50) // percentage for resizable split
+const connecting = ref(false)
 
 // Toast
 const toast = ref({ show: false, message: '', type: 'info' })
@@ -130,6 +138,7 @@ async function initTerminal() {
       await startLocalShell(term)
     } else {
       // Browser fallback
+      connecting.value = false
       showWelcome(term, '浏览器模式')
       term.write('\r\n\x1b[1;32m$ \x1b[0m')
       isConnected = true
@@ -197,11 +206,13 @@ function showWelcome(t, mode) {
 
 async function startLocalShell(t) {
   t.writeln('\x1b[1;33m启动本地 Shell...\x1b[0m')
+  connecting.value = true
   try {
     const dims = fitAddon?.proposeDimensions() || { cols: 80, rows: 24 }
     shellId = await invoke('local_start_shell', { cols: dims.cols, rows: dims.rows })
     isConnected = true
     reconnectAttempts = 0
+    connecting.value = false
     t.writeln('\x1b[1;32m✓ 本地 Shell 已启动\x1b[0m')
     showToast('本地终端已启动', 'success')
     emit('connected', shellId)
@@ -226,6 +237,7 @@ async function startLocalShell(t) {
       }
     })
   } catch (err) {
+    connecting.value = false
     t.writeln(`\x1b[1;31m✗ 本地 Shell 启动失败: ${err}\x1b[0m`)
     showToast('本地终端启动失败', 'error')
     connectFailed.value = true
@@ -239,6 +251,7 @@ async function startPtyShell(t, conn, isReconnect = false) {
   if (!isReconnect) {
     t.writeln(`\x1b[1;33m正在连接 ${conn.username}@${conn.host}:${conn.port || 22}...\x1b[0m`)
   }
+  connecting.value = true
 
   try {
     // Get terminal dimensions
@@ -258,6 +271,7 @@ async function startPtyShell(t, conn, isReconnect = false) {
 
     isConnected = true
     reconnectAttempts = 0
+    connecting.value = false
     t.writeln(`\x1b[1;32m✓ 已连接到 ${conn.host}\x1b[0m`)
     showToast('连接成功', 'success')
     emit('connected', shellId)
@@ -297,6 +311,7 @@ async function startPtyShell(t, conn, isReconnect = false) {
     })
 
   } catch (err) {
+    connecting.value = false
     t.writeln(`\x1b[1;31m✗ 连接失败: ${err}\x1b[0m`)
     showToast('连接失败', 'error')
     connectFailed.value = true

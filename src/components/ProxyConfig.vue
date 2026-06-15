@@ -69,11 +69,18 @@
         </div>
       </template>
     </div>
+
+    <!-- Toast -->
+    <div v-if="toastState.show" class="absolute top-2 right-2 px-3 py-1.5 rounded text-xs z-20 transition-opacity" :class="{
+      'bg-green-600/90 text-white': toastState.type === 'success',
+      'bg-red-600/90 text-white': toastState.type === 'error',
+      'bg-gray-700/90 text-gray-200': toastState.type === 'info',
+    }">{{ toastState.message }}</div>
   </div>
 </template>
 
 <script setup>
-import { reactive, onMounted } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { secureStore } from '@/utils/secure-store-browser.js'
 
 const proxyTypes = [
@@ -92,6 +99,13 @@ const config = reactive({
   bypass: 'localhost\n127.0.0.1',
 })
 
+// Toast
+const toastState = ref({ show: false, message: '', type: 'info' })
+function _toast(message, type = 'info', duration = 2500) {
+  toastState.value = { show: true, message, type }
+  setTimeout(() => { toastState.value.show = false }, duration)
+}
+
 async function loadProxy() {
   try {
     const saved = await secureStore.get('proxy_config')
@@ -101,7 +115,7 @@ async function loadProxy() {
 
 async function saveProxy() {
   await secureStore.set('proxy_config', { ...config })
-  alert('代理设置已保存')
+  _toast('代理设置已保存', 'success')
 }
 
 onMounted(loadProxy)

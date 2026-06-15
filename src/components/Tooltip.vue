@@ -1,8 +1,8 @@
 <template>
   <div
     class="relative inline-block"
-    @mouseenter="show = true"
-    @mouseleave="show = false"
+    @mouseenter="onMouseEnter"
+    @mouseleave="onMouseLeave"
   >
     <slot />
     <transition name="tooltip">
@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 
 const props = defineProps({
   text: String,
@@ -29,6 +29,23 @@ const props = defineProps({
 })
 
 const show = ref(false)
+let showTimer = null
+let hideTimer = null
+
+function onMouseEnter() {
+  clearTimeout(hideTimer)
+  showTimer = setTimeout(() => { show.value = true }, props.delay)
+}
+
+function onMouseLeave() {
+  clearTimeout(showTimer)
+  hideTimer = setTimeout(() => { show.value = false }, 100)
+}
+
+onUnmounted(() => {
+  clearTimeout(showTimer)
+  clearTimeout(hideTimer)
+})
 
 const positionClass = computed(() => ({
   top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',

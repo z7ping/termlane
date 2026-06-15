@@ -165,11 +165,52 @@
       <div @click="ctxDelete" class="px-4 py-1.5 cursor-pointer" style="color: var(--danger); hover:background: var(--bg-hover);">🗑 删除</div>
     </div>
 
+    <!-- Loading Overlay -->
+    <div v-if="loading" class="absolute inset-0 flex items-center justify-center z-10" style="background: color-mix(in srgb, var(--bg-base) 70%, transparent);">
+      <div class="flex items-center gap-2 text-sm" style="color: var(--fg-muted);">
+        <span class="animate-spin">⏳</span> 加载中...
+      </div>
+    </div>
+
+    <!-- Inline Prompt Dialog -->
+    <Teleport to="body">
+      <div v-if="promptState.show" class="fixed inset-0 flex items-center justify-center z-[60]" style="background: color-mix(in srgb, #000 60%, transparent)" @click.self="promptResolve(null)">
+        <div class="rounded-lg p-4 w-80 space-y-3" style="background: var(--bg-surface); border: 1px solid var(--border-subtle);" @keydown.esc="promptResolve(null)">
+          <div class="text-sm font-medium" style="color: var(--fg-primary);">{{ promptState.title }}</div>
+          <input ref="promptInputRef" v-model="promptState.value" @keydown.enter="promptResolve(promptState.value)" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-base); color: var(--fg-primary); border: 1px solid var(--border);" />
+          <div class="flex justify-end gap-2">
+            <button @click="promptResolve(null)" class="px-3 py-1 text-xs rounded" style="background: var(--bg-elevated); color: var(--fg-muted);">取消</button>
+            <button @click="promptResolve(promptState.value)" class="px-3 py-1 text-xs rounded text-white" style="background: var(--accent);">确定</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Inline Confirm Dialog -->
+    <Teleport to="body">
+      <div v-if="confirmState.show" class="fixed inset-0 flex items-center justify-center z-[60]" style="background: color-mix(in srgb, #000 60%, transparent)" @click.self="confirmResolve(false)">
+        <div class="rounded-lg p-4 w-80 space-y-3" style="background: var(--bg-surface); border: 1px solid var(--border-subtle);" @keydown.esc="confirmResolve(false)">
+          <div class="text-sm" style="color: var(--fg-primary);">{{ confirmState.message }}</div>
+          <div class="flex justify-end gap-2">
+            <button @click="confirmResolve(false)" class="px-3 py-1 text-xs rounded" style="background: var(--bg-elevated); color: var(--fg-muted);">取消</button>
+            <button @click="confirmResolve(true)" class="px-3 py-1 text-xs rounded text-white" style="background: var(--accent);">确定</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Toast -->
+    <div v-if="toastState.show" class="absolute top-2 right-2 px-3 py-1.5 rounded text-xs z-20 transition-opacity" :class="{
+      'bg-green-600/90 text-white': toastState.type === 'success',
+      'bg-red-600/90 text-white': toastState.type === 'error',
+      'bg-gray-700/90 text-gray-200': toastState.type === 'info',
+    }">{{ toastState.message }}</div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch, computed } from 'vue'
+import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue'
 import { invoke } from '../utils/tauri.js'
 import VirtualList from './VirtualList.vue'
 import { FolderPlus, Trash2, RefreshCw } from 'lucide-vue-next'
@@ -180,6 +221,48 @@ import { useFileSelection } from '../composables/useFileSelection.js'
 const props = defineProps({ connection: Object, sessionId: String, active: Boolean })
 
 const { startResize } = useSplitResize()
+
+// ─── Toast ───
+const toastState = ref({ show: false, message: '', type: 'info' })
+function _toast(message, type = 'info', duration = 2500) {
+  toastState.value = { show: true, message, type }
+  setTimeout(() => { toastState.value.show = false }, duration)
+}
+
+// ─── Prompt Dialog ───
+const promptInputRef = ref(null)
+const promptState = ref({ show: false, title: '', value: '' })
+let promptResolveFn = null
+function showPrompt(title, defaultVal = '') {
+  return new Promise((resolve) => {
+    promptState.value = { show: true, title, value: defaultVal }
+    promptResolveFn = resolve
+    nextTick(() => promptInputRef.value?.focus())
+  })
+}
+function promptResolve(val) {
+  promptState.value.show = false
+  promptResolveFn?.(val)
+  promptResolveFn = null
+}
+
+// ─── Confirm Dialog ───
+const confirmState = ref({ show: false, message: '' })
+let confirmResolveFn = null
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    confirmState.value = { show: true, message }
+    confirmResolveFn = resolve
+  })
+}
+function confirmResolve(val) {
+  confirmState.value.show = false
+  confirmResolveFn?.(val)
+  confirmResolveFn = null
+}
+
+// ─── Loading ───
+const loading = ref(false)
 
 const localPath = ref('/home')
 const remotePath = ref('/')
@@ -265,14 +348,18 @@ async function onRemoteDirDrop(e, targetFile) {
 // ─── File Operations ───
 
 async function loadLocal() {
+  loading.value = true
   try { localFiles.value = await invoke('sftp_list_local', { path: localPath.value }) }
   catch { localFiles.value = [] }
+  finally { loading.value = false }
 }
 
 async function loadRemote() {
   if (!props.sessionId) return
+  loading.value = true
   try { remoteFiles.value = await invoke('sftp_list_remote', { sessionId: props.sessionId, path: remotePath.value }).then(files => files.map(f => ({ ...f, _dragOver: false }))) }
   catch { remoteFiles.value = [] }
+  finally { loading.value = false }
 }
 
 function refreshRemote() { loadRemote() }
@@ -322,7 +409,7 @@ async function doDownload() {
 
 async function batchDelete() {
   if (!props.sessionId || selectedRemoteSet.size === 0) return
-  if (!confirm(`确认删除 ${selectedRemoteSet.size} 个文件/目录？`)) return
+  if (!await showConfirm(`确认删除 ${selectedRemoteSet.size} 个文件/目录？`)) return
   for (const p of [...selectedRemoteSet]) {
     const file = remoteFiles.value.find(f => f.path === p)
     if (file) {
@@ -350,29 +437,29 @@ function showRemoteMenu(e, file) {
 async function ctxRename() {
   const file = ctxMenu.value.file
   if (!file) return
-  const newName = prompt('新名称:', file.name)
+  const newName = await showPrompt('新名称:', file.name)
   if (!newName || newName === file.name) return
   const dir = file.path.substring(0, file.path.lastIndexOf('/'))
   const newPath = dir ? `${dir}/${newName}` : `/${newName}`
   try { await invoke('sftp_rename', { sessionId: props.sessionId, oldPath: file.path, newPath }); loadRemote() }
-  catch (e) { alert('重命名失败: ' + e) }
+  catch (e) { _toast('重命名失败: ' + e, 'error') }
 }
 
 async function ctxDelete() {
   const file = ctxMenu.value.file
   if (!file) return
-  if (!confirm(`确认删除 ${file.name}?`)) return
+  if (!await showConfirm(`确认删除 ${file.name}?`)) return
   try { await invoke('sftp_delete', { sessionId: props.sessionId, path: file.path, isDir: file.isDir }); loadRemote() }
-  catch (e) { alert('删除失败: ' + e) }
+  catch (e) { _toast('删除失败: ' + e, 'error') }
 }
 
 async function ctxChmod() {
   const file = ctxMenu.value.file
   if (!file) return
-  const mode = prompt('权限 (如 755):', '644')
+  const mode = await showPrompt('权限 (如 755):', '644')
   if (!mode) return
   try { await invoke('sftp_chmod', { sessionId: props.sessionId, path: file.path, mode }); loadRemote() }
-  catch (e) { alert('修改权限失败: ' + e) }
+  catch (e) { _toast('修改权限失败: ' + e, 'error') }
 }
 
 function ctxEdit() { if (ctxMenu.value.file) openEdit(ctxMenu.value.file.path) }
@@ -397,7 +484,7 @@ async function openEdit(path) {
     const content = await invoke('sftp_read_file', { sessionId: props.sessionId, path })
     editFile.value = { show: true, path, content, dirty: false }
     showInlineEditor.value = true
-  } catch (e) { alert('读取文件失败: ' + e) }
+  } catch (e) { _toast('读取文件失败: ' + e, 'error') }
 }
 
 function closeEditor() {
@@ -408,16 +495,17 @@ async function saveEdit() {
   try {
     await invoke('sftp_write_file', { sessionId: props.sessionId, path: editFile.value.path, content: editFile.value.content })
     editFile.value.dirty = false
-  } catch (e) { alert('保存失败: ' + e) }
+    _toast('保存成功', 'success')
+  } catch (e) { _toast('保存失败: ' + e, 'error') }
 }
 
 async function createRemoteDir() {
   if (!props.sessionId) return
-  const name = prompt('目录名称:')
+  const name = await showPrompt('目录名称:')
   if (!name) return
   const path = remotePath.value === '/' ? `/${name}` : `${remotePath.value}/${name}`
   try { await invoke('sftp_mkdir', { sessionId: props.sessionId, path }); loadRemote() }
-  catch (e) { alert('创建失败: ' + e) }
+  catch (e) { _toast('创建失败: ' + e, 'error') }
 }
 
 onMounted(() => loadLocal())

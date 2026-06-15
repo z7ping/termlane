@@ -12,7 +12,7 @@
       <div v-for="s in servers" :key="s.id" class="rounded-lg mb-3 p-4" style="background: var(--bg-surface)">
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full" :style="s.testing ? { background: 'var(--warning)', animation: 'pulse 2s infinite' } : s.results.length ? latencyDot(s.results[s.results.length-1]) : { background: 'var(--fg-muted)' }" />
+            <span class="w-2 h-2 rounded-full" :style="s.testing ? { background: 'var(--warning)', animation: 'pulse 2s infinite' } : s.results.filter(v => v != null).length ? latencyDot(s.results.filter(v => v != null)[s.results.filter(v => v != null).length - 1]) : { background: 'var(--fg-muted)' }" />
             <span class="text-sm" style="color: var(--fg-primary)">{{ s.name }}</span>
             <span class="text-xs" style="color: var(--fg-muted)">{{ s.host }}:{{ s.port }}</span>
           </div>
@@ -22,19 +22,18 @@
         </div>
 
         <!-- Latency Bar Chart -->
-        <div v-if="s.results.length" class="flex items-end gap-0.5 h-14 mb-3">
+        <div v-if="s.results.filter(v => v != null).length" class="flex items-end gap-0.5 h-14 mb-3">
           <div v-for="(r, i) in s.results.slice(-15)" :key="i"
             class="flex-1 rounded-t transition-all duration-300"
-            :style="latencyBar(r)"
-            :style="{ height: Math.max(4, Math.min(100, (r / 300) * 100)) + '%' }"
-            :title="r + 'ms'" />
+            v-bind="r != null ? { style: { height: Math.max(4, Math.min(100, (r / 300) * 100)) + '%', background: 'var(--danger)' } } : { style: { height: '4px', background: 'var(--border-subtle)', opacity: 0.3 } }"
+            :title="r != null ? r + 'ms' : '失败'" />
         </div>
 
         <!-- Stats -->
-        <div v-if="s.results.length" class="grid grid-cols-4 gap-2 text-center text-xs">
+        <div v-if="s.results.filter(v => v != null).length" class="grid grid-cols-4 gap-2 text-center text-xs">
           <div class="rounded p-2" style="background: var(--bg-base)">
             <div class="" style="color: var(--fg-muted)">最新</div>
-            <div class="font-mono" :style="latencyText(s.results[s.results.length-1])">{{ s.results[s.results.length-1] }}ms</div>
+            <div class="font-mono" :style="s.results.filter(v => v != null).length ? latencyText(s.results.filter(v => v != null)[s.results.filter(v => v != null).length - 1]) : ''">{{ s.results.filter(v => v != null).length ? s.results.filter(v => v != null)[s.results.filter(v => v != null).length - 1] + 'ms' : '-' }}</div>
           </div>
           <div class="rounded p-2" style="background: var(--bg-base)">
             <div class="" style="color: var(--fg-muted)">平均</div>
@@ -51,11 +50,11 @@
         </div>
 
         <!-- Rating -->
-        <div v-if="s.results.length" class="mt-2 text-xs">
-          评级: <span :style="ratingClass(s.results[s.results.length-1])">{{ rating(s.results[s.results.length-1]) }}</span>
+        <div v-if="s.results.filter(v => v != null).length" class="mt-2 text-xs">
+          评级: <span :style="ratingClass(s.results.filter(v => v != null)[s.results.filter(v => v != null).length - 1])">{{ rating(s.results.filter(v => v != null)[s.results.filter(v => v != null).length - 1]) }}</span>
         </div>
 
-        <div v-if="!s.results.length && !s.testing" class="text-xs text-center py-2" style="color: var(--fg-muted)">点击「测试」开始</div>
+        <div v-if="!s.results.filter(v => v != null).length && !s.testing" class="text-xs text-center py-2" style="color: var(--fg-muted)">点击「测试」开始</div>
         <div v-if="s.error" class="text-xs mt-1" style="color: var(--danger)">{{ s.error }}</div>
       </div>
 
@@ -99,7 +98,8 @@ async function testOne(s) {
     if (s.results.length > 20) s.results.shift()
   } catch (e) {
     s.error = typeof e === 'string' ? e : '连接超时'
-    s.results.push(9999)
+    // Don't push 9999 - push null to mark failed results
+    s.results.push(null)
     if (s.results.length > 20) s.results.shift()
   } finally {
     s.testing = false
@@ -115,9 +115,18 @@ async function testAll() {
   testing.value = false
 }
 
-function avg(arr) { return arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : '-' }
-function min(arr) { return arr.length ? Math.min(...arr) : '-' }
-function max(arr) { return arr.length ? Math.max(...arr) : '-' }
+function avg(arr) {
+  const valid = arr.filter(v => v != null)
+  return valid.length ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : '-'
+}
+function min(arr) {
+  const valid = arr.filter(v => v != null)
+  return valid.length ? Math.min(...valid) : '-'
+}
+function max(arr) {
+  const valid = arr.filter(v => v != null)
+  return valid.length ? Math.max(...valid) : '-'
+}
 
 function latencyBar(ms) {
   if (ms < 30) return { background: 'var(--success)' }

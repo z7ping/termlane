@@ -212,7 +212,7 @@ async function delRecording(id) {
 function ansiToHtml(text) {
   if (!text) return ''
   return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
     .replace(/\x1b\[1;32m/g, '<span style="color:#0dbc79">')
     .replace(/\x1b\[1;31m/g, '<span style="color:#cd3131">')
     .replace(/\x1b\[1;33m/g, '<span style="color:#e5e510">')

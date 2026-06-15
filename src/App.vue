@@ -77,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent, defineComponent } from 'vue'
 import { invoke } from './utils/tauri.js'
 import { parseShortcut, getShortcut } from './utils/shortcuts.js'
 import { useAppState, setToast } from './composables/useAppState.js'
@@ -91,23 +91,25 @@ import StatusBar from './components/StatusBar.vue'
 import Toast from './components/Toast.vue'
 
 // Lazy - 按需加载（异步分包）
-const SftpPanel = defineAsyncComponent(() => import('./components/SftpPanel.vue'))
-const BatchCommand = defineAsyncComponent(() => import('./components/BatchCommand.vue'))
-const ConnectionMonitor = defineAsyncComponent(() => import('./components/ConnectionMonitor.vue'))
-const SpeedTest = defineAsyncComponent(() => import('./components/SpeedTest.vue'))
-const SessionRecorder = defineAsyncComponent(() => import('./components/SessionRecorder.vue'))
-const Notes = defineAsyncComponent(() => import('./components/Notes.vue'))
-const Bookmarks = defineAsyncComponent(() => import('./components/Bookmarks.vue'))
-const ProxyConfig = defineAsyncComponent(() => import('./components/ProxyConfig.vue'))
-const QuickCommands = defineAsyncComponent(() => import('./components/QuickCommands.vue'))
-const PortForward = defineAsyncComponent(() => import('./components/PortForward.vue'))
-const ScheduledTasks = defineAsyncComponent(() => import('./components/ScheduledTasks.vue'))
-const MacroRecorder = defineAsyncComponent(() => import('./components/MacroRecorder.vue'))
-const ConnectionDialog = defineAsyncComponent(() => import('./components/ConnectionDialog.vue'))
-const UpdateNotifier = defineAsyncComponent(() => import('./components/UpdateNotifier.vue'))
-const ShortcutHelp = defineAsyncComponent(() => import('./components/ShortcutHelp.vue'))
-const ErrorBoundary = defineAsyncComponent(() => import('./components/ErrorBoundary.vue'))
-const Onboarding = defineAsyncComponent(() => import('./components/Onboarding.vue'))
+const asyncLoadingComponent = defineComponent({ template: '<div class="flex items-center justify-center p-4" style="color: var(--fg-muted);">加载中...</div>' })
+const asyncOpts = { loadingComponent: asyncLoadingComponent }
+const SftpPanel = defineAsyncComponent(() => import('./components/SftpPanel.vue'), asyncOpts)
+const BatchCommand = defineAsyncComponent(() => import('./components/BatchCommand.vue'), asyncOpts)
+const ConnectionMonitor = defineAsyncComponent(() => import('./components/ConnectionMonitor.vue'), asyncOpts)
+const SpeedTest = defineAsyncComponent(() => import('./components/SpeedTest.vue'), asyncOpts)
+const SessionRecorder = defineAsyncComponent(() => import('./components/SessionRecorder.vue'), asyncOpts)
+const Notes = defineAsyncComponent(() => import('./components/Notes.vue'), asyncOpts)
+const Bookmarks = defineAsyncComponent(() => import('./components/Bookmarks.vue'), asyncOpts)
+const ProxyConfig = defineAsyncComponent(() => import('./components/ProxyConfig.vue'), asyncOpts)
+const QuickCommands = defineAsyncComponent(() => import('./components/QuickCommands.vue'), asyncOpts)
+const PortForward = defineAsyncComponent(() => import('./components/PortForward.vue'), asyncOpts)
+const ScheduledTasks = defineAsyncComponent(() => import('./components/ScheduledTasks.vue'), asyncOpts)
+const MacroRecorder = defineAsyncComponent(() => import('./components/MacroRecorder.vue'), asyncOpts)
+const ConnectionDialog = defineAsyncComponent(() => import('./components/ConnectionDialog.vue'), asyncOpts)
+const UpdateNotifier = defineAsyncComponent(() => import('./components/UpdateNotifier.vue'), asyncOpts)
+const ShortcutHelp = defineAsyncComponent(() => import('./components/ShortcutHelp.vue'), asyncOpts)
+const ErrorBoundary = defineAsyncComponent(() => import('./components/ErrorBoundary.vue'), asyncOpts)
+const Onboarding = defineAsyncComponent(() => import('./components/Onboarding.vue'), asyncOpts)
 
 // ── Shared state from composable ──
 const {
@@ -160,6 +162,8 @@ function toggleFullscreen() {
 }
 
 // ── Lifecycle ──
+let _cleanupKeydown = null
+let _cleanupShortcutChanged = null
 
 onMounted(async () => {
   // Wire up toast callback so the composable can show notifications
@@ -222,14 +226,21 @@ onMounted(async () => {
   }
 
   let shortcutHandlers = setupGlobalShortcuts()
-  document.addEventListener('keydown', (e) => {
+
+  const handleKeydown = (e) => {
     shortcutHandlers.forEach(handler => handler(e))
-  })
+  }
+  document.addEventListener('keydown', handleKeydown)
 
   // 监听快捷键变化
-  window.addEventListener('shortcut-changed', () => {
+  const handleShortcutChanged = () => {
     shortcutHandlers = setupGlobalShortcuts()
-  })
+  }
+  window.addEventListener('shortcut-changed', handleShortcutChanged)
+
+  // Save references for cleanup
+  _cleanupKeydown = handleKeydown
+  _cleanupShortcutChanged = handleShortcutChanged
 
   // Start latency polling
   startPingPolling()
@@ -237,5 +248,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopPingPolling()
+  if (_cleanupKeydown) document.removeEventListener('keydown', _cleanupKeydown)
+  if (_cleanupShortcutChanged) window.removeEventListener('shortcut-changed', _cleanupShortcutChanged)
 })
 </script>
