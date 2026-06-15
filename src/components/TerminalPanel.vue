@@ -108,7 +108,7 @@ function createTerminal(container) {
   const scrollback = parseInt(localStorage.getItem(STORAGE_KEYS.SCROLLBACK)) || 10000
   const t = new Terminal({
     cursorBlink: true, fontSize,
-    fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+    fontFamily: "'Consolas', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
     theme: theme.value, scrollback,
   })
   const fit = new FitAddon()

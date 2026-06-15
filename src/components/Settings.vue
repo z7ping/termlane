@@ -34,7 +34,7 @@
               <div class="text-xs" style="color: var(--fg-muted);">终端字体大小</div>
             </div>
             <div class="flex items-center gap-2">
-              <button @click="settings.fontSize = Math.max(10, settings.fontSize - 1)" class="w-6 h-6 rounded text-sm" style="background: var(--bg-elevated); color: var(--fg-secondary);">-</button>
+              <button @click="settings.fontSize = Math.max(13, settings.fontSize - 1)" class="w-6 h-6 rounded text-sm" style="background: var(--bg-elevated); color: var(--fg-secondary);">-</button>
               <span class="text-sm w-8 text-center" style="color: var(--fg-secondary);">{{ settings.fontSize }}</span>
               <button @click="settings.fontSize = Math.min(24, settings.fontSize + 1)" class="w-6 h-6 rounded text-sm" style="background: var(--bg-elevated); color: var(--fg-secondary);">+</button>
             </div>
