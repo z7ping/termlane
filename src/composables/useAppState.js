@@ -57,13 +57,19 @@ function loadTabsState() {
 
 // ---- Tab management ----
 
-function onSelectConnection(conn) {
-  activeConnectionId.value = conn.id
-  const existing = tabs.value.find(t => t.connectionId === conn.id)
+async function onSelectConnection(conn) {
+  // Load password from keyring if not present in the connection object
+  let password = conn.password
+  if (conn.authType === 'password' && !password && conn.id) {
+    try { password = await invoke('keyring_load_password', { connId: conn.id }) } catch (e) {}
+  }
+  const connWithPassword = password ? { ...conn, password } : conn
+  activeConnectionId.value = connWithPassword.id
+  const existing = tabs.value.find(t => t.connectionId === connWithPassword.id)
   if (existing) {
     activeTabId.value = existing.id
   } else {
-    const tab = { id: `tab_${Date.now()}`, name: conn.name, connectionId: conn.id, connection: conn, type: 'terminal' }
+    const tab = { id: `tab_${Date.now()}`, name: connWithPassword.name, connectionId: connWithPassword.id, connection: connWithPassword, type: 'terminal' }
     tabs.value.push(tab)
     activeTabId.value = tab.id
   }

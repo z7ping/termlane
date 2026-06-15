@@ -70,7 +70,7 @@
     <Toast ref="toastRef" />
     <UpdateNotifier />
 
-    <ConnectionDialog v-if="showAddConnection" :editing="editingConnection" @save="onSaveConnection" @close="showAddConnection = false; editingConnection = null" />
+    <ConnectionDialog v-if="showAddConnection" :editing="editingConnection" @save="(conn) => onSaveConnection(conn, editingConnection)" @close="showAddConnection = false; editingConnection = null" />
     <ShortcutHelp :visible="showShortcuts" @close="showShortcuts = false" />
     <Onboarding />
   </div>

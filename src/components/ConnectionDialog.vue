@@ -157,7 +157,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { invoke } from '../utils/tauri.js'
 
 const props = defineProps({ editing: Object })
@@ -177,6 +177,16 @@ const tagColors = [
 ]
 
 const tagsInput = ref((props.editing?.tags || []).join(', '))
+
+// Load password from keyring on mount when editing
+onMounted(async () => {
+  if (props.editing?.authType === 'password' && props.editing?.id) {
+    try {
+      const pwd = await invoke('keyring_load_password', { connId: props.editing.id })
+      if (pwd) form.password = pwd
+    } catch (e) { /* keyring not available */ }
+  }
+})
 
 const authTypes = [
   { value: 'password', label: '密码' },
