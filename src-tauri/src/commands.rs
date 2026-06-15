@@ -39,8 +39,8 @@ pub fn ssh_list_sessions() -> Vec<crate::ssh::SshSession> {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn ssh_monitor(session_id: String) -> Result<crate::ssh::MonitorData, String> {
-    crate::ssh::get_monitor_data(&session_id)
+pub fn ssh_disconnect(session_id: String) -> Result<(), String> {
+    crate::ssh::disconnect(&session_id)
 }
 
 // ─── SSH PTY Shell ───
