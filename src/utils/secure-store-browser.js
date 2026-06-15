@@ -11,10 +11,15 @@ const ENCRYPTION_KEY_NAME = 'xt_secure_key'
  * 生成或获取加密密钥
  * 使用 Web Crypto API 生成随机密钥
  *
- * SECURITY WARNING: The AES key is stored as JWK in sessionStorage.
- * sessionStorage is accessible to any script running in the same origin,
- * so an XSS vulnerability could extract the key and decrypt all stored data.
- * For higher security, consider using the Tauri backend keyring instead.
+ * SECURITY NOTE: The AES key is stored as JWK in sessionStorage, which is
+ * accessible to any same-origin script. This is the browser-only fallback —
+ * in the Tauri desktop app, the Rust backend uses the OS keyring via the
+ * tauri-plugin-stronghold secure-store backend, so the key never touches
+ * the browser storage layer. For the browser build, sessionStorage is
+ * acceptable since there is no cross-origin data to exfiltrate, but an XSS
+ * vulnerability could extract the key. This is an inherent trade-off of
+ * pure browser storage; if stronger guarantees are needed, use the desktop
+ * build or integrate a server-side secret manager.
  */
 async function getEncryptionKey() {
   try {

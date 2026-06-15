@@ -11,7 +11,7 @@
 </template>
 
 <script setup>
-import { ref, onErrorCaptured } from 'vue'
+import { ref, onMounted, onUnmounted, onErrorCaptured } from 'vue'
 
 const hasError = ref(false)
 const errorMessage = ref('')
@@ -20,6 +20,26 @@ onErrorCaptured((err) => {
   hasError.value = true
   errorMessage.value = err.message || '未知错误'
   return false // Prevent propagation
+})
+
+function onGlobalError(e) {
+  hasError.value = true
+  errorMessage.value = e.message || '未捕获的错误'
+}
+
+function onUnhandledRejection(e) {
+  hasError.value = true
+  errorMessage.value = e.reason?.message || '未处理的 Promise 拒绝'
+}
+
+onMounted(() => {
+  window.addEventListener('error', onGlobalError)
+  window.addEventListener('unhandledrejection', onUnhandledRejection)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('error', onGlobalError)
+  window.removeEventListener('unhandledrejection', onUnhandledRejection)
 })
 
 function reset() {

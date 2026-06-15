@@ -39,6 +39,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { invoke, listen, isTauri } from '../utils/tauri.js'
 import { parseShortcut, getShortcut } from '../utils/shortcuts.js'
 import { useSplitResize } from '../composables/useSplitResize.js'
+import { themes } from '@/utils/themes.js'
 import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps({ tab: Object, active: Boolean })
@@ -82,31 +83,6 @@ const MAX_RECONNECT = 3
 let idleTimer = null
 let lastActivity = Date.now()
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
-
-// 主题定义
-const themes = {
-  dark: {
-    background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#aeafad', selection: '#264f78',
-    black: '#000000', red: '#cd3131', green: '#0dbc79', yellow: '#e5e510',
-    blue: '#2472c8', magenta: '#bc3fbc', cyan: '#11a8cd', white: '#e5e5e5',
-    brightBlack: '#666666', brightRed: '#f14c4c', brightGreen: '#23d18b', brightYellow: '#f5f543',
-    brightBlue: '#3b8eea', brightMagenta: '#d670d6', brightCyan: '#29b8db', brightWhite: '#e5e5e5',
-  },
-  light: {
-    background: '#ffffff', foreground: '#3e3e3e', cursor: '#3e3e3e', selection: '#cce0ff',
-    black: '#000000', red: '#cd3131', green: '#0dbc79', yellow: '#e5e510',
-    blue: '#2472c8', magenta: '#bc3fbc', cyan: '#11a8cd', white: '#e5e5e5',
-    brightBlack: '#666666', brightRed: '#f14c4c', brightGreen: '#23d18b', brightYellow: '#f5f543',
-    brightBlue: '#3b8eea', brightMagenta: '#d670d6', brightCyan: '#29b8db', brightWhite: '#e5e5e5',
-  },
-  nord: {
-    background: '#2e3440', foreground: '#d8dee9', cursor: '#d8dee9', selection: '#434c5e',
-    black: '#3b4252', red: '#bf616a', green: '#a3be8c', yellow: '#ebcb8b',
-    blue: '#5e81ac', magenta: '#b48ead', cyan: '#88c0d0', white: '#eceff4',
-    brightBlack: '#4c566a', brightRed: '#bf616a', brightGreen: '#a3be8c', brightYellow: '#ebcb8b',
-    brightBlue: '#81a1c1', brightMagenta: '#b48ead', brightCyan: '#8fbcbb', brightWhite: '#eceff4',
-  },
-}
 
 // 获取当前主题
 function getTheme() {
@@ -173,15 +149,7 @@ async function initTerminal() {
   })
 
   // Right-click paste
-  containerRef.value.addEventListener('contextmenu', async (e) => {
-    e.preventDefault()
-    try {
-      const text = await navigator.clipboard.readText()
-      if (text && shellId) {
-        await invoke('ssh_shell_input', { sessionId: shellId, data: text })
-      }
-    } catch {}
-  })
+  containerRef.value.addEventListener('contextmenu', handleContextmenu)
 
   //获取快捷键
   const searchKey = parseShortcut(getShortcut('搜索'))
@@ -452,6 +420,25 @@ function retryConnection() {
   initTerminal()
 }
 
+// ─── Named event handlers (for cleanup) ───
+async function handleContextmenu(e) {
+  e.preventDefault()
+  try {
+    const text = await navigator.clipboard.readText()
+    if (text && shellId) {
+      invoke('ssh_shell_input', { sessionId: shellId, data: text })
+    }
+  } catch {}
+}
+
+function handleStorage(e) {
+  if (e.key === 'xterminal-theme') {
+    theme.value = getTheme()
+    if (term) term.options.theme = theme.value
+    if (splitTerm) splitTerm.options.theme = theme.value
+  }
+}
+
 onMounted(() => {
   initTerminal()
   // Idle timeout check every minute
@@ -466,19 +453,15 @@ onMounted(() => {
   }, 60000)
 
   // 监听主题变化
-  window.addEventListener('storage', (e) => {
-    if (e.key === 'xterminal-theme') {
-      theme.value = getTheme()
-      if (term) term.options.theme = theme.value
-      if (splitTerm) splitTerm.options.theme = theme.value
-    }
-  })
+  window.addEventListener('storage', handleStorage)
 })
 
 onUnmounted(async () => {
   clearInterval(idleTimer)
   resizeObserver?.disconnect()
   unlisten?.()
+  containerRef.value?.removeEventListener('contextmenu', handleContextmenu)
+  window.removeEventListener('storage', handleStorage)
   if (shellId) {
     // Try both SSH and local close
     await invoke('ssh_close_shell', { sessionId: shellId }).catch(() => {})

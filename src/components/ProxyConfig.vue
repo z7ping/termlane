@@ -74,6 +74,7 @@
 
 <script setup>
 import { reactive, onMounted } from 'vue'
+import secureStore from '@/utils/secure-store-browser.js'
 
 const proxyTypes = [
   { value: 'http', label: 'HTTP' },
@@ -91,15 +92,15 @@ const config = reactive({
   bypass: 'localhost\n127.0.0.1',
 })
 
-function loadProxy() {
+async function loadProxy() {
   try {
-    const saved = JSON.parse(localStorage.getItem('xterminal_proxy') || '{}')
-    Object.assign(config, saved)
+    const saved = await secureStore.get('proxy_config')
+    if (saved) Object.assign(config, saved)
   } catch {}
 }
 
-function saveProxy() {
-  localStorage.setItem('xterminal_proxy', JSON.stringify({ ...config }))
+async function saveProxy() {
+  await secureStore.set('proxy_config', { ...config })
   alert('代理设置已保存')
 }
 

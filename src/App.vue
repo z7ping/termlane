@@ -160,7 +160,7 @@ onMounted(async () => {
       const localExists = saved.some(c => c.id === 'local')
       connections.value = localExists ? saved : [{ id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' }, ...saved]
     }
-  } catch {}
+  } catch (e) { console.warn("[XTerminal] Load error:", e) }
 
   // Restore tabs
   try {
@@ -169,7 +169,7 @@ onMounted(async () => {
       tabs.value = savedTabs
       activeTabId.value = localStorage.getItem('xterminal_active_tab') || savedTabs[0]?.id
     }
-  } catch {}
+  } catch (e) { console.warn("[XTerminal] Load error:", e) }
 
   // Restore window state
   try {
@@ -177,7 +177,7 @@ onMounted(async () => {
     if (ws) {
       // Window state available
     }
-  } catch {}
+  } catch (e) { console.warn("[XTerminal] Load error:", e) }
 
   // Save window state on close
   window.addEventListener('beforeunload', () => {
@@ -191,7 +191,7 @@ onMounted(async () => {
         height: window.outerHeight,
         maximized: false,
       })
-    } catch {}
+    } catch (e) { console.warn("[XTerminal] Load error:", e) }
   })
 
   // Global keyboard shortcuts (支持自定义快捷键)
