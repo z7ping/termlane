@@ -173,8 +173,12 @@ import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { invoke } from '../utils/tauri.js'
 import VirtualList from './VirtualList.vue'
 import { FolderPlus, Trash2, RefreshCw } from 'lucide-vue-next'
+import { formatBytes } from '../utils/format.js'
+import { useSplitResize } from '../composables/useSplitResize.js'
 
 const props = defineProps({ connection: Object, sessionId: String, active: Boolean })
+
+const { startResize } = useSplitResize()
 
 const localPath = ref('/home')
 const remotePath = ref('/')
@@ -196,25 +200,8 @@ let dragPaths = []
 
 // --- SFTP split resize ---
 function startLocalResize(e) {
-  e.preventDefault()
   const container = e.target.parentElement
-  const rect = container.getBoundingClientRect()
-  const startX = e.clientX
-  const startW = localWidth.value
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-  const onMove = (ev) => {
-    const pct = startW + ((ev.clientX - startX) / rect.width) * 100
-    localWidth.value = Math.max(20, Math.min(80, pct))
-  }
-  const onUp = () => {
-    document.removeEventListener('mousemove', onMove)
-    document.removeEventListener('mouseup', onUp)
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-  }
-  document.addEventListener('mousemove', onMove)
-  document.addEventListener('mouseup', onUp)
+  startResize(e, container, localWidth)
 }
 
 const ctxMenu = ref({ show: false, x: 0, y: 0, file: null })
@@ -222,10 +209,7 @@ const editFile = ref({ show: false, path: '', content: '', dirty: false })
 const showInlineEditor = ref(false)
 
 function fmtSize(bytes) {
-  if (!bytes) return '0 B'
-  const k = 1024, s = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + s[i]
+  return formatBytes(bytes)
 }
 
 function icon(name) {
@@ -309,7 +293,7 @@ async function onRemoteDrop(e) {
     for (const p of paths) {
       const name = p.split('/').pop()
       const remote = remotePath.value === '/' ? `/${name}` : `${remotePath.value}/${name}`
-      const t = { id: Date.now() + Math.random(), label: `↑ ${name}`, status: 'pending' }
+      const t = { id: crypto.randomUUID(), label: `↑ ${name}`, status: 'pending' }
       transfers.value.push(t)
       try {
         await invoke('sftp_upload', { sessionId: props.sessionId, local: p, remote })
@@ -370,7 +354,7 @@ async function doUpload() {
   for (const p of paths) {
     const name = p.split('/').pop()
     const remote = remotePath.value === '/' ? `/${name}` : `${remotePath.value}/${name}`
-    const t = { id: Date.now() + Math.random(), label: `↑ ${name}`, status: 'pending' }
+    const t = { id: crypto.randomUUID(), label: `↑ ${name}`, status: 'pending' }
     transfers.value.push(t)
     try {
       await invoke('sftp_upload', { sessionId: props.sessionId, local: p, remote })
@@ -386,7 +370,7 @@ async function doDownload() {
   for (const p of paths) {
     const name = p.split('/').pop()
     const local = localPath.value + '/' + name
-    const t = { id: Date.now() + Math.random(), label: `↓ ${name}`, status: 'pending' }
+    const t = { id: crypto.randomUUID(), label: `↓ ${name}`, status: 'pending' }
     transfers.value.push(t)
     try {
       await invoke('sftp_download', { sessionId: props.sessionId, remote: p, local })

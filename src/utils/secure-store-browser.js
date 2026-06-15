@@ -6,11 +6,15 @@
 
 // 加密密钥管理
 const ENCRYPTION_KEY_NAME = 'xt_secure_key'
-const ENCRYPTION_SALT = 'XTerminalPro_SecureStorage_v1'
 
 /**
  * 生成或获取加密密钥
  * 使用 Web Crypto API 生成随机密钥
+ *
+ * SECURITY WARNING: The AES key is stored as JWK in sessionStorage.
+ * sessionStorage is accessible to any script running in the same origin,
+ * so an XSS vulnerability could extract the key and decrypt all stored data.
+ * For higher security, consider using the Tauri backend keyring instead.
  */
 async function getEncryptionKey() {
   try {

@@ -106,6 +106,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { invoke } from '../utils/tauri.js'
+import { formatBytes } from '../utils/format.js'
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler } from 'chart.js'
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler)
@@ -240,10 +241,7 @@ function barColor(pct) {
 }
 
 function fmtBytes(b) {
-  if (!b) return '0 B'
-  const k = 1024, s = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(b) / Math.log(k))
-  return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i]
+  return formatBytes(b)
 }
 
 function fmtUptime(secs) {

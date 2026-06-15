@@ -36,24 +36,23 @@
     </div>
 
     <!-- Add Dialog -->
-    <div v-if="showAdd" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" @click.self="showAdd = false">
-      <div class="bg-gray-800 rounded-lg w-96 border border-gray-600 p-4 space-y-3">
-        <h3 class="text-sm font-medium">新增命令片段</h3>
-        <input v-model="newS.name" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="名称（如：查看日志）" />
-        <textarea v-model="newS.command" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500 h-20 resize-none" placeholder="命令" />
-        <input v-model="newS.desc" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="说明（可选）" />
-        <input v-model="newS.group" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="分组（默认：自定义）" />
-        <div class="flex justify-end gap-2">
-          <button @click="showAdd = false" class="px-3 py-1 text-sm text-gray-400">取消</button>
-          <button @click="addSnippet" :disabled="!newS.name || !newS.command" class="px-3 py-1 text-sm bg-blue-600 rounded text-white disabled:opacity-50">添加</button>
-        </div>
+    <BaseModal :show="showAdd" width="384px" @close="showAdd = false">
+      <h3 class="text-sm font-medium">新增命令片段</h3>
+      <input v-model="newS.name" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="名称（如：查看日志）" />
+      <textarea v-model="newS.command" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500 h-20 resize-none" placeholder="命令" />
+      <input v-model="newS.desc" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="说明（可选）" />
+      <input v-model="newS.group" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="分组（默认：自定义）" />
+      <div class="flex justify-end gap-2">
+        <button @click="showAdd = false" class="px-3 py-1 text-sm text-gray-400">取消</button>
+        <button @click="addSnippet" :disabled="!newS.name || !newS.command" class="px-3 py-1 text-sm bg-blue-600 rounded text-white disabled:opacity-50">添加</button>
       </div>
-    </div>
+    </BaseModal>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, reactive } from 'vue'
+import BaseModal from './BaseModal.vue'
 
 defineEmits(['run'])
 

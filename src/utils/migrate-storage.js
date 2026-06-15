@@ -3,7 +3,7 @@
  * 将旧的非安全存储迁移到新的安全存储
  */
 
-import { secureStore } from './secure-store.js'
+import { secureStore } from './secure-store-browser.js'
 
 /**
  * 迁移书签数据

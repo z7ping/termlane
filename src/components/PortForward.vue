@@ -35,54 +35,53 @@
     </div>
 
     <!-- Add Dialog -->
-    <div v-if="showAdd" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" @click.self="showAdd = false">
-      <div class="bg-gray-800 rounded-lg w-96 border border-gray-600 p-4 space-y-3">
-        <h3 class="text-sm font-medium">新增端口转发</h3>
+    <BaseModal :show="showAdd" width="384px" @close="showAdd = false">
+      <h3 class="text-sm font-medium">新增端口转发</h3>
 
-        <div>
-          <label class="text-xs text-gray-400 block mb-1">名称</label>
-          <input v-model="newFwd.name" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="数据库连接" />
-        </div>
+      <div>
+        <label class="text-xs text-gray-400 block mb-1">名称</label>
+        <input v-model="newFwd.name" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="数据库连接" />
+      </div>
 
-        <div>
-          <label class="text-xs text-gray-400 block mb-1">类型</label>
-          <div class="flex gap-2">
-            <button
-              v-for="t in types"
-              :key="t.value"
-              @click="newFwd.type = t.value"
-              class="flex-1 px-2 py-1 text-xs rounded border"
-              :class="newFwd.type === t.value ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'border-gray-600 text-gray-400'"
-            >{{ t.label }}</button>
-          </div>
-        </div>
-
+      <div>
+        <label class="text-xs text-gray-400 block mb-1">类型</label>
         <div class="flex gap-2">
-          <div class="flex-1">
-            <label class="text-xs text-gray-400 block mb-1">本地端口</label>
-            <input v-model.number="newFwd.localPort" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="3306" />
-          </div>
-          <div v-if="newFwd.type !== 'dynamic'" class="flex-1">
-            <label class="text-xs text-gray-400 block mb-1">远程地址</label>
-            <input v-model="newFwd.remoteAddr" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="127.0.0.1" />
-          </div>
-          <div v-if="newFwd.type !== 'dynamic'" class="w-20">
-            <label class="text-xs text-gray-400 block mb-1">远程端口</label>
-            <input v-model.number="newFwd.remotePort" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="3306" />
-          </div>
-        </div>
-
-        <div class="flex justify-end gap-2">
-          <button @click="showAdd = false" class="px-3 py-1 text-sm text-gray-400">取消</button>
-          <button @click="addForward" :disabled="!newFwd.name || !newFwd.localPort" class="px-3 py-1 text-sm bg-blue-600 rounded text-white disabled:opacity-50">添加</button>
+          <button
+            v-for="t in types"
+            :key="t.value"
+            @click="newFwd.type = t.value"
+            class="flex-1 px-2 py-1 text-xs rounded border"
+            :class="newFwd.type === t.value ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'border-gray-600 text-gray-400'"
+          >{{ t.label }}</button>
         </div>
       </div>
-    </div>
+
+      <div class="flex gap-2">
+        <div class="flex-1">
+          <label class="text-xs text-gray-400 block mb-1">本地端口</label>
+          <input v-model.number="newFwd.localPort" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="3306" />
+        </div>
+        <div v-if="newFwd.type !== 'dynamic'" class="flex-1">
+          <label class="text-xs text-gray-400 block mb-1">远程地址</label>
+          <input v-model="newFwd.remoteAddr" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="127.0.0.1" />
+        </div>
+        <div v-if="newFwd.type !== 'dynamic'" class="w-20">
+          <label class="text-xs text-gray-400 block mb-1">远程端口</label>
+          <input v-model.number="newFwd.remotePort" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="3306" />
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <button @click="showAdd = false" class="px-3 py-1 text-sm text-gray-400">取消</button>
+        <button @click="addForward" :disabled="!newFwd.name || !newFwd.localPort" class="px-3 py-1 text-sm bg-blue-600 rounded text-white disabled:opacity-50">添加</button>
+      </div>
+    </BaseModal>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
+import BaseModal from './BaseModal.vue'
 
 const showAdd = ref(false)
 

@@ -37,10 +37,14 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { invoke, listen, isTauri } from '../utils/tauri.js'
+import { parseShortcut, getShortcut } from '../utils/shortcuts.js'
+import { useSplitResize } from '../composables/useSplitResize.js'
 import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps({ tab: Object, active: Boolean })
 const emit = defineEmits(['connected', 'disconnected'])
+
+const { startResize } = useSplitResize()
 
 const containerRef = ref(null)
 const splitContainerRef = ref(null)
@@ -178,29 +182,6 @@ async function initTerminal() {
   })
 
   //获取快捷键
-  const getShortcut = (actionName) => localStorage.getItem(`shortcut_${actionName}`) || {
-    '搜索': 'Ctrl+Shift+F',
-    '清屏': 'Ctrl+L',
-    '中断': 'Ctrl+C',
-  }[actionName]
-  
-  // 解析快捷键
-  const parseShortcut = (keyStr) => {
-    const parts = keyStr.toLowerCase().split('+')
-    const ctrl = parts.includes('ctrl')
-    const alt = parts.includes('alt')
-    const shift = parts.includes('shift')
-    const meta = parts.includes('meta')
-    const key = parts.filter(p => !['ctrl', 'alt', 'shift', 'meta'].includes(p)).pop()?.toUpperCase() || ''
-    return (e) => {
-      if (e.ctrlKey !== ctrl) return false
-      if (e.altKey !== alt) return false
-      if (e.shiftKey !== shift) return false
-      if (e.metaKey !== meta) return false
-      return e.key.toUpperCase() === key
-    }
-  }
-  
   const searchKey = parseShortcut(getShortcut('搜索'))
   const clearKey = parseShortcut(getShortcut('清屏'))
   
@@ -451,27 +432,10 @@ function toggleSplit() {
 
 // ─── Split Resize ───
 function startSplitResize(e) {
-  e.preventDefault()
   const container = e.target.parentElement
-  const rect = container.getBoundingClientRect()
-  const startX = e.clientX
-  const startW = splitLeftWidth.value
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-  const onMove = (ev) => {
-    const pct = startW + ((ev.clientX - startX) / rect.width) * 100
-    splitLeftWidth.value = Math.max(20, Math.min(80, pct))
+  startResize(e, container, splitLeftWidth, () => {
     fitAddon?.fit(); splitFitAddon?.fit()
-  }
-  const onUp = () => {
-    document.removeEventListener('mousemove', onMove)
-    document.removeEventListener('mouseup', onUp)
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    fitAddon?.fit(); splitFitAddon?.fit()
-  }
-  document.addEventListener('mousemove', onMove)
-  document.addEventListener('mouseup', onUp)
+  })
 }
 
 // ─── Lifecycle ───

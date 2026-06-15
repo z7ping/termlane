@@ -29,18 +29,16 @@
     </div>
 
     <!-- Add Dialog -->
-    <div v-if="showAdd" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" @click.self="showAdd = false">
-      <div class="bg-gray-800 rounded-lg w-80 border border-gray-600 p-4 space-y-3">
-        <h3 class="text-sm font-medium">添加书签</h3>
-        <input v-model="newBm.name" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="名称（如：项目根目录）" />
-        <input v-model="newBm.path" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500" placeholder="/var/www/html" />
-        <input v-model="newBm.host" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="服务器名（可选）" />
-        <div class="flex justify-end gap-2">
-          <button @click="showAdd = false" class="px-3 py-1 text-sm text-gray-400">取消</button>
-          <button @click="saveBookmark" :disabled="!newBm.path" class="px-3 py-1 text-sm bg-blue-600 rounded text-white disabled:opacity-50">添加</button>
-        </div>
+    <BaseModal :show="showAdd" width="320px" @close="showAdd = false">
+      <h3 class="text-sm font-medium">添加书签</h3>
+      <input v-model="newBm.name" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="名称（如：项目根目录）" />
+      <input v-model="newBm.path" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500" placeholder="/var/www/html" />
+      <input v-model="newBm.host" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="服务器名（可选）" />
+      <div class="flex justify-end gap-2">
+        <button @click="showAdd = false" class="px-3 py-1 text-sm text-gray-400">取消</button>
+        <button @click="saveBookmark" :disabled="!newBm.path" class="px-3 py-1 text-sm bg-blue-600 rounded text-white disabled:opacity-50">添加</button>
       </div>
-    </div>
+    </BaseModal>
 
     <!-- Context Menu -->
     <div v-if="ctx.show" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }" class="fixed bg-gray-800 border border-gray-600 rounded shadow-lg z-50 py-1 text-xs min-w-[120px]" @click.stop>
@@ -55,7 +53,8 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { getBookmarks, storeBookmarks } from '../utils/secure-store'
+import { getBookmarks, storeBookmarks } from '../utils/secure-store-browser'
+import BaseModal from './BaseModal.vue'
 
 defineEmits(['navigate'])
 

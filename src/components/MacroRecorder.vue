@@ -101,7 +101,7 @@
 <script setup>
 import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { invoke } from '../utils/tauri.js'
-import { secureStore } from '../utils/secure-store'
+import { secureStore } from '../utils/secure-store-browser'
 
 const STORAGE_KEY = 'xterminal_macros'
 

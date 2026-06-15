@@ -77,6 +77,8 @@
 <script setup>
 import { ref, computed, onMounted, inject, defineAsyncComponent } from 'vue'
 import { invoke } from './utils/tauri.js'
+import { safeInvoke } from './utils/invoke.js'
+import { parseShortcut, getShortcut } from './utils/shortcuts.js'
 
 // Critical - 首屏必需（同步加载）
 import TitleBar from './components/TitleBar.vue'
@@ -253,7 +255,7 @@ function onSelectConnection(conn) {
 
 function closeTab(tabId) {
   const sid = sessionMap.value[tabId]
-  if (sid) { invoke('ssh_disconnect', { sessionId: sid }).catch(() => {}); delete sessionMap.value[tabId] }
+  if (sid) { safeInvoke('ssh_disconnect', { sessionId: sid }).catch(() => {}); delete sessionMap.value[tabId] }
   const idx = tabs.value.findIndex(t => t.id === tabId)
   tabs.value.splice(idx, 1)
   if (activeTabId.value === tabId) activeTabId.value = tabs.value[Math.min(idx, tabs.value.length - 1)]?.id || null
@@ -296,7 +298,7 @@ async function onSaveConnection(conn) {
 function onDeleteConnection(id) {
   connections.value = connections.value.filter(c => c.id !== id)
   tabs.value.filter(t => t.connectionId === id).forEach(t => closeTab(t.id))
-  invoke('delete_connection', { id }).catch(() => {})
+  safeInvoke('delete_connection', { id }).catch(() => {})
   showToast('已删除', 'info')
 }
 
@@ -305,7 +307,7 @@ function onEditConnection(conn) { editingConnection.value = conn; showAddConnect
 function onDuplicateConnection(conn) {
   const dup = { ...conn, id: `conn_${Date.now()}`, name: conn.name + ' (副本)' }
   connections.value.push(dup)
-  invoke('save_connection', { conn: dup }).catch(() => {})
+  safeInvoke('save_connection', { conn: dup }).catch(() => {})
   showToast('已复制', 'success')
 }
 
@@ -328,7 +330,7 @@ async function onTestConnection(conn) {
 function onQuickCommand(cmd) {
   // Send to active terminal session
   if (activeSessionId.value) {
-    invoke('ssh_shell_input', { sessionId: activeSessionId.value, data: cmd + '\r' }).catch(() => {})
+    safeInvoke('ssh_shell_input', { sessionId: activeSessionId.value, data: cmd + '\r' }).catch(() => {})
     viewMode.value = 'terminal'
   } else {
     showToast(`请先连接服务器`, 'info')
@@ -344,7 +346,7 @@ function onToggleFavorite(conn) {
   const idx = connections.value.findIndex(c => c.id === conn.id)
   if (idx >= 0) {
     connections.value[idx].favorite = !connections.value[idx].favorite
-    invoke('save_connection', { conn: connections.value[idx] }).catch(() => {})
+    safeInvoke('save_connection', { conn: connections.value[idx] }).catch(() => {})
     showToast(connections.value[idx].favorite ? '已收藏' : '已取消收藏', 'success')
   }
 }
@@ -356,36 +358,6 @@ function toggleFullscreen() {
 
 function onSessionConnected(tabId, sid) { sessionMap.value[tabId] = sid; saveTabsState() }
 function onSessionDisconnected(tabId) { delete sessionMap.value[tabId] }
-
-// 快捷键工具函数
-function getShortcut(actionName) {
-  return localStorage.getItem(`shortcut_${actionName}`) || {
-    '搜索': 'Ctrl+Shift+F',
-    '清屏': 'Ctrl+L',
-    '中断': 'Ctrl+C',
-    '新建标签': 'Ctrl+T',
-    '关闭标签': 'Ctrl+W',
-    '分屏': 'Ctrl+Shift+D',
-    '全屏': 'F11',
-  }[actionName]
-}
-
-// 解析快捷键字符串为按键检测函数
-function parseShortcut(keyStr) {
-  const parts = keyStr.toLowerCase().split('+')
-  const ctrl = parts.includes('ctrl')
-  const alt = parts.includes('alt')
-  const shift = parts.includes('shift')
-  const meta = parts.includes('meta')
-  const key = parts.filter(p => !['ctrl', 'alt', 'shift', 'meta'].includes(p)).pop()?.toUpperCase() || ''
-  return (e) => {
-    if (e.ctrlKey !== ctrl) return false
-    if (e.altKey !== alt) return false
-    if (e.shiftKey !== shift) return false
-    if (e.metaKey !== meta) return false
-    return e.key.toUpperCase() === key
-  }
-}
 
 // Latency polling
 async function pingConnections() {

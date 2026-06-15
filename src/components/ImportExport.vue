@@ -1,44 +1,43 @@
 <template>
-  <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" @click.self="$emit('close')">
-    <div class="bg-gray-800 rounded-lg w-[400px] border border-gray-600 p-4 space-y-4">
-      <h3 class="text-sm font-medium text-gray-200">连接配置导入/导出</h3>
+  <BaseModal :show="true" width="400px" @close="$emit('close')">
+    <h3 class="text-sm font-medium text-gray-200">连接配置导入/导出</h3>
 
-      <div class="space-y-3">
-        <button
-          @click="exportConnections"
-          class="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm text-gray-200 flex items-center gap-2"
-        >
-          <span>📤</span> 导出连接配置（JSON）
-        </button>
+    <div class="space-y-3">
+      <button
+        @click="exportConnections"
+        class="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm text-gray-200 flex items-center gap-2"
+      >
+        <span>📤</span> 导出连接配置（JSON）
+      </button>
 
-        <div
-          @drop.prevent="handleDrop"
-          @dragover.prevent="isDragging = true"
-          @dragleave="isDragging = false"
-          class="w-full px-4 py-6 border-2 border-dashed rounded text-center cursor-pointer transition-colors"
-          :class="isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'"
-          @click="$refs.fileInput.click()"
-        >
-          <input ref="fileInput" type="file" accept=".json" class="hidden" @change="handleFileSelect" />
-          <span class="text-2xl block mb-2">📥</span>
-          <span class="text-sm text-gray-400">拖拽 JSON 文件到此处或点击选择</span>
-        </div>
-
-        <div v-if="importResult" class="text-xs px-3 py-2 rounded" :class="importResult.success ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'">
-          {{ importResult.message }}
-        </div>
+      <div
+        @drop.prevent="handleDrop"
+        @dragover.prevent="isDragging = true"
+        @dragleave="isDragging = false"
+        class="w-full px-4 py-6 border-2 border-dashed rounded text-center cursor-pointer transition-colors"
+        :class="isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500'"
+        @click="$refs.fileInput.click()"
+      >
+        <input ref="fileInput" type="file" accept=".json" class="hidden" @change="handleFileSelect" />
+        <span class="text-2xl block mb-2">📥</span>
+        <span class="text-sm text-gray-400">拖拽 JSON 文件到此处或点击选择</span>
       </div>
 
-      <div class="flex justify-end">
-        <button @click="$emit('close')" class="px-4 py-1.5 text-sm text-gray-400 hover:text-white">关闭</button>
+      <div v-if="importResult" class="text-xs px-3 py-2 rounded" :class="importResult.success ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'">
+        {{ importResult.message }}
       </div>
     </div>
-  </div>
+
+    <div class="flex justify-end">
+      <button @click="$emit('close')" class="px-4 py-1.5 text-sm text-gray-400 hover:text-white">关闭</button>
+    </div>
+  </BaseModal>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { invoke } from '../utils/tauri.js'
+import BaseModal from './BaseModal.vue'
 
 const emit = defineEmits(['close', 'imported'])
 
