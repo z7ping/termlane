@@ -1,3 +1,4 @@
+const ITEM_HEIGHT = 40 // 每行高度(px)
 // 虚拟滚动工具（大列表优化）
 export function calculateVisibleRange(scrollTop, itemHeight, containerHeight, totalItems) {
   const start = Math.floor(scrollTop / itemHeight)
@@ -10,6 +11,6 @@ export function getVisibleItems(items, start, end) {
   return items.slice(start, end).map((item, i) => ({
     ...item,
     _virtualIndex: start + i,
-    _style: { position: 'absolute', top: (start + i) * 40 + 'px', width: '100%' }
+    _style: { position: 'absolute', top: (start + i) * ITEM_HEIGHT + 'px', width: '100%' }
   }))
 }

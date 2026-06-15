@@ -56,5 +56,5 @@ function calculateNextRun(schedule) {
     if (next <= now) next.setDate(next.getDate() + 1)
     return next.toISOString()
   }
-  return new Date(now.getTime() + 3600000).toISOString() // default: 1 hour
+  return new Date(now.getTime() + 60 * 60 * 1000).toISOString() // default: 1 hour
 }

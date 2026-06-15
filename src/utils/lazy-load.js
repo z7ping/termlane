@@ -4,7 +4,7 @@ export function shouldRender(tabId, activeTabId, recentlyActive) {
   if (tabId === activeTabId) return true
   // Render recently active tabs (within last 5 minutes)
   const lastActive = recentlyActive[tabId]
-  if (lastActive && Date.now() - lastActive < 300000) return true
+  if (lastActive && Date.now() - lastActive < 5 * 60 * 1000) return true
   // Don't render old inactive tabs
   return false
 }

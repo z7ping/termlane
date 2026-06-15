@@ -1,3 +1,4 @@
+use crate::utils::*;
 // ssh.rs - SSH connection management with PTY shell support
 
 use serde::{Deserialize, Serialize};
@@ -80,9 +81,9 @@ pub async fn connect(
     let addr: std::net::SocketAddr = format!("{}:{}", host, port)
         .parse()
         .map_err(|e| format!("地址无效: {}", e))?;
-    let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(10))
+    let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS))
         .map_err(|e| format!("连接失败: {}", e))?;
-    tcp.set_read_timeout(Some(std::time::Duration::from_secs(30)))
+    tcp.set_read_timeout(Some(std::time::Duration::from_secs(READ_TIMEOUT_SECS)))
         .ok();
 
     let mut session = create_session(tcp)?;
@@ -118,7 +119,7 @@ pub async fn connect_with_key(
     let addr: std::net::SocketAddr = format!("{}:{}", host, port)
         .parse()
         .map_err(|e| format!("地址无效: {}", e))?;
-    let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(10))
+    let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS))
         .map_err(|e| format!("连接失败: {}", e))?;
     let mut session = create_session(tcp)?;
     if passphrase.is_empty() {
@@ -201,9 +202,9 @@ pub fn start_shell(
     let addr: std::net::SocketAddr = format!("{}:{}", host, port)
         .parse()
         .map_err(|e| format!("地址无效: {}", e))?;
-    let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(10))
+    let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS))
         .map_err(|e| format!("连接失败: {}", e))?;
-    tcp.set_read_timeout(Some(std::time::Duration::from_secs(86400)))
+    tcp.set_read_timeout(Some(std::time::Duration::from_secs(PTY_READ_TIMEOUT_SECS)))
         .ok();
 
     let mut session = create_session(tcp)?;
@@ -258,7 +259,7 @@ pub fn start_shell(
     let app_handle = app.clone();
     let reader_sid = session_id.clone();
     let reader = std::thread::spawn(move || {
-        let mut buf = [0u8; 8192];
+        let mut buf = [0u8; PTY_BUF_SIZE];
         let mut consecutive_empty = 0u32;
 
         loop {
@@ -318,12 +319,12 @@ pub fn start_shell(
             }
 
             // ── Yield CPU ──
-            if consecutive_empty > 10 {
+            if consecutive_empty > PTY_IDLE_THRESHOLD {
                 // After 10 empty reads, sleep longer to avoid busy-spinning
-                std::thread::sleep(std::time::Duration::from_millis(50));
+                std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_SLOW_MS));
             } else {
                 // Tight poll for low latency (5ms keeps latency imperceptible for terminal I/O)
-                std::thread::sleep(std::time::Duration::from_millis(5));
+                std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_FAST_MS));
             }
         }
 
@@ -412,7 +413,7 @@ pub async fn connect_jump(
     let jump_addr: std::net::SocketAddr = format!("{}:{}", jump_host, jump_port)
         .parse()
         .map_err(|e| format!("跳板机地址无效: {}", e))?;
-    let jump_tcp = TcpStream::connect_timeout(&jump_addr, std::time::Duration::from_secs(10))
+    let jump_tcp = TcpStream::connect_timeout(&jump_addr, std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS))
         .map_err(|e| format!("跳板机连接失败: {}", e))?;
     let mut jump_session = create_session(jump_tcp)?;
     jump_session

@@ -1,3 +1,4 @@
+use crate::utils::*;
 // local_pty.rs - Local shell PTY support
 
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
@@ -81,7 +82,7 @@ pub fn start_local_shell(
 
     // Reader thread
     let reader_thread = std::thread::spawn(move || {
-        let mut buf = [0u8; 8192];
+        let mut buf = [0u8; PTY_BUF_SIZE];
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => {

@@ -1,6 +1,6 @@
 // 断线自动重连
 export class AutoReconnectManager {
-  constructor(maxRetries = 3, retryDelay = 5000) {
+  constructor(maxRetries = 3, retryDelay = 5_000) {
     this.maxRetries = maxRetries
     this.retryDelay = retryDelay
     this.retries = new Map()
@@ -41,6 +41,6 @@ export class AutoReconnectManager {
   }
 }
 
-export function createReconnectManager(maxRetries = 3, retryDelay = 5000) {
+export function createReconnectManager(maxRetries = 3, retryDelay = 5_000) {
   return new AutoReconnectManager(maxRetries, retryDelay)
 }

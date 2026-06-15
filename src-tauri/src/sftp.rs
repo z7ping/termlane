@@ -1,3 +1,4 @@
+use crate::utils::*;
 // sftp.rs - SFTP file operations via SSH exec with base64 encoding
 // All remote file operations use SSH exec commands with base64 encoding
 // to safely handle binary files across different shell environments.
@@ -106,10 +107,10 @@ pub fn list_local(path: &str) -> Result<Vec<FileEntry>, String> {
 fn format_timestamp(secs: u64) -> String {
     // Convert Unix timestamp to date-time string (UTC, approximate)
     // Uses proper leap year calculation
-    let total_days = secs / 86400;
-    let remaining_secs = secs % 86400;
-    let hours = remaining_secs / 3600;
-    let minutes = (remaining_secs % 3600) / 60;
+    let total_days = secs / SECS_PER_DAY;
+    let remaining_secs = secs % SECS_PER_DAY;
+    let hours = remaining_secs / SECS_PER_HOUR;
+    let minutes = (remaining_secs % SECS_PER_HOUR) / 60;
 
     // Calculate year with leap years
     let mut year = 1970u64;
@@ -251,7 +252,7 @@ pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, Str
     let remote_tmp = format!("/tmp/xterminal_upload_{}.b64", utils::unix_now());
 
     // Write base64 in chunks via printf to avoid argument length limits
-    let chunk_size = 4000;
+    let chunk_size = SFTP_CHUNK_SIZE;
     let chunks: Vec<&str> = encoded.as_bytes()
         .chunks(chunk_size)
         .filter_map(|c| std::str::from_utf8(c).ok())
@@ -359,7 +360,7 @@ pub fn write_file(session_id: &str, path: &str, content: &str) -> Result<String,
     let encoded = base64_encode(content.as_bytes());
     let remote_tmp = format!("/tmp/xterminal_edit_{}.b64", utils::unix_now());
 
-    let chunk_size = 4000;
+    let chunk_size = SFTP_CHUNK_SIZE;
     let chunks: Vec<&str> = encoded.as_bytes()
         .chunks(chunk_size)
         .filter_map(|c| std::str::from_utf8(c).ok())

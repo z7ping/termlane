@@ -1,3 +1,4 @@
+use crate::utils::*;
 // commands.rs - Tauri command wrappers
 // 所有前端可调用的命令集中在此，保持 ssh.rs / sftp.rs 等内部接口不变
 
@@ -294,7 +295,7 @@ pub fn tcp_ping(host: String, port: u16) -> Result<u64, String> {
     let start = Instant::now();
     TcpStream::connect_timeout(
         &addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?,
-        Duration::from_secs(5),
+        Duration::from_secs(TCP_PING_TIMEOUT_SECS),
     ).map_err(|e| format!("连接失败: {}", e))?;
     Ok(start.elapsed().as_millis() as u64)
 }
