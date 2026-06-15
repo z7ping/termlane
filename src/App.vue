@@ -38,7 +38,9 @@
         <div class="flex-1 relative overflow-hidden">
           <ErrorBoundary>
             <template v-if="viewMode === 'terminal'">
-              <TerminalPanel v-for="tab in tabs" :key="tab.id" :tab="tab" :active="tab.id === activeTabId" @connected="onSessionConnected(tab.id, $event)" @disconnected="onSessionDisconnected(tab.id)" />
+              <keep-alive>
+                <TerminalPanel v-if="activeTab" :key="activeTabId" :tab="activeTab" :active="true" @connected="onSessionConnected(activeTabId, $event)" @disconnected="onSessionDisconnected(activeTabId)" />
+              </keep-alive>
             </template>
             <SftpPanel v-if="viewMode === 'sftp'" :connection="activeConnection" :session-id="activeSessionId" :active="true" />
             <BatchCommand v-if="viewMode === 'batch'" />

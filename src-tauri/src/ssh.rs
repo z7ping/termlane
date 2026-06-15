@@ -330,11 +330,11 @@ pub fn start_shell(
 
             // ── Yield CPU ──
             if consecutive_empty > 10 {
-                // After 10 empty reads, sleep a bit to avoid busy-spinning
-                std::thread::sleep(std::time::Duration::from_millis(2));
+                // After 10 empty reads, sleep longer to avoid busy-spinning
+                std::thread::sleep(std::time::Duration::from_millis(50));
             } else {
-                // Tight poll for low latency
-                std::thread::sleep(std::time::Duration::from_micros(200));
+                // Tight poll for low latency (5ms keeps latency imperceptible for terminal I/O)
+                std::thread::sleep(std::time::Duration::from_millis(5));
             }
         }
 

@@ -1,26 +1,30 @@
-// 连接收藏/置顶
-const STORAGE_KEY = 'xterminal_favorites'
+// 连接收藏/置顶 — 使用加密存储
+import { secureStore } from './secure-store-browser.js'
 
-export function getFavorites() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [] }
-  catch { return [] }
+const STORAGE_KEY = 'favorites'
+
+export async function getFavorites() {
+  try {
+    return await secureStore.get(STORAGE_KEY) || []
+  } catch { return [] }
 }
 
-export function toggleFavorite(connectionId) {
-  const favs = getFavorites()
+export async function toggleFavorite(connectionId) {
+  const favs = await getFavorites()
   const idx = favs.indexOf(connectionId)
   if (idx >= 0) favs.splice(idx, 1)
   else favs.push(connectionId)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(favs))
+  await secureStore.set(STORAGE_KEY, favs)
   return favs
 }
 
-export function isFavorite(connectionId) {
-  return getFavorites().includes(connectionId)
+export async function isFavorite(connectionId) {
+  const favs = await getFavorites()
+  return favs.includes(connectionId)
 }
 
-export function sortWithFavorites(connections) {
-  const favs = new Set(getFavorites())
+export async function sortWithFavorites(connections) {
+  const favs = new Set(await getFavorites())
   return [...connections].sort((a, b) => {
     const aFav = favs.has(a.id) ? 0 : 1
     const bFav = favs.has(b.id) ? 0 : 1
