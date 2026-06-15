@@ -99,7 +99,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import { invoke } from '../utils/tauri.js'
 import { secureStore } from '../utils/secure-store-browser'
 

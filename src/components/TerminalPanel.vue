@@ -116,6 +116,8 @@ function getTheme() {
 
 const theme = ref(getTheme())
 
+function safeFit() { fitAddon?.fit() }
+
 function createTerminal(container) {
   const fontSize = parseInt(localStorage.getItem('xterminal-fontSize')) || 14
   const scrollback = parseInt(localStorage.getItem('xterminal-scrollback')) || 10000
@@ -199,7 +201,7 @@ async function initTerminal() {
 
   resizeObserver = new ResizeObserver(() => {
     if (fitAddon && props.active) {
-      fitAddon.fit()
+      safeFit()
       if (shellId) {
         const dims = fitAddon.proposeDimensions()
         if (dims) {
@@ -422,11 +424,11 @@ function toggleSplit() {
         splitTerm.write('\x1b[1;32m$ \x1b[0m')
         splitTerm.onData((data) => handleLocalInput(splitTerm, data))
       }
-      setTimeout(() => { fitAddon?.fit(); splitFitAddon?.fit() }, 50)
+      setTimeout(() => { safeFit(); splitFitAddon?.fit() }, 50)
     })
   } else {
     splitTerm?.dispose(); splitTerm = null; splitFitAddon = null
-    nextTick(() => fitAddon?.fit())
+    nextTick(() => safeFit())
   }
 }
 
@@ -434,14 +436,14 @@ function toggleSplit() {
 function startSplitResize(e) {
   const container = e.target.parentElement
   startResize(e, container, splitLeftWidth, () => {
-    fitAddon?.fit(); splitFitAddon?.fit()
+    safeFit(); splitFitAddon?.fit()
   })
 }
 
 // ─── Lifecycle ───
 
 watch(() => props.active, (active) => {
-  if (active && term) setTimeout(() => { fitAddon?.fit(); if (splitMode.value) splitFitAddon?.fit() }, 50)
+  if (active && term) setTimeout(() => { safeFit(); if (splitMode.value) splitFitAddon?.fit() }, 50)
 })
 
 function retryConnection() {

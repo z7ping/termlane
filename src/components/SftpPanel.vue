@@ -175,6 +175,7 @@ import VirtualList from './VirtualList.vue'
 import { FolderPlus, Trash2, RefreshCw } from 'lucide-vue-next'
 import { formatBytes } from '../utils/format.js'
 import { useSplitResize } from '../composables/useSplitResize.js'
+import { useFileSelection } from '../composables/useFileSelection.js'
 
 const props = defineProps({ connection: Object, sessionId: String, active: Boolean })
 
@@ -192,8 +193,9 @@ const localVirtual = computed(() => localFiles.value.length > 100)
 const remoteVirtual = computed(() => remoteFiles.value.length > 100)
 const remoteDragOver = ref(false)
 const localWidth = ref(50) // percentage for resizable split
-let lastClickedLocal = null
-let lastClickedRemote = null
+
+const { onClick: onLocalClick, onDragStart: onLocalDragStart } = useFileSelection(selectedLocalSet, localFiles, { onSelect: (p) => { selectedLocal.value = p } })
+const { onClick: onRemoteClick, onDragStart: onRemoteDragStart } = useFileSelection(selectedRemoteSet, remoteFiles, { onSelect: (p) => { selectedRemote.value = p } })
 
 // Drag state
 let dragPaths = []
@@ -218,69 +220,7 @@ function icon(name) {
   return m[ext] || '📄'
 }
 
-// ─── Batch Selection ───
-
-function onLocalClick(e, file) {
-  if (e.ctrlKey || e.metaKey) {
-    if (selectedLocalSet.has(file.path)) selectedLocalSet.delete(file.path)
-    else selectedLocalSet.add(file.path)
-  } else if (e.shiftKey && lastClickedLocal) {
-    const paths = localFiles.value.map(f => f.path)
-    const start = paths.indexOf(lastClickedLocal)
-    const end = paths.indexOf(file.path)
-    if (start >= 0 && end >= 0) {
-      const [lo, hi] = start < end ? [start, end] : [end, start]
-      selectedLocalSet.clear()
-      for (let i = lo; i <= hi; i++) selectedLocalSet.add(paths[i])
-    }
-  } else {
-    selectedLocalSet.clear()
-    selectedLocalSet.add(file.path)
-  }
-  selectedLocal.value = file.path
-  lastClickedLocal = file.path
-}
-
-function onRemoteClick(e, file) {
-  if (e.ctrlKey || e.metaKey) {
-    if (selectedRemoteSet.has(file.path)) selectedRemoteSet.delete(file.path)
-    else selectedRemoteSet.add(file.path)
-  } else if (e.shiftKey && lastClickedRemote) {
-    const paths = remoteFiles.value.map(f => f.path)
-    const start = paths.indexOf(lastClickedRemote)
-    const end = paths.indexOf(file.path)
-    if (start >= 0 && end >= 0) {
-      const [lo, hi] = start < end ? [start, end] : [end, start]
-      selectedRemoteSet.clear()
-      for (let i = lo; i <= hi; i++) selectedRemoteSet.add(paths[i])
-    }
-  } else {
-    selectedRemoteSet.clear()
-    selectedRemoteSet.add(file.path)
-  }
-  selectedRemote.value = file.path
-  lastClickedRemote = file.path
-}
-
 // ─── Drag & Drop ───
-
-function onLocalDragStart(e, file) {
-  const paths = selectedLocalSet.size > 0 && selectedLocalSet.has(file.path)
-    ? [...selectedLocalSet]
-    : [file.path]
-  dragPaths = paths
-  e.dataTransfer.setData('text/plain', JSON.stringify(paths))
-  e.dataTransfer.effectAllowed = 'move'
-}
-
-function onRemoteDragStart(e, file) {
-  const paths = selectedRemoteSet.size > 0 && selectedRemoteSet.has(file.path)
-    ? [...selectedRemoteSet]
-    : [file.path]
-  dragPaths = paths
-  e.dataTransfer.setData('text/plain', JSON.stringify(paths))
-  e.dataTransfer.effectAllowed = 'move'
-}
 
 async function onRemoteDrop(e) {
   remoteDragOver.value = false

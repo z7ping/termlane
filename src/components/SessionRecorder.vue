@@ -60,7 +60,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { invoke, listen } from '../utils/tauri.js'
 
 const props = defineProps({ sessionId: String, connectionName: String })

@@ -2,6 +2,7 @@
   <div class="h-full flex flex-col bg-gray-900">
     <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-3 gap-2">
       <span class="text-sm font-medium text-gray-300">端口转发</span>
+      <span class="text-xs px-1.5 py-0.5 rounded bg-yellow-900/50 text-yellow-400 border border-yellow-700/50">演示模式</span>
       <div class="flex-1" />
       <button @click="showAdd = true" class="text-xs px-2 py-0.5 bg-blue-600 hover:bg-blue-500 rounded text-white">+ 新增</button>
     </div>
