@@ -19,7 +19,7 @@
           <div>
             <div class="text-sm text-gray-200">{{ rec.name }}</div>
             <div class="text-xs text-gray-500 mt-0.5">
-              {{ rec.connection_name }} · {{ rec.started_at }} · {{ formatDuration(rec.duration_secs) }}
+              {{ rec.connectionName }} · {{ rec.startedAt }} · {{ formatDuration(rec.durationSecs) }}
             </div>
           </div>
           <div class="flex gap-1">
@@ -115,10 +115,10 @@ async function toggleRecording() {
       await invoke('save_recording_meta', {
         meta: {
           id, name: `录制 ${new Date().toLocaleString('zh-CN')}`,
-          connection_name: props.connectionName || '未知',
-          started_at: new Date().toISOString(),
-          duration_secs: recDuration.value,
-          file_path: filename,
+          connectionName: props.connectionName || '未知',
+          startedAt: new Date().toISOString(),
+          durationSecs: recDuration.value,
+          filePath: filename,
           tags: [],
         }
       })
@@ -150,7 +150,7 @@ async function toggleRecording() {
 
 async function playRecording(rec) {
   try {
-    const content = await invoke('read_recording_file', { filename: rec.file_path })
+    const content = await invoke('read_recording_file', { filename: rec.filePath })
     const lines = content.split('\n').filter(Boolean)
     // Skip header line
     const dataLines = lines.slice(1)
@@ -194,7 +194,7 @@ function renderPlayback() {
 
 async function exportRecording(rec) {
   try {
-    const content = await invoke('read_recording_file', { filename: rec.file_path })
+    const content = await invoke('read_recording_file', { filename: rec.filePath })
     const blob = new Blob([content], { type: 'application/x-asciicast' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

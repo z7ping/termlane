@@ -26,9 +26,9 @@
               <div @click="onLocalClick($event, file)" @dblclick="onLocalDblClick(file)" @dragEvent="onLocalDragStart($event, file)" draggable="true"
                 class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-xs select-none h-full"
                 :style="selectedLocalSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : ''">
-                <span class="w-4 text-center text-xs">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
+                <span class="w-4 text-center text-xs">{{ file.isDir ? '📁' : icon(file.name) }}</span>
                 <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name }}</span>
-                <span class="text-xs w-14 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+                <span class="text-xs w-14 text-right" style="color: var(--fg-muted);">{{ file.isDir ? '' : fmtSize(file.size) }}</span>
               </div>
             </template>
           </VirtualList>
@@ -41,9 +41,9 @@
             draggable="true"
             class="flex items-center gap-2 px-3 py-1 cursor-pointer text-sm select-none hover:bg-white/5"
             :style="selectedLocalSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : ''">
-            <span class="w-5 text-center">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
+            <span class="w-5 text-center">{{ file.isDir ? '📁' : icon(file.name) }}</span>
             <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name }}</span>
-            <span class="text-xs w-16 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+            <span class="text-xs w-16 text-right" style="color: var(--fg-muted);">{{ file.isDir ? '' : fmtSize(file.size) }}</span>
           </div>
           </template>
         </div>
@@ -103,9 +103,9 @@
                 @dragstart="onRemoteDragStart($event, file)" :draggable="true"
                 class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-xs select-none h-full"
                 :style="selectedRemoteSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : ''">
-                <span class="w-4 text-center text-xs">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
+                <span class="w-4 text-center text-xs">{{ file.isDir ? '📁' : icon(file.name) }}</span>
                 <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name }}</span>
-                <span class="text-xs w-14 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+                <span class="text-xs w-14 text-right" style="color: var(--fg-muted);">{{ file.isDir ? '' : fmtSize(file.size) }}</span>
                 <span class="text-xs w-16 text-right" style="color: var(--fg-muted);">{{ file.permissions || '' }}</span>
               </div>
             </template>
@@ -124,11 +124,11 @@
             class="flex items-center gap-2 px-3 py-1 cursor-pointer text-sm select-none hover:bg-white/5"
             :style="[
               selectedRemoteSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : '',
-              file._dragOver && file.is_dir ? 'background: var(--accent-hover); --tw-ring-color: var(--accent);' : ''
+              file._dragOver && file.isDir ? 'background: var(--accent-hover); --tw-ring-color: var(--accent);' : ''
             ]">
-            <span class="w-5 text-center">{{ file.is_dir ? '📁' : icon(file.name) }}</span>
+            <span class="w-5 text-center">{{ file.isDir ? '📁' : icon(file.name) }}</span>
             <span class="flex-1 truncate" style="color: var(--fg-secondary);">{{ file.name }}</span>
-            <span class="text-xs w-16 text-right" style="color: var(--fg-muted);">{{ file.is_dir ? '' : fmtSize(file.size) }}</span>
+            <span class="text-xs w-16 text-right" style="color: var(--fg-muted);">{{ file.isDir ? '' : fmtSize(file.size) }}</span>
             <span class="text-xs w-20 text-right" style="color: var(--fg-muted);">{{ file.permissions || '' }}</span>
           </div>
           <div v-if="remoteFiles.length === 0" class="p-4 text-center text-sm" style="color: var(--fg-muted);">{{ sessionId ? '空目录' : '未连接' }}</div>
@@ -245,7 +245,7 @@ async function onRemoteDrop(e) {
 }
 
 async function onRemoteDirDrop(e, targetFile) {
-  if (!targetFile.is_dir || !props.sessionId) return
+  if (!targetFile.isDir || !props.sessionId) return
   targetFile._dragOver = false
 
   try {
@@ -278,11 +278,11 @@ async function loadRemote() {
 function refreshRemote() { loadRemote() }
 
 function onLocalDblClick(file) {
-  if (file.is_dir) { localPath.value = file.path; loadLocal() }
+  if (file.isDir) { localPath.value = file.path; loadLocal() }
 }
 
 function onRemoteDblClick(file) {
-  if (file.is_dir) { remotePath.value = file.path; loadRemote() }
+  if (file.isDir) { remotePath.value = file.path; loadRemote() }
   else { openEdit(file.path) }
 }
 
@@ -326,7 +326,7 @@ async function batchDelete() {
   for (const p of [...selectedRemoteSet]) {
     const file = remoteFiles.value.find(f => f.path === p)
     if (file) {
-      try { await invoke('sftp_delete', { sessionId: props.sessionId, path: p, isDir: file.is_dir }) }
+      try { await invoke('sftp_delete', { sessionId: props.sessionId, path: p, isDir: file.isDir }) }
       catch { /* ignore */ }
     }
   }
@@ -362,7 +362,7 @@ async function ctxDelete() {
   const file = ctxMenu.value.file
   if (!file) return
   if (!confirm(`确认删除 ${file.name}?`)) return
-  try { await invoke('sftp_delete', { sessionId: props.sessionId, path: file.path, isDir: file.is_dir }); loadRemote() }
+  try { await invoke('sftp_delete', { sessionId: props.sessionId, path: file.path, isDir: file.isDir }); loadRemote() }
   catch (e) { alert('删除失败: ' + e) }
 }
 

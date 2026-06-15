@@ -64,22 +64,22 @@ describe('冒烟测试', () => {
       expect(typeof monitor).toBe('object');
     });
 
-    test('ssh_monitor 包含 cpu_usage (number)', async () => {
+    test('ssh_monitor 包含 cpuUsage (number)', async () => {
       const tauri = await import('../utils/tauri.js');
       const monitor = await tauri.invoke('ssh_monitor', { session_id: 'test' });
-      expect(typeof monitor.cpu_usage).toBe('number');
+      expect(typeof monitor.cpuUsage).toBe('number');
     });
 
-    test('cpu_usage 为正数', async () => {
+    test('cpuUsage 为正数', async () => {
       const tauri = await import('../utils/tauri.js');
       const monitor = await tauri.invoke('ssh_monitor', { session_id: 'test' });
-      expect(monitor.cpu_usage).toBeGreaterThan(0);
+      expect(monitor.cpuUsage).toBeGreaterThan(0);
     });
 
-    test('ssh_monitor 包含 memory_total', async () => {
+    test('ssh_monitor 包含 memoryTotal', async () => {
       const tauri = await import('../utils/tauri.js');
       const monitor = await tauri.invoke('ssh_monitor', { session_id: 'test' });
-      expect(typeof monitor.memory_total).toBe('number');
+      expect(typeof monitor.memoryTotal).toBe('number');
     });
 
     test('tcp_ping 返回数字', async () => {

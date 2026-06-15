@@ -20,7 +20,7 @@
           </div>
           <span v-if="s.error" class="text-xs text-red-400">{{ s.error }}</span>
           <span v-else-if="s.data" class="text-xs text-gray-500">
-            负载 {{ s.data.load_1.toFixed(2) }} / {{ s.data.load_5.toFixed(2) }} / {{ s.data.load_15.toFixed(2) }}
+            负载 {{ s.data.load1.toFixed(2) }} / {{ s.data.load5.toFixed(2) }} / {{ s.data.load15.toFixed(2) }}
           </span>
         </div>
 
@@ -29,44 +29,44 @@
           <!-- CPU -->
           <div class="bg-gray-900 rounded p-3">
             <div class="text-xs text-gray-500 mb-1">🧠 CPU</div>
-            <div class="text-lg font-mono text-gray-200">{{ s.data.cpu_usage.toFixed(1) }}%</div>
+            <div class="text-lg font-mono text-gray-200">{{ s.data.cpuUsage.toFixed(1) }}%</div>
             <div class="w-full h-1.5 bg-gray-700 rounded-full mt-2">
               <div class="h-full rounded-full transition-all duration-500"
-                :class="barColor(s.data.cpu_usage)"
-                :style="{ width: Math.min(100, s.data.cpu_usage) + '%' }" />
+                :class="barColor(s.data.cpuUsage)"
+                :style="{ width: Math.min(100, s.data.cpuUsage) + '%' }" />
             </div>
           </div>
 
           <!-- Memory -->
           <div class="bg-gray-900 rounded p-3">
             <div class="text-xs text-gray-500 mb-1">💾 内存</div>
-            <div class="text-lg font-mono text-gray-200">{{ s.data.memory_percent.toFixed(1) }}%</div>
-            <div class="text-xs text-gray-500 mt-0.5">{{ fmtBytes(s.data.memory_used) }} / {{ fmtBytes(s.data.memory_total) }}</div>
+            <div class="text-lg font-mono text-gray-200">{{ s.data.memoryPercent.toFixed(1) }}%</div>
+            <div class="text-xs text-gray-500 mt-0.5">{{ fmtBytes(s.data.memoryUsed) }} / {{ fmtBytes(s.data.memoryTotal) }}</div>
             <div class="w-full h-1.5 bg-gray-700 rounded-full mt-2">
               <div class="h-full rounded-full transition-all duration-500"
-                :class="barColor(s.data.memory_percent)"
-                :style="{ width: Math.min(100, s.data.memory_percent) + '%' }" />
+                :class="barColor(s.data.memoryPercent)"
+                :style="{ width: Math.min(100, s.data.memoryPercent) + '%' }" />
             </div>
           </div>
 
           <!-- Disk -->
           <div class="bg-gray-900 rounded p-3">
             <div class="text-xs text-gray-500 mb-1">💿 磁盘 (/)</div>
-            <div class="text-lg font-mono text-gray-200">{{ s.data.disk_percent.toFixed(1) }}%</div>
-            <div class="text-xs text-gray-500 mt-0.5">{{ fmtBytes(s.data.disk_used) }} / {{ fmtBytes(s.data.disk_total) }}</div>
+            <div class="text-lg font-mono text-gray-200">{{ s.data.diskPercent.toFixed(1) }}%</div>
+            <div class="text-xs text-gray-500 mt-0.5">{{ fmtBytes(s.data.diskUsed) }} / {{ fmtBytes(s.data.diskTotal) }}</div>
             <div class="w-full h-1.5 bg-gray-700 rounded-full mt-2">
               <div class="h-full rounded-full transition-all duration-500"
-                :class="barColor(s.data.disk_percent)"
-                :style="{ width: Math.min(100, s.data.disk_percent) + '%' }" />
+                :class="barColor(s.data.diskPercent)"
+                :style="{ width: Math.min(100, s.data.diskPercent) + '%' }" />
             </div>
           </div>
 
           <!-- Uptime -->
           <div class="bg-gray-900 rounded p-3">
             <div class="text-xs text-gray-500 mb-1">⏱️ 运行时间</div>
-            <div class="text-sm font-mono text-gray-200">{{ fmtUptime(s.data.uptime_seconds) }}</div>
+            <div class="text-sm font-mono text-gray-200">{{ fmtUptime(s.data.uptimeSeconds) }}</div>
             <div class="text-xs text-gray-500 mt-2">负载 1/5/15min</div>
-            <div class="text-xs font-mono text-gray-300">{{ s.data.load_1.toFixed(2) }} / {{ s.data.load_5.toFixed(2) }} / {{ s.data.load_15.toFixed(2) }}</div>
+            <div class="text-xs font-mono text-gray-300">{{ s.data.load1.toFixed(2) }} / {{ s.data.load5.toFixed(2) }} / {{ s.data.load15.toFixed(2) }}</div>
           </div>
         </div>
 
@@ -209,10 +209,10 @@ function pushHistory(serverId, data) {
   }
   const h = history[serverId]
 
-  h.cpu.push(data.cpu_usage)
-  h.memory.push(data.memory_percent)
-  h.disk.push(data.disk_percent)
-  h.load.push(data.load_1)
+  h.cpu.push(data.cpuUsage)
+  h.memory.push(data.memoryPercent)
+  h.disk.push(data.diskPercent)
+  h.load.push(data.load1)
 
   // Keep only last MAX_HISTORY
   for (const key of ['cpu', 'memory', 'disk', 'load']) {

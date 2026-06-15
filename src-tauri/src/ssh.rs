@@ -24,6 +24,7 @@ pub struct SshSession {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MonitorData {
     pub cpu_usage: f64,
     pub memory_total: u64,

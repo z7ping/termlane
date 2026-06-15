@@ -38,7 +38,7 @@ export const invoke = _isTauri
         case 'ssh_start_shell': return `mock_shell_${Date.now()}`;
         case 'ssh_shell_input': case 'ssh_shell_resize': case 'ssh_close_shell': return null;
         case 'ssh_list_shells': return [];
-        case 'ssh_monitor': return { cpu_usage: 25.3, memory_total: 16777216000, memory_used: 6442450944, memory_percent: 38.4, disk_total: 107374182400, disk_used: 45097156608, disk_percent: 42.0, load_1: 0.45, load_5: 0.38, load_15: 0.32, uptime_seconds: 278400 };
+        case 'ssh_monitor': return { cpuUsage: 25.3, memoryTotal: 16777216000, memoryUsed: 6442450944, memoryPercent: 38.4, diskTotal: 107374182400, diskUsed: 45097156608, diskPercent: 42.0, load1: 0.45, load5: 0.38, load15: 0.32, uptimeSeconds: 278400 };
         case 'tcp_ping': return Math.floor(Math.random() * 80) + 5;
         case 'load_connections': return [{ id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' }];
         case 'save_connection': case 'delete_connection': return null;
@@ -95,17 +95,17 @@ function mockExecute(command) {
 
 function mockLocalFiles(path) {
   return [
-    { name: '..', path: '/home/user', size: 0, is_dir: true, modified: '2026-03-30', permissions: 'drwxr-xr-x' },
-    { name: 'Documents', path: '/home/user/Documents', size: 4096, is_dir: true, modified: '2026-03-30', permissions: 'drwxr-xr-x' },
-    { name: '.bashrc', path: '/home/user/.bashrc', size: 3526, is_dir: false, modified: '2026-03-25', permissions: '-rw-r--r--' },
+    { name: '..', path: '/home/user', size: 0, isDir: true, modified: '2026-03-30', permissions: 'drwxr-xr-x' },
+    { name: 'Documents', path: '/home/user/Documents', size: 4096, isDir: true, modified: '2026-03-30', permissions: 'drwxr-xr-x' },
+    { name: '.bashrc', path: '/home/user/.bashrc', size: 3526, isDir: false, modified: '2026-03-25', permissions: '-rw-r--r--' },
   ];
 }
 
 function mockRemoteFiles(path) {
   return [
-    { name: '..', path: '/', size: 0, is_dir: true, modified: '2026-03-01', permissions: 'drwxr-xr-x' },
-    { name: 'etc', path: '/etc', size: 4096, is_dir: true, modified: '2026-03-30', permissions: 'drwxr-xr-x' },
-    { name: 'home', path: '/home', size: 4096, is_dir: true, modified: '2026-01-15', permissions: 'drwxr-xr-x' },
+    { name: '..', path: '/', size: 0, isDir: true, modified: '2026-03-01', permissions: 'drwxr-xr-x' },
+    { name: 'etc', path: '/etc', size: 4096, isDir: true, modified: '2026-03-30', permissions: 'drwxr-xr-x' },
+    { name: 'home', path: '/home', size: 4096, isDir: true, modified: '2026-01-15', permissions: 'drwxr-xr-x' },
   ];
 }
 
