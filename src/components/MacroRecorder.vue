@@ -1,97 +1,97 @@
 <template>
-  <div class="h-full flex flex-col bg-gray-900">
+  <div class="h-full flex flex-col" style="background: var(--bg-base)">
     <!-- 顶部：录制控制 -->
-    <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-3 gap-2">
-      <span class="text-sm font-medium text-gray-300">🎯 宏录制</span>
+    <div class="h-9 border-b flex items-center px-3 gap-2" style="background: var(--bg-surface); border-color: var(--border)">
+      <span class="text-sm font-medium" style="color: var(--fg-secondary)">🎯 宏录制</span>
       <div class="flex-1" />
-      <span v-if="recording" class="flex items-center gap-1 text-xs text-red-400">
-        <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+      <span v-if="recording" class="flex items-center gap-1 text-xs" style="color: var(--danger)">
+        <span class="w-2 h-2 rounded-full animate-pulse" style="background: var(--danger)" />
         录制中 ({{ currentCommands.length }})
       </span>
       <button @click="toggleRecording" class="text-xs px-2 py-0.5 rounded"
-        :class="recording ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white'">
+        :style="recording ? { background: 'var(--danger)', color: 'white' } : { background: 'var(--accent)', color: 'white' }">
         {{ recording ? '⏹ 停止' : '⏺ 开始录制' }}
       </button>
     </div>
 
     <!-- 回放状态 -->
-    <div v-if="replaying" class="px-3 py-1.5 bg-yellow-900/40 border-b border-yellow-700/50 flex items-center gap-2">
-      <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-      <span class="text-xs text-yellow-300">正在回放: {{ replayIndex }}/{{ replayTotal }}</span>
-      <button @click="stopReplay" class="ml-auto text-xs px-2 py-0.5 rounded bg-red-600/50 text-red-300 hover:bg-red-600/70">停止</button>
+    <div v-if="replaying" class="px-3 py-1.5 border-b flex items-center gap-2" style="background: color-mix(in srgb, var(--warning) 40%, transparent); border-color: color-mix(in srgb, var(--warning) 50%, transparent)">
+      <span class="w-2 h-2 rounded-full animate-pulse" style="background: var(--warning)" />
+      <span class="text-xs" style="color: var(--warning)">正在回放: {{ replayIndex }}/{{ replayTotal }}</span>
+      <button @click="stopReplay" class="ml-auto text-xs px-2 py-0.5 rounded" style="background: color-mix(in srgb, var(--danger) 50%, transparent); color: var(--danger)">停止</button>
     </div>
 
     <!-- 录制中：命令输入 -->
-    <div v-if="recording" class="px-3 py-2 border-b border-gray-700 flex gap-2">
+    <div v-if="recording" class="px-3 py-2 border-b flex gap-2" style="border-color: var(--border)">
       <input
         v-model="commandInput"
         @keydown.enter="addCommand"
-        class="flex-1 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:border-red-500"
+        class="flex-1 rounded px-2 py-1 text-sm font-mono focus:outline-none" style="background: var(--bg-base); border-color: var(--border-subtle)"
         placeholder="输入命令后回车添加到录制..."
       />
-      <button @click="addCommand" :disabled="!commandInput.trim()" class="text-xs px-2 py-1 rounded bg-red-600/30 text-red-300 hover:bg-red-600/50 disabled:opacity-40">+ 添加</button>
+      <button @click="addCommand" :disabled="!commandInput.trim()" class="text-xs px-2 py-1 rounded disabled:opacity-40" style="background: color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger)">+ 添加</button>
     </div>
 
     <!-- 宏列表 -->
     <div class="flex-1 overflow-y-auto p-3">
-      <div v-for="macro in macros" :key="macro.id" class="bg-gray-800 rounded-lg mb-2 p-3 group">
+      <div v-for="macro in macros" :key="macro.id" class="rounded-lg mb-2 p-3 group" style="background: var(--bg-surface)">
         <div class="flex items-center justify-between">
           <div class="flex-1 min-w-0">
-            <div class="text-sm text-gray-200 font-medium">{{ macro.name }}</div>
-            <div class="text-xs text-gray-500 mt-0.5">
+            <div class="text-sm font-medium" style="color: var(--fg-primary)">{{ macro.name }}</div>
+            <div class="text-xs mt-0.5" style="color: var(--fg-muted)">
               {{ macro.commands.length }} 条命令 · {{ formatDate(macro.createdAt) }}
             </div>
           </div>
           <div class="flex gap-1 ml-2">
             <button @click="replayMacro(macro)" :disabled="recording || replaying"
-              class="text-xs px-2 py-0.5 rounded bg-green-600/30 text-green-300 hover:bg-green-600/50 disabled:opacity-40">▶ 回放</button>
+              class="text-xs px-2 py-0.5 rounded disabled:opacity-40" style="background: color-mix(in srgb, var(--success) 30%, transparent); color: var(--success)">▶ 回放</button>
             <button @click="deleteMacro(macro.id)" :disabled="recording || replaying"
-              class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400 hover:text-red-400 disabled:opacity-40">🗑</button>
+              class="text-xs px-2 py-0.5 rounded disabled:opacity-40" style="background: var(--bg-elevated); color: var(--fg-muted)">🗑</button>
           </div>
         </div>
         <!-- 命令预览 -->
         <div class="mt-2 space-y-0.5">
           <div v-for="(cmd, i) in macro.commands.slice(0, 3)" :key="i"
-            class="text-xs text-gray-500 font-mono truncate">
-            <span class="text-gray-600">{{ i + 1 }}.</span> {{ cmd.command }}
+            class="text-xs font-mono truncate" style="color: var(--fg-muted)">
+            <span style="color: var(--fg-muted)">{{ i + 1 }}.</span> {{ cmd.command }}
           </div>
-          <div v-if="macro.commands.length > 3" class="text-xs text-gray-600">
+          <div v-if="macro.commands.length > 3" class="text-xs" style="color: var(--fg-muted)">
             ...还有 {{ macro.commands.length - 3 }} 条
           </div>
         </div>
       </div>
 
-      <div v-if="macros.length === 0 && !recording" class="text-center text-gray-500 text-sm mt-10">
+      <div v-if="macros.length === 0 && !recording" class="text-center text-sm mt-10" style="color: var(--fg-muted)">
         暂无宏<br/><span class="text-xs">点击"开始录制"创建第一个宏</span>
       </div>
     </div>
 
     <!-- 底部：当前录制的命令预览 -->
-    <div v-if="recording && currentCommands.length > 0" class="border-t border-gray-700 bg-gray-850 max-h-40 overflow-y-auto">
-      <div class="px-3 py-1.5 text-xs text-gray-500 border-b border-gray-700/50 flex items-center gap-2">
-        <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+    <div v-if="recording && currentCommands.length > 0" class="border-t max-h-40 overflow-y-auto" style="background: var(--bg-surface); border-color: var(--border)">
+      <div class="px-3 py-1.5 text-xs border-b flex items-center gap-2" style="color: var(--fg-muted); border-color: color-mix(in srgb, var(--border) 50%, transparent)">
+        <span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background: var(--danger)" />
         录制预览 ({{ currentCommands.length }})
       </div>
       <div class="px-3 py-1 space-y-0.5">
-        <div v-for="(cmd, i) in currentCommands" :key="i" class="text-xs font-mono text-gray-400 truncate flex gap-2">
-          <span class="text-gray-600 shrink-0">{{ i + 1 }}.</span>
+        <div v-for="(cmd, i) in currentCommands" :key="i" class="text-xs font-mono truncate flex gap-2" style="color: var(--fg-muted)">
+          <span class="shrink-0" style="color: var(--fg-muted)">{{ i + 1 }}.</span>
           <span class="truncate">{{ cmd.command }}</span>
-          <span class="text-gray-700 shrink-0">{{ cmd.time }}</span>
+          <span class="shrink-0" style="color: var(--bg-elevated)">{{ cmd.time }}</span>
         </div>
       </div>
     </div>
 
     <!-- 保存宏对话框 -->
-    <div v-if="showSave" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" @click.self="cancelSave">
-      <div class="bg-gray-800 rounded-lg w-80 border border-gray-600 p-4 space-y-3">
-        <h3 class="text-sm font-medium text-gray-200">保存宏</h3>
-        <div class="text-xs text-gray-500">{{ currentCommands.length }} 条命令已录制</div>
+    <div v-if="showSave" class="fixed inset-0 flex items-center justify-center z-50" style="background: color-mix(in srgb, #000 60%, transparent)" @click.self="cancelSave">
+      <div class="rounded-lg w-80 p-4 space-y-3" style="background: var(--bg-surface); border-color: var(--border-subtle)">
+        <h3 class="text-sm font-medium" style="color: var(--fg-primary)">保存宏</h3>
+        <div class="text-xs" style="color: var(--fg-muted)">{{ currentCommands.length }} 条命令已录制</div>
         <input v-model="macroName" @keydown.enter="saveMacro" ref="nameInputRef"
-          class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+          class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-base); border-color: var(--border-subtle)"
           placeholder="输入宏名称..." autofocus />
         <div class="flex justify-end gap-2">
-          <button @click="cancelSave" class="px-3 py-1 text-sm text-gray-400">取消</button>
-          <button @click="saveMacro" :disabled="!macroName.trim()" class="px-3 py-1 text-sm bg-blue-600 rounded text-white disabled:opacity-50">保存</button>
+          <button @click="cancelSave" class="px-3 py-1 text-sm" style="color: var(--fg-muted)">取消</button>
+          <button @click="saveMacro" :disabled="!macroName.trim()" class="px-3 py-1 text-sm rounded disabled:opacity-50" style="background: var(--accent); color: white">保存</button>
         </div>
       </div>
     </div>

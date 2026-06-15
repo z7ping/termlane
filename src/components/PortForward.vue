@@ -1,35 +1,35 @@
 <template>
-  <div class="h-full flex flex-col bg-gray-900">
-    <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-3 gap-2">
-      <span class="text-sm font-medium text-gray-300">端口转发</span>
-      <span class="text-xs px-1.5 py-0.5 rounded bg-yellow-900/50 text-yellow-400 border border-yellow-700/50">演示模式</span>
+  <div class="h-full flex flex-col" style="background: var(--bg-base)">
+    <div class="h-9 border-b flex items-center px-3 gap-2" style="background: var(--bg-surface); border-color: var(--border)">
+      <span class="text-sm font-medium" style="color: var(--fg-secondary)">端口转发</span>
+      <span class="text-xs px-1.5 py-0.5 rounded border" style="background: color-mix(in srgb, var(--warning) 50%, transparent); color: var(--warning); border-color: color-mix(in srgb, var(--warning) 50%, transparent)">演示模式</span>
       <div class="flex-1" />
-      <button @click="showAdd = true" class="text-xs px-2 py-0.5 bg-blue-600 hover:bg-blue-500 rounded text-white">+ 新增</button>
+      <button @click="showAdd = true" class="text-xs px-2 py-0.5 rounded" style="background: var(--accent); color: white">+ 新增</button>
     </div>
 
     <div class="flex-1 overflow-y-auto p-3">
-      <div v-for="fwd in forwards" :key="fwd.id" class="bg-gray-800 rounded mb-2 p-3">
+      <div v-for="fwd in forwards" :key="fwd.id" class="rounded mb-2 p-3" style="background: var(--bg-surface)">
         <div class="flex items-center justify-between mb-2">
           <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full" :class="fwd.active ? 'bg-green-400' : 'bg-gray-500'" />
-            <span class="text-sm text-gray-200">{{ fwd.name }}</span>
-            <span class="text-xs px-1.5 py-0.5 rounded" :class="typeClass(fwd.type)">{{ fwd.type }}</span>
+            <span class="w-2 h-2 rounded-full" :style="fwd.active ? { background: 'var(--success)' } : { background: 'var(--fg-muted)' }" />
+            <span class="text-sm" style="color: var(--fg-primary)">{{ fwd.name }}</span>
+            <span class="text-xs px-1.5 py-0.5 rounded" :style="typeClass(fwd.type)">{{ fwd.type }}</span>
           </div>
           <div class="flex gap-1">
-            <button @click="toggleForward(fwd)" class="text-xs px-2 py-0.5 rounded" :class="fwd.active ? 'bg-red-600/30 text-red-300 hover:bg-red-600/50' : 'bg-green-600/30 text-green-300 hover:bg-green-600/50'">
+            <button @click="toggleForward(fwd)" class="text-xs px-2 py-0.5 rounded" :style="fwd.active ? { background: 'color-mix(in srgb, var(--danger) 30%, transparent)', color: 'var(--danger)' } : { background: 'color-mix(in srgb, var(--success) 30%, transparent)', color: 'var(--success)' }">
               {{ fwd.active ? '停止' : '启动' }}
             </button>
-            <button @click="deleteForward(fwd.id)" class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-white">删除</button>
+            <button @click="deleteForward(fwd.id)" class="text-xs px-2 py-0.5 rounded" style="background: var(--bg-elevated); color: var(--fg-muted)">删除</button>
           </div>
         </div>
-        <div class="text-xs text-gray-400 font-mono">
+        <div class="text-xs font-mono" style="color: var(--fg-muted)">
           <span v-if="fwd.type === 'local'">{{ fwd.localAddr }}:{{ fwd.localPort }} → {{ fwd.remoteAddr }}:{{ fwd.remotePort }}</span>
           <span v-else-if="fwd.type === 'remote'">{{ fwd.remoteAddr }}:{{ fwd.remotePort }} → {{ fwd.localAddr }}:{{ fwd.localPort }}</span>
           <span v-else>动态转发 {{ fwd.localAddr }}:{{ fwd.localPort }} (SOCKS5)</span>
         </div>
       </div>
 
-      <div v-if="forwards.length === 0" class="text-center text-gray-500 text-sm mt-10">
+      <div v-if="forwards.length === 0" class="text-center text-sm mt-10" style="color: var(--fg-muted)">
         暂无端口转发规则<br/>
         <span class="text-xs">点击右上角 + 新增</span>
       </div>
@@ -40,41 +40,41 @@
       <h3 class="text-sm font-medium">新增端口转发</h3>
 
       <div>
-        <label class="text-xs text-gray-400 block mb-1">名称</label>
-        <input v-model="newFwd.name" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="数据库连接" />
+        <label class="text-xs block mb-1" style="color: var(--fg-muted)">名称</label>
+        <input v-model="newFwd.name" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-base); border-color: var(--border-subtle)" placeholder="数据库连接" />
       </div>
 
       <div>
-        <label class="text-xs text-gray-400 block mb-1">类型</label>
+        <label class="text-xs block mb-1" style="color: var(--fg-muted)">类型</label>
         <div class="flex gap-2">
           <button
             v-for="t in types"
             :key="t.value"
             @click="newFwd.type = t.value"
             class="flex-1 px-2 py-1 text-xs rounded border"
-            :class="newFwd.type === t.value ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'border-gray-600 text-gray-400'"
+            :style="newFwd.type === t.value ? { background: 'color-mix(in srgb, var(--accent) 20%, transparent)', color: 'var(--accent)' } : { color: 'var(--fg-muted)' }" :class="newFwd.type === t.value ? 'border-[var(--accent)]' : 'border-[var(--border-subtle)]'"
           >{{ t.label }}</button>
         </div>
       </div>
 
       <div class="flex gap-2">
         <div class="flex-1">
-          <label class="text-xs text-gray-400 block mb-1">本地端口</label>
-          <input v-model.number="newFwd.localPort" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="3306" />
+          <label class="text-xs block mb-1" style="color: var(--fg-muted)">本地端口</label>
+          <input v-model.number="newFwd.localPort" type="number" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-base); border-color: var(--border-subtle)" placeholder="3306" />
         </div>
         <div v-if="newFwd.type !== 'dynamic'" class="flex-1">
-          <label class="text-xs text-gray-400 block mb-1">远程地址</label>
-          <input v-model="newFwd.remoteAddr" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="127.0.0.1" />
+          <label class="text-xs block mb-1" style="color: var(--fg-muted)">远程地址</label>
+          <input v-model="newFwd.remoteAddr" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-base); border-color: var(--border-subtle)" placeholder="127.0.0.1" />
         </div>
         <div v-if="newFwd.type !== 'dynamic'" class="w-20">
-          <label class="text-xs text-gray-400 block mb-1">远程端口</label>
-          <input v-model.number="newFwd.remotePort" type="number" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="3306" />
+          <label class="text-xs block mb-1" style="color: var(--fg-muted)">远程端口</label>
+          <input v-model.number="newFwd.remotePort" type="number" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-base); border-color: var(--border-subtle)" placeholder="3306" />
         </div>
       </div>
 
       <div class="flex justify-end gap-2">
-        <button @click="showAdd = false" class="px-3 py-1 text-sm text-gray-400">取消</button>
-        <button @click="addForward" :disabled="!newFwd.name || !newFwd.localPort" class="px-3 py-1 text-sm bg-blue-600 rounded text-white disabled:opacity-50">添加</button>
+        <button @click="showAdd = false" class="px-3 py-1 text-sm" style="color: var(--fg-muted)">取消</button>
+        <button @click="addForward" :disabled="!newFwd.name || !newFwd.localPort" class="px-3 py-1 text-sm rounded disabled:opacity-50" style="background: var(--accent); color: white">添加</button>
       </div>
     </BaseModal>
   </div>
@@ -109,9 +109,9 @@ const forwards = ref([
 
 function typeClass(type) {
   return {
-    local: 'bg-blue-600/30 text-blue-300',
-    remote: 'bg-purple-600/30 text-purple-300',
-    dynamic: 'bg-orange-600/30 text-orange-300',
+    local: { background: 'color-mix(in srgb, var(--accent) 30%, transparent)', color: 'var(--accent)' },
+    remote: { background: 'color-mix(in srgb, var(--accent) 30%, transparent)', color: 'var(--accent)' },
+    dynamic: { background: 'color-mix(in srgb, var(--warning) 30%, transparent)', color: 'var(--warning)' },
   }[type]
 }
 

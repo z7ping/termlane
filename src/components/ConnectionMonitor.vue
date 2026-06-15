@@ -1,25 +1,25 @@
 <template>
-  <div class="h-full flex flex-col bg-gray-900">
-    <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-3 gap-2">
-      <span class="text-sm font-medium text-gray-300">📊 服务器监控</span>
+  <div class="h-full flex flex-col" style="background: var(--bg-base)">
+    <div class="h-9 border-b flex items-center px-3 gap-2" style="background: var(--bg-surface); border-color: var(--border)">
+      <span class="text-sm font-medium" style="color: var(--fg-secondary)">📊 服务器监控</span>
       <div class="flex-1" />
-      <label class="flex items-center gap-1 text-xs text-gray-400">
+      <label class="flex items-center gap-1 text-xs" style="color: var(--fg-muted)">
         <input type="checkbox" v-model="autoRefresh" class="w-3 h-3" /> 自动刷新 (5s)
       </label>
-      <button @click="refreshAll" class="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300">⟳ 刷新</button>
+      <button @click="refreshAll" class="text-xs px-2 py-0.5 rounded" style="background: var(--bg-elevated); color: var(--fg-secondary)">⟳ 刷新</button>
     </div>
 
     <div class="flex-1 overflow-y-auto p-3">
-      <div v-for="s in servers" :key="s.id" class="bg-gray-800 rounded-lg mb-3 p-4">
+      <div v-for="s in servers" :key="s.id" class="rounded-lg mb-3 p-4" style="background: var(--bg-surface)">
         <!-- Header -->
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full" :class="s.loading ? 'bg-yellow-400 animate-pulse' : s.error ? 'bg-red-400' : 'bg-green-400'" />
-            <span class="text-sm font-medium text-gray-200">{{ s.name }}</span>
-            <span class="text-xs text-gray-500">{{ s.host }}:{{ s.port }}</span>
+            <span class="w-3 h-3 rounded-full" :style="s.loading ? { background: 'var(--warning)', animation: 'pulse 2s infinite' } : s.error ? { background: 'var(--danger)' } : { background: 'var(--success)' }" />
+            <span class="text-sm font-medium" style="color: var(--fg-primary)">{{ s.name }}</span>
+            <span class="text-xs" style="color: var(--fg-muted)">{{ s.host }}:{{ s.port }}</span>
           </div>
-          <span v-if="s.error" class="text-xs text-red-400">{{ s.error }}</span>
-          <span v-else-if="s.data" class="text-xs text-gray-500">
+          <span v-if="s.error" class="text-xs" style="color: var(--danger)">{{ s.error }}</span>
+          <span v-else-if="s.data" class="text-xs" style="color: var(--fg-muted)">
             负载 {{ s.data.load1.toFixed(2) }} / {{ s.data.load5.toFixed(2) }} / {{ s.data.load15.toFixed(2) }}
           </span>
         </div>
@@ -27,76 +27,73 @@
         <!-- Metrics Grid -->
         <div v-if="s.data" class="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <!-- CPU -->
-          <div class="bg-gray-900 rounded p-3">
-            <div class="text-xs text-gray-500 mb-1">🧠 CPU</div>
-            <div class="text-lg font-mono text-gray-200">{{ s.data.cpuUsage.toFixed(1) }}%</div>
-            <div class="w-full h-1.5 bg-gray-700 rounded-full mt-2">
+          <div class="rounded p-3" style="background: var(--bg-base)">
+            <div class="text-xs mb-1" style="color: var(--fg-muted)">🧠 CPU</div>
+            <div class="text-lg font-mono" style="color: var(--fg-primary)">{{ s.data.cpuUsage.toFixed(1) }}%</div>
+            <div class="w-full h-1.5 rounded-full mt-2" style="background: var(--bg-elevated)">
               <div class="h-full rounded-full transition-all duration-500"
-                :class="barColor(s.data.cpuUsage)"
-                :style="{ width: Math.min(100, s.data.cpuUsage) + '%' }" />
+                :style="{ ...barColor(s.data.cpuUsage), width: Math.min(100, s.data.cpuUsage) + '%' }" />
             </div>
           </div>
 
           <!-- Memory -->
-          <div class="bg-gray-900 rounded p-3">
-            <div class="text-xs text-gray-500 mb-1">💾 内存</div>
-            <div class="text-lg font-mono text-gray-200">{{ s.data.memoryPercent.toFixed(1) }}%</div>
-            <div class="text-xs text-gray-500 mt-0.5">{{ fmtBytes(s.data.memoryUsed) }} / {{ fmtBytes(s.data.memoryTotal) }}</div>
-            <div class="w-full h-1.5 bg-gray-700 rounded-full mt-2">
+          <div class="rounded p-3" style="background: var(--bg-base)">
+            <div class="text-xs mb-1" style="color: var(--fg-muted)">💾 内存</div>
+            <div class="text-lg font-mono" style="color: var(--fg-primary)">{{ s.data.memoryPercent.toFixed(1) }}%</div>
+            <div class="text-xs mt-0.5" style="color: var(--fg-muted)">{{ fmtBytes(s.data.memoryUsed) }} / {{ fmtBytes(s.data.memoryTotal) }}</div>
+            <div class="w-full h-1.5 rounded-full mt-2" style="background: var(--bg-elevated)">
               <div class="h-full rounded-full transition-all duration-500"
-                :class="barColor(s.data.memoryPercent)"
-                :style="{ width: Math.min(100, s.data.memoryPercent) + '%' }" />
+                :style="{ ...barColor(s.data.memoryPercent), width: Math.min(100, s.data.memoryPercent) + '%' }" />
             </div>
           </div>
 
           <!-- Disk -->
-          <div class="bg-gray-900 rounded p-3">
-            <div class="text-xs text-gray-500 mb-1">💿 磁盘 (/)</div>
-            <div class="text-lg font-mono text-gray-200">{{ s.data.diskPercent.toFixed(1) }}%</div>
-            <div class="text-xs text-gray-500 mt-0.5">{{ fmtBytes(s.data.diskUsed) }} / {{ fmtBytes(s.data.diskTotal) }}</div>
-            <div class="w-full h-1.5 bg-gray-700 rounded-full mt-2">
+          <div class="rounded p-3" style="background: var(--bg-base)">
+            <div class="text-xs mb-1" style="color: var(--fg-muted)">💿 磁盘 (/)</div>
+            <div class="text-lg font-mono" style="color: var(--fg-primary)">{{ s.data.diskPercent.toFixed(1) }}%</div>
+            <div class="text-xs mt-0.5" style="color: var(--fg-muted)">{{ fmtBytes(s.data.diskUsed) }} / {{ fmtBytes(s.data.diskTotal) }}</div>
+            <div class="w-full h-1.5 rounded-full mt-2" style="background: var(--bg-elevated)">
               <div class="h-full rounded-full transition-all duration-500"
-                :class="barColor(s.data.diskPercent)"
-                :style="{ width: Math.min(100, s.data.diskPercent) + '%' }" />
+                :style="{ ...barColor(s.data.diskPercent), width: Math.min(100, s.data.diskPercent) + '%' }" />
             </div>
           </div>
 
           <!-- Uptime -->
-          <div class="bg-gray-900 rounded p-3">
-            <div class="text-xs text-gray-500 mb-1">⏱️ 运行时间</div>
-            <div class="text-sm font-mono text-gray-200">{{ fmtUptime(s.data.uptimeSeconds) }}</div>
-            <div class="text-xs text-gray-500 mt-2">负载 1/5/15min</div>
-            <div class="text-xs font-mono text-gray-300">{{ s.data.load1.toFixed(2) }} / {{ s.data.load5.toFixed(2) }} / {{ s.data.load15.toFixed(2) }}</div>
+          <div class="rounded p-3" style="background: var(--bg-base)">
+            <div class="text-xs mb-1" style="color: var(--fg-muted)">⏱️ 运行时间</div>
+            <div class="text-sm font-mono" style="color: var(--fg-primary)">{{ fmtUptime(s.data.uptimeSeconds) }}</div>
+            <div class="text-xs mt-2" style="color: var(--fg-muted)">负载 1/5/15min</div>
+            <div class="text-xs font-mono" style="color: var(--fg-secondary)">{{ s.data.load1.toFixed(2) }} / {{ s.data.load5.toFixed(2) }} / {{ s.data.load15.toFixed(2) }}</div>
           </div>
         </div>
 
         <!-- Charts Row -->
         <div v-if="s.data" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
-          <div class="bg-gray-900 rounded p-2">
-            <div class="text-xs text-gray-500 mb-1">CPU 趋势</div>
+          <div class="rounded p-2" style="background: var(--bg-base)">
+            <div class="text-xs mb-1" style="color: var(--fg-muted)">CPU 趋势</div>
             <canvas :ref="el => setChartRef(s.id, 'cpu', el)" height="120"></canvas>
           </div>
-          <div class="bg-gray-900 rounded p-2">
-            <div class="text-xs text-gray-500 mb-1">内存趋势</div>
+          <div class="rounded p-2" style="background: var(--bg-base)">
+            <div class="text-xs mb-1" style="color: var(--fg-muted)">内存趋势</div>
             <canvas :ref="el => setChartRef(s.id, 'memory', el)" height="120"></canvas>
           </div>
-          <div class="bg-gray-900 rounded p-2">
-            <div class="text-xs text-gray-500 mb-1">磁盘趋势</div>
+          <div class="rounded p-2" style="background: var(--bg-base)">
+            <div class="text-xs mb-1" style="color: var(--fg-muted)">磁盘趋势</div>
             <canvas :ref="el => setChartRef(s.id, 'disk', el)" height="120"></canvas>
           </div>
-          <div class="bg-gray-900 rounded p-2">
-            <div class="text-xs text-gray-500 mb-1">负载趋势</div>
+          <div class="rounded p-2" style="background: var(--bg-base)">
+            <div class="text-xs mb-1" style="color: var(--fg-muted)">负载趋势</div>
             <canvas :ref="el => setChartRef(s.id, 'load', el)" height="120"></canvas>
           </div>
         </div>
 
         <!-- No data yet -->
-        <div v-else-if="!s.error" class="text-center text-gray-500 text-sm py-4">
+        <div v-else-if="!s.error" class="text-center text-sm py-4" style="color: var(--fg-muted)">
           {{ s.loading ? '加载中...' : '点击刷新获取数据' }}
         </div>
       </div>
 
-      <div v-if="servers.length === 0" class="text-center text-gray-500 text-sm mt-10">
+      <div v-if="servers.length === 0" class="text-center text-sm mt-10" style="color: var(--fg-muted)">
         暂无连接<br/><span class="text-xs">先在左侧添加 SSH 连接</span>
       </div>
     </div>
@@ -235,9 +232,9 @@ function destroyCharts(serverId) {
 }
 
 function barColor(pct) {
-  if (pct > 85) return 'bg-red-500'
-  if (pct > 60) return 'bg-yellow-500'
-  return 'bg-green-500'
+  if (pct > 85) return { background: 'var(--danger)' }
+  if (pct > 60) return { background: 'var(--warning)' }
+  return { background: 'var(--success)' }
 }
 
 function fmtBytes(b) {

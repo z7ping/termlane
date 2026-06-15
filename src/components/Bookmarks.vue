@@ -1,29 +1,29 @@
 <template>
-  <div class="h-full flex flex-col bg-gray-900">
-    <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-3 gap-2">
-      <span class="text-sm font-medium text-gray-300">🔖 书签</span>
+  <div class="h-full flex flex-col" style="background: var(--bg-base)">
+    <div class="h-9 border-b flex items-center px-3 gap-2" style="background: var(--bg-surface); border-color: var(--border)">
+      <span class="text-sm font-medium" style="color: var(--fg-secondary)">🔖 书签</span>
       <div class="flex-1" />
-      <button @click="addBookmark" class="text-xs px-2 py-0.5 bg-blue-600 hover:bg-blue-500 rounded text-white">+ 添加</button>
+      <button @click="addBookmark" class="text-xs px-2 py-0.5 rounded" style="background: var(--accent); color: white">+ 添加</button>
     </div>
 
     <div class="flex-1 overflow-y-auto p-2">
       <div v-for="(group, gIdx) in groupedBookmarks" :key="gIdx" class="mb-3">
-        <div class="text-xs text-gray-500 px-2 py-1 flex items-center gap-1">
+        <div class="text-xs px-2 py-1 flex items-center gap-1" style="color: var(--fg-muted)">
           <span>{{ group.icon }}</span> {{ group.label }}
         </div>
         <div v-for="bm in group.items" :key="bm.id" @click="$emit('navigate', bm)"
           @contextmenu.prevent="showMenu($event, bm)"
-          class="flex items-center gap-2 px-3 py-1.5 rounded cursor-pointer text-sm hover:bg-gray-700 group">
-          <span class="text-gray-400">{{ bm.icon || '📁' }}</span>
+          class="flex items-center gap-2 px-3 py-1.5 rounded cursor-pointer text-sm group" style="background: var(--bg-surface)">
+          <span class="" style="color: var(--fg-muted)">{{ bm.icon || '📁' }}</span>
           <div class="flex-1 min-w-0">
-            <div class="truncate text-gray-200">{{ bm.name }}</div>
-            <div class="truncate text-xs text-gray-500 font-mono">{{ bm.path }}</div>
+            <div class="truncate" style="color: var(--fg-primary)">{{ bm.name }}</div>
+            <div class="truncate text-xs font-mono" style="color: var(--fg-muted)">{{ bm.path }}</div>
           </div>
-          <span class="text-xs text-gray-600">{{ bm.host }}</span>
+          <span class="text-xs" style="color: var(--fg-muted)">{{ bm.host }}</span>
         </div>
       </div>
 
-      <div v-if="bookmarks.length === 0" class="text-center text-gray-500 text-sm mt-10">
+      <div v-if="bookmarks.length === 0" class="text-center text-sm mt-10" style="color: var(--fg-muted)">
         暂无书签<br/><span class="text-xs">SFTP 中右键添加常用目录</span>
       </div>
     </div>
@@ -31,21 +31,21 @@
     <!-- Add Dialog -->
     <BaseModal :show="showAdd" width="320px" @close="showAdd = false">
       <h3 class="text-sm font-medium">添加书签</h3>
-      <input v-model="newBm.name" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="名称（如：项目根目录）" />
-      <input v-model="newBm.path" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:border-blue-500" placeholder="/var/www/html" />
-      <input v-model="newBm.host" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500" placeholder="服务器名（可选）" />
+      <input v-model="newBm.name" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-base); border-color: var(--border-subtle)" placeholder="名称（如：项目根目录）" />
+      <input v-model="newBm.path" class="w-full rounded px-3 py-1.5 text-sm font-mono focus:outline-none" style="background: var(--bg-base); border-color: var(--border-subtle)" placeholder="/var/www/html" />
+      <input v-model="newBm.host" class="w-full rounded px-3 py-1.5 text-sm focus:outline-none" style="background: var(--bg-base); border-color: var(--border-subtle)" placeholder="服务器名（可选）" />
       <div class="flex justify-end gap-2">
-        <button @click="showAdd = false" class="px-3 py-1 text-sm text-gray-400">取消</button>
-        <button @click="saveBookmark" :disabled="!newBm.path" class="px-3 py-1 text-sm bg-blue-600 rounded text-white disabled:opacity-50">添加</button>
+        <button @click="showAdd = false" class="px-3 py-1 text-sm" style="color: var(--fg-muted)">取消</button>
+        <button @click="saveBookmark" :disabled="!newBm.path" class="px-3 py-1 text-sm rounded disabled:opacity-50" style="background: var(--accent); color: white">添加</button>
       </div>
     </BaseModal>
 
     <!-- Context Menu -->
-    <div v-if="ctx.show" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }" class="fixed bg-gray-800 border border-gray-600 rounded shadow-lg z-50 py-1 text-xs min-w-[120px]" @click.stop>
-      <div @click="$emit('navigate', ctx.bm); ctx.show = false" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-gray-300">📂 打开</div>
-      <div @click="copyPath" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-gray-300">📋 复制路径</div>
-      <div class="border-t border-gray-700 my-1" />
-      <div @click="delBookmark" class="px-4 py-1.5 hover:bg-gray-600 cursor-pointer text-red-400">🗑 删除</div>
+    <div v-if="ctx.show" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }" class="fixed rounded shadow-lg z-50 py-1 text-xs min-w-[120px]" style="background: var(--bg-surface); border-color: var(--border-subtle)" @click.stop>
+      <div @click="$emit('navigate', ctx.bm); ctx.show = false" class="px-4 py-1.5 cursor-pointer" style="color: var(--fg-secondary)">📂 打开</div>
+      <div @click="copyPath" class="px-4 py-1.5 cursor-pointer" style="color: var(--fg-secondary)"">📋 复制路径</div>
+      <div class="border-t my-1" style="border-color: var(--border)" />
+      <div @click="delBookmark" class="px-4 py-1.5 cursor-pointer" style="color: var(--danger)">🗑 删除</div>
     </div>
     <div v-if="ctx.show" class="fixed inset-0 z-40" @click="ctx.show = false" />
   </div>

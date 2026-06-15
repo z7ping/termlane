@@ -1,9 +1,9 @@
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="show" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" @click.self="$emit('close')">
+      <div v-if="show" class="fixed inset-0 flex items-center justify-center z-50" style="background: color-mix(in srgb, #000 60%, transparent)" @click.self="$emit('close')">
         <div
-          class="bg-gray-800 rounded-lg border border-gray-600 p-4 space-y-3"
+          class="rounded-lg p-4 space-y-3" style="background: var(--bg-surface); border-color: var(--border-subtle)"
           :style="{ width: width }"
           @keydown.esc="$emit('close')"
         >

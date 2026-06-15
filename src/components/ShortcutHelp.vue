@@ -1,22 +1,22 @@
 <template>
-  <div v-if="visible" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50" @click.self="$emit('close')">
-    <div class="bg-gray-800 rounded-lg w-[500px] border border-gray-600 shadow-2xl">
-      <div class="p-4 border-b border-gray-700 flex items-center justify-between">
-        <h3 class="text-sm font-medium text-gray-200">⌨️ 快捷键</h3>
-        <button @click="$emit('close')" class="text-gray-400 hover:text-white">✕</button>
+  <div v-if="visible" class="fixed inset-0 flex items-center justify-center z-50" style="background: color-mix(in srgb, #000 60%, transparent)" @click.self="$emit('close')">
+    <div class="rounded-lg w-[500px] shadow-2xl" style="background: var(--bg-surface); border-color: var(--border-subtle)">
+      <div class="p-4 border-b flex items-center justify-between" style="border-color: var(--border)">
+        <h3 class="text-sm font-medium" style="color: var(--fg-primary)">⌨️ 快捷键</h3>
+        <button @click="$emit('close')" class="" style="color: var(--fg-muted)">✕</button>
       </div>
 
       <div class="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
         <div v-for="group in shortcutGroups" :key="group.name">
-          <h4 class="text-xs text-gray-500 uppercase mb-2">{{ group.name }}</h4>
+          <h4 class="text-xs uppercase mb-2" style="color: var(--fg-muted)">{{ group.name }}</h4>
           <div class="space-y-1">
             <div v-for="s in group.items" :key="s.name" class="flex items-center justify-between py-1">
-              <span class="text-sm text-gray-300">{{ s.name }}</span>
+              <span class="text-sm" style="color: var(--fg-secondary)">{{ s.name }}</span>
               <div class="flex gap-1">
                 <kbd
                   v-for="(key, i) in s.keys"
                   :key="i"
-                  class="px-1.5 py-0.5 bg-gray-700 border border-gray-600 rounded text-xs text-gray-400 font-mono"
+                  class="px-1.5 py-0.5 border rounded text-xs font-mono" style="background: var(--bg-elevated); border-color: var(--border-subtle); color: var(--fg-muted)"
                 >{{ key }}</kbd>
               </div>
             </div>
@@ -24,8 +24,8 @@
         </div>
       </div>
 
-      <div class="p-3 border-t border-gray-700 text-center">
-        <span class="text-xs text-gray-500">按 <kbd class="px-1 py-0.5 bg-gray-700 rounded text-gray-400">?</kbd> 或 <kbd class="px-1 py-0.5 bg-gray-700 rounded text-gray-400">F1</kbd> 打开此面板</span>
+      <div class="p-3 border-t text-center" style="border-color: var(--border)">
+        <span class="text-xs" style="color: var(--fg-muted)">按 <kbd class="px-1 py-0.5 rounded" style="background: var(--bg-elevated); color: var(--fg-muted)">?</kbd> 或 <kbd class="px-1 py-0.5 rounded" style="background: var(--bg-elevated); color: var(--fg-muted)">F1</kbd> 打开此面板</span>
       </div>
     </div>
   </div>

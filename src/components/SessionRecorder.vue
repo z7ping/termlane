@@ -1,58 +1,58 @@
 <template>
-  <div class="h-full flex flex-col bg-gray-900">
-    <div class="h-9 bg-gray-800 border-b border-gray-700 flex items-center px-3 gap-2">
-      <span class="text-sm font-medium text-gray-300">⏺ 会话录制</span>
+  <div class="h-full flex flex-col" style="background: var(--bg-base)">
+    <div class="h-9 border-b flex items-center px-3 gap-2" style="background: var(--bg-surface); border-color: var(--border)">
+      <span class="text-sm font-medium" style="color: var(--fg-secondary)">⏺ 会话录制</span>
       <div class="flex-1" />
-      <span v-if="recording" class="flex items-center gap-1 text-xs text-red-400">
-        <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+      <span v-if="recording" class="flex items-center gap-1 text-xs" style="color: var(--danger)">
+        <span class="w-2 h-2 rounded-full animate-pulse" style="background: var(--danger)" />
         {{ formatDuration(recDuration) }}
       </span>
       <button @click="toggleRecording" :disabled="!sessionId && !recording" class="text-xs px-2 py-0.5 rounded"
-        :class="recording ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50'">
+        :style="recording ? { background: 'var(--danger)', color: 'white' } : { background: 'var(--accent)', color: 'white' }">
         {{ recording ? '⏹ 停止' : '⏺ 录制' }}
       </button>
     </div>
 
     <div class="flex-1 overflow-y-auto p-3">
-      <div v-for="rec in recordings" :key="rec.id" class="bg-gray-800 rounded-lg mb-2 p-3 hover:bg-gray-750">
+      <div v-for="rec in recordings" :key="rec.id" class="rounded-lg mb-2 p-3" style="background: var(--bg-surface)">
         <div class="flex items-center justify-between">
           <div>
-            <div class="text-sm text-gray-200">{{ rec.name }}</div>
-            <div class="text-xs text-gray-500 mt-0.5">
+            <div class="text-sm" style="color: var(--fg-primary)">{{ rec.name }}</div>
+            <div class="text-xs mt-0.5" style="color: var(--fg-muted)">
               {{ rec.connectionName }} · {{ rec.startedAt }} · {{ formatDuration(rec.durationSecs) }}
             </div>
           </div>
           <div class="flex gap-1">
-            <button @click="playRecording(rec)" class="text-xs px-2 py-0.5 rounded bg-green-600/30 text-green-300 hover:bg-green-600/50">▶</button>
-            <button @click="exportRecording(rec)" class="text-xs px-2 py-0.5 rounded bg-blue-600/30 text-blue-300 hover:bg-blue-600/50">📤</button>
-            <button @click="delRecording(rec.id)" class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400 hover:text-white">🗑</button>
+            <button @click="playRecording(rec)" class="text-xs px-2 py-0.5 rounded" style="background: color-mix(in srgb, var(--success) 30%, transparent); color: var(--success)">▶</button>
+            <button @click="exportRecording(rec)" class="text-xs px-2 py-0.5 rounded" style="background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--accent)">📤</button>
+            <button @click="delRecording(rec.id)" class="text-xs px-2 py-0.5 rounded" style="background: var(--bg-elevated); color: var(--fg-muted)">🗑</button>
           </div>
         </div>
         <div v-if="rec.tags?.length" class="flex gap-1 mt-2">
-          <span v-for="tag in rec.tags" :key="tag" class="text-xs px-1.5 py-0.5 bg-gray-700 rounded text-gray-400">{{ tag }}</span>
+          <span v-for="tag in rec.tags" :key="tag" class="text-xs px-1.5 py-0.5 rounded" style="background: var(--bg-elevated); color: var(--fg-muted)">{{ tag }}</span>
         </div>
       </div>
-      <div v-if="recordings.length === 0" class="text-center text-gray-500 text-sm mt-10">
+      <div v-if="recordings.length === 0" class="text-center text-sm mt-10" style="color: var(--fg-muted)">
         暂无录制<br/><span class="text-xs">连接服务器后点击 ⏺ 开始录制</span>
       </div>
     </div>
 
     <!-- Playback Modal -->
-    <div v-if="playing" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50" @click.self="playing = null">
-      <div class="bg-gray-800 rounded-lg w-[720px] border border-gray-600 flex flex-col max-h-[80vh]">
-        <div class="p-3 border-b border-gray-700 flex items-center justify-between">
-          <span class="text-sm text-gray-200">▶ {{ playing.name }}</span>
-          <button @click="playing = null" class="text-gray-400 hover:text-white">✕</button>
+    <div v-if="playing" class="fixed inset-0 flex items-center justify-center z-50" style="background: color-mix(in srgb, #000 80%, transparent)" @click.self="playing = null">
+      <div class="rounded-lg w-[720px] flex flex-col max-h-[80vh]" style="background: var(--bg-surface); border-color: var(--border-subtle)">
+        <div class="p-3 border-b flex items-center justify-between" style="border-color: var(--border)">
+          <span class="text-sm" style="color: var(--fg-primary)">▶ {{ playing.name }}</span>
+          <button @click="playing = null" class="" style="color: var(--fg-muted)">✕</button>
         </div>
         <div ref="playbackRef" class="h-80 bg-black overflow-auto font-mono text-sm p-3" style="color: #d4d4d4;">
           <div v-for="(line, i) in playbackLines" :key="i" class="whitespace-pre-wrap break-all" v-html="ansiToHtml(line)" />
         </div>
-        <div class="p-3 border-t border-gray-700 flex items-center gap-3">
-          <button @click="togglePlayback" class="text-sm px-3 py-1 rounded text-white" :class="playbackActive ? 'bg-red-600' : 'bg-blue-600'">
+        <div class="p-3 border-t flex items-center gap-3" style="border-color: var(--border)">
+          <button @click="togglePlayback" class="text-sm px-3 py-1 rounded text-white" :style="playbackActive ? { background: 'var(--danger)' } : { background: 'var(--accent)' }">
             {{ playbackActive ? '⏸ 暂停' : '▶ 播放' }}
           </button>
           <input type="range" class="flex-1" min="0" :max="playbackData.length" v-model.number="playbackIdx" @input="renderPlayback" />
-          <span class="text-xs text-gray-500">{{ playbackIdx }}/{{ playbackData.length }}</span>
+          <span class="text-xs" style="color: var(--fg-muted)">{{ playbackIdx }}/{{ playbackData.length }}</span>
         </div>
       </div>
     </div>
