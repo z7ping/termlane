@@ -2,8 +2,8 @@
   <div class="flex flex-col h-full" v-show="active">
     <!-- Search Bar -->
     <div v-if="showSearch" class="h-8 flex items-center px-2 gap-2" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
-      <input ref="searchInput" v-model="searchTerm" @keydown.enter="searchNext" @keydown.shift.enter="searchPrev" class="flex-1 text-sm px-2 py-1 rounded border focus:outline-none" style="background: var(--bg-base); color: var(--fg-primary); border-color: var(--border););" placeholder="搜索... (Enter下一个, Shift+Enter上一个)" />
-      <button @click="closeSearch" style="color: var(--fg-muted);" px-1>✕</button>
+      <input ref="searchInput" v-model="searchTerm" @keydown.enter="searchNext" @keydown.shift.enter="searchPrev" class="flex-1 text-sm px-2 py-1 rounded border focus:outline-none" style="background: var(--bg-base); color: var(--fg-primary); border-color: var(--border);" placeholder="搜索... (Enter下一个, Shift+Enter上一个)" />
+      <button @click="closeSearch" class="px-1" style="color: var(--fg-muted);">✕</button>
     </div>
 
     <!-- Connection Failed Banner -->

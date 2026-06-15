@@ -71,7 +71,7 @@
     <UpdateNotifier />
 
     <ConnectionDialog v-if="showAddConnection" :editing="editingConnection" @save="onSaveConnection" @close="showAddConnection = false; editingConnection = null" />
-    <ShortcutHelp v-if="showShortcuts" @close="showShortcuts = false" />
+    <ShortcutHelp :visible="showShortcuts" @close="showShortcuts = false" />
     <Onboarding />
   </div>
 </template>

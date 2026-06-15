@@ -2,9 +2,9 @@
   <div class="flex flex-col h-full" style="background: var(--bg-base);">
     <!-- Toolbar -->
     <div class="h-9 flex items-center px-2 gap-2" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
-      <button @click="createRemoteDir" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded disabled:opacity-50 flex items-center gap-1" style="background: var(--bg-elevated); color:; hover:background: var(--bg-hover);"><FolderPlus :size="14" /></button>
-      <button @click="batchDelete" :disabled="!sessionId || selectedRemoteSet.size === 0" class="px-2 py-0.5 text-xs rounded disabled:opacity-50 flex items-center gap-1" style="background: var(--bg-elevated); color:; hover:background: rgba(220, 38, 38, 0.2);"><Trash2 :size="14" /> {{ selectedRemoteSet.size || '' }}</button>
-      <button @click="refreshRemote" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded disabled:opacity-50 flex items-center gap-1" style="background: var(--bg-elevated); color:; hover:background: var(--bg-hover);"><RefreshCw :size="14" /></button>
+      <button @click="createRemoteDir" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded disabled:opacity-50 flex items-center gap-1" style="background: var(--bg-elevated); color: var(--fg-secondary);"><FolderPlus :size="14" /></button>
+      <button @click="batchDelete" :disabled="!sessionId || selectedRemoteSet.size === 0" class="px-2 py-0.5 text-xs rounded disabled:opacity-50 flex items-center gap-1" style="background: var(--bg-elevated); color: var(--fg-secondary);"><Trash2 :size="14" /> {{ selectedRemoteSet.size || '' }}</button>
+      <button @click="refreshRemote" :disabled="!sessionId" class="px-2 py-0.5 text-xs rounded disabled:opacity-50 flex items-center gap-1" style="background: var(--bg-elevated); color: var(--fg-secondary);"><RefreshCw :size="14" /></button>
       <div class="flex-1" />
       <span class="text-xs" style="color: var(--fg-muted);">{{ selectedRemoteSet.size ? `已选 ${selectedRemoteSet.size} 个` : '' }}</span>
       <span class="text-xs" style="color: var(--fg-muted);">{{ connection?.name || '未连接' }}</span>
@@ -23,7 +23,7 @@
           <!-- Virtual list for large directories -->
           <VirtualList v-if="localVirtual" :items="localFiles" :item-height="28" :height="400">
             <template #default="{ item: file }">
-              <div @click="onLocalClick($event, file)" @dblclick="onLocalDblClick(file)" @dragEvent="onLocalDragStart($event, file)" draggable="true"
+              <div @click="onLocalClick($event, file)" @dblclick="onLocalDblClick(file)" @dragstart="onLocalDragStart($event, file)" draggable="true"
                 class="flex items-center gap-2 px-3 cursor-pointer hover:bg-white/5 text-xs select-none h-full"
                 :style="selectedLocalSet.has(file.path) ? 'background: var(--accent-hover); color: var(--accent);' : ''">
                 <span class="w-4 text-center text-xs">{{ file.isDir ? '📁' : icon(file.name) }}</span>
