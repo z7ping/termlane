@@ -389,9 +389,24 @@ pub fn list_shells() -> Vec<String> {
 }
 
 // ─── Jump Host (Proxy Jump) ───
-// Note: ssh2-rs doesn't support creating a Session over a Channel tunnel.
-// This implementation connects directly to the target (assumes network reachability).
-// For true proxy jump, use the OpenSSH ProxyJump (-J) via local PTY shell.
+// LIMITATION: ssh2-rs (libssh2 bindings) does NOT support creating a Session
+// over a Channel tunnel. ssh2::Session::new() requires a TcpStream, not a
+// Channel stream, so true SSH ProxyJump (tunneling through an intermediate host)
+// is not possible with this API.
+//
+// This function:
+// 1. Verifies the jump host is reachable and can establish a tunnel to the target
+//    (pre-validation step - useful for catching misconfigurations early)
+// 2. Connects DIRECTLY to the target (assumes network reachability from the
+//    client machine, NOT through the jump host tunnel)
+//
+// For TRUE ProxyJump support, use one of:
+//   - OpenSSH ProxyJump (-J flag) via a local PTY shell session
+//   - A library that supports session-over-channel (e.g., ssh2 Tokio bindings)
+//   - libssh2 native ProxyJump (when available)
+//
+// This function is effectively: "verify jump host can reach target, then connect
+// directly." The jump host connectivity check is kept as a useful pre-validation.
 
 pub async fn connect_jump(
     jump_host: &str,
@@ -403,7 +418,8 @@ pub async fn connect_jump(
     target_user: &str,
     target_pass: &str,
 ) -> Result<String, String> {
-    // Verify jump host is reachable first
+    // Step 1: Verify jump host is reachable and can tunnel to target
+    // This is pre-validation only - we don't use the tunnel for the actual connection
     let jump_addr: std::net::SocketAddr = format!("{}:{}", jump_host, jump_port)
         .parse()
         .map_err(|e| format!("跳板机地址无效: {}", e))?;
@@ -414,19 +430,25 @@ pub async fn connect_jump(
         .userauth_password(jump_user, jump_pass)
         .map_err(|e| format!("跳板机认证失败: {}", e))?;
 
-    // Verify tunnel works by attempting direct-tcpip to target
-    let _jump_channel = jump_session
+    // Verify the jump host can reach the target (test channel, then drop it)
+    // This catches configuration errors before we attempt the direct connection
+    let test_channel = jump_session
         .channel_direct_tcpip(target_host, target_port, None)
         .map_err(|e| format!("跳板机隧道建立失败（目标不可达）: {}", e))?;
-    // Drop the test channel - we verified the tunnel works
-    // Connect directly to target (jump host must route to it)
-    drop(_jump_channel);
+    drop(test_channel);
+    // Note: We cannot use this channel for Session::new() because ssh2-rs requires
+    // a TcpStream, not a Channel. The tunnel test is purely for validation.
 
+    // Step 2: Connect directly to target (NOT through the jump host tunnel)
+    // This assumes the target is network-reachable from the client machine
     let id = connect(target_host, target_port, target_user, target_pass).await?;
 
-    // Store jump session to keep it alive (prevents tunnel from closing)
-    let jump_id = format!("jump_{}", id);
-    lock!(SESSIONS).insert(jump_id, jump_session);
+    // TODO: True ProxyJump support requires either:
+    //   - Using OpenSSH's -J flag via a PTY shell: ssh -J user@jumphost user@target
+    //   - A library that supports Session::new() over a Channel stream
+    //   - libssh2 native ProxyJump support (not yet available in ssh2-rs)
+    // For now, the jump session is dropped here since it's not used for tunneling.
+    drop(jump_session);
 
     Ok(id)
 }

@@ -18,6 +18,7 @@ struct LocalPty {
     _child: Box<dyn portable_pty::Child + Send + Sync>,
     input_tx: crossbeam_channel::Sender<String>,
     _reader: std::thread::JoinHandle<()>,
+    _writer: std::thread::JoinHandle<()>,
 }
 
 static LOCAL_PTYS: std::sync::LazyLock<Mutex<HashMap<String, LocalPty>>> =
@@ -114,10 +115,6 @@ pub fn start_local_shell(
         }
     });
 
-    // We can't store the writer thread handle in LocalPty because it needs to outlive the struct
-    // Actually let's just store everything we need
-    std::mem::forget(writer_thread); // Writer thread runs until channel closes
-
     lock!(LOCAL_PTYS).insert(
         session_id.clone(),
         LocalPty {
@@ -125,6 +122,7 @@ pub fn start_local_shell(
             _child: child,
             input_tx,
             _reader: reader_thread,
+            _writer: writer_thread,
         },
     );
 

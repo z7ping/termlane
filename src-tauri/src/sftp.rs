@@ -29,7 +29,35 @@ fn unix_now() -> u64 {
 
 // ─── Local file operations ───
 
+/// Validate a local filesystem path, rejecting sensitive directories and traversal.
+fn validate_local_path(path: &str) -> Result<(), String> {
+    if path.is_empty() {
+        return Err("路径不能为空".to_string());
+    }
+
+    // Canonicalize to resolve symlinks and `..` components
+    let canonical = std::fs::canonicalize(path)
+        .map_err(|e| format!("无法解析路径: {}", e))?;
+    let canonical_str = canonical.to_string_lossy();
+
+    // Reject directory traversal (canonicalize already resolved `..`, but double-check)
+    if path.contains("..") {
+        return Err("路径包含非法的目录遍历 (..)".to_string());
+    }
+
+    // Reject access to sensitive system directories
+    let forbidden_prefixes = ["/etc", "/proc", "/sys", "/dev", "/boot", "/root"];
+    for prefix in &forbidden_prefixes {
+        if canonical_str == *prefix || canonical_str.starts_with(&format!("{}/", prefix)) {
+            return Err(format!("禁止访问系统目录: {}", prefix));
+        }
+    }
+
+    Ok(())
+}
+
 pub fn list_local(path: &str) -> Result<Vec<FileEntry>, String> {
+    validate_local_path(path)?;
     use std::fs;
     use std::path::Path;
     use std::time::SystemTime;
@@ -222,6 +250,8 @@ fn parse_ls_output(output: &str, base_path: &str) -> Result<Vec<FileEntry>, Stri
 /// Upload a local file to remote via base64 encoding (safe for binary files).
 /// Uses temp file + chunked printf to avoid shell ARG_MAX limits.
 pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, String> {
+    validate_local_path(local)?;
+
     let local_content = std::fs::read(local).map_err(|e| format!("读取本地文件失败: {}", e))?;
     let encoded = base64_encode(&local_content);
     let remote_tmp = format!("/tmp/xterminal_upload_{}.b64", unix_now());

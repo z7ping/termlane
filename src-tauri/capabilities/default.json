@@ -1,0 +1,9 @@
+{
+  "identifier": "default",
+  "description": "Default capability - restricts IPC to registered commands only",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "stronghold:default"
+  ]
+}

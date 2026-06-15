@@ -3,15 +3,54 @@
 
 use tauri::AppHandle;
 
+// ─── Input Validation Helpers ───
+
+/// Maximum allowed length for any string IPC parameter.
+const MAX_STRING_LEN: usize = 10_000;
+
+/// Validate that a host is non-empty and a port is in the valid TCP/UDP range.
+fn validate_host_port(host: &str, port: u16) -> Result<(), String> {
+    if host.trim().is_empty() {
+        return Err("host must not be empty".into());
+    }
+    if port == 0 {
+        return Err("port must be between 1 and 65535".into());
+    }
+    Ok(())
+}
+
+/// Reject any string parameter that exceeds the safety limit.
+fn validate_string_len(name: &str, value: &str) -> Result<(), String> {
+    if value.len() > MAX_STRING_LEN {
+        return Err(format!("{} exceeds maximum length of {} chars", name, MAX_STRING_LEN));
+    }
+    Ok(())
+}
+
 // ─── SSH Exec ───
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn ssh_connect(host: String, port: u16, username: String, password: String) -> Result<String, String> {
+    validate_host_port(&host, port)?;
+    validate_string_len("host", &host)?;
+    validate_string_len("username", &username)?;
+    validate_string_len("password", &password)?;
+    if username.trim().is_empty() {
+        return Err("username must not be empty".into());
+    }
     crate::ssh::connect(&host, port, &username, &password).await
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn ssh_connect_key(host: String, port: u16, username: String, key_path: String, passphrase: String) -> Result<String, String> {
+    validate_host_port(&host, port)?;
+    validate_string_len("host", &host)?;
+    validate_string_len("username", &username)?;
+    validate_string_len("key_path", &key_path)?;
+    validate_string_len("passphrase", &passphrase)?;
+    if username.trim().is_empty() {
+        return Err("username must not be empty".into());
+    }
     crate::ssh::connect_with_key(&host, port, &username, &key_path, &passphrase).await
 }
 
@@ -20,6 +59,20 @@ pub async fn ssh_connect_jump(
     jump_host: String, jump_port: u16, jump_user: String, jump_pass: String,
     target_host: String, target_port: u16, target_user: String, target_pass: String,
 ) -> Result<String, String> {
+    validate_host_port(&jump_host, jump_port)?;
+    validate_host_port(&target_host, target_port)?;
+    validate_string_len("jump_host", &jump_host)?;
+    validate_string_len("jump_user", &jump_user)?;
+    validate_string_len("jump_pass", &jump_pass)?;
+    validate_string_len("target_host", &target_host)?;
+    validate_string_len("target_user", &target_user)?;
+    validate_string_len("target_pass", &target_pass)?;
+    if jump_user.trim().is_empty() {
+        return Err("jump_user must not be empty".into());
+    }
+    if target_user.trim().is_empty() {
+        return Err("target_user must not be empty".into());
+    }
     crate::ssh::connect_jump(&jump_host, jump_port, &jump_user, &jump_pass, &target_host, target_port, &target_user, &target_pass).await
 }
 
@@ -104,6 +157,15 @@ pub fn sftp_rename(session_id: String, old_path: String, new_path: String) -> Re
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn sftp_delete(session_id: String, path: String, is_dir: bool) -> Result<String, String> {
+    validate_string_len("path", &path)?;
+    if path.trim().is_empty() {
+        return Err("path must not be empty".into());
+    }
+    // Prevent deletion of root-like paths (e.g. "/." or "/" followed by only dots)
+    let trimmed = path.trim_end_matches('/');
+    if trimmed.starts_with('/') && trimmed[1..].chars().all(|c| c == '.') {
+        return Err("refusing to delete root-like path".into());
+    }
     crate::sftp::delete_file(&session_id, &path, is_dir)
 }
 
@@ -224,6 +286,8 @@ pub fn local_list_shells() -> Vec<String> {
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn tcp_ping(host: String, port: u16) -> Result<u64, String> {
+    validate_host_port(&host, port)?;
+    validate_string_len("host", &host)?;
     use std::net::TcpStream;
     use std::time::{Duration, Instant};
     let addr = format!("{}:{}", host, port);
