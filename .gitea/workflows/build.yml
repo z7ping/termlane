@@ -1,32 +1,21 @@
 # XTerminal Pro CI/CD
-# Workflow: PR merge to main -> auto build
+# Workflow: workflow_dispatch 手动触发
 # Runners:
-#   runner-22796302: linux, x64, docker (Podman container build)
-#   runner-22796306: windows, x64 (native MSVC build)
-# Container image: xterminal-builder (build on runner host: podman build -f Dockerfile.builder -t xterminal-builder .)
-# Default: check (Linux) + Windows .msi
-# Manual: Linux .deb / macOS .dmg
+#   laptop-runner: Linux, Docker (Ubuntu)
+#   windows-runner: Windows, host mode (Mr.wang)
 
 name: Build XTerminal Pro
 
 on:
-  # PR merged to main triggers build
-  pull_request:
-    branches: [main]
-    types: [closed]
-  # Tag push triggers build
-  push:
-    tags: ['v*']
-  # Manual trigger
   workflow_dispatch:
     inputs:
-      build_linux:
-        description: 'Build Linux .deb'
+      build_windows:
+        description: 'Build Windows .msi'
         required: false
         type: boolean
-        default: false
-      build_macos:
-        description: 'Build macOS .dmg'
+        default: true
+      build_linux:
+        description: 'Build Linux .deb'
         required: false
         type: boolean
         default: false
@@ -36,27 +25,40 @@ env:
   CARGO_BUILD_JOBS: 2
 
 jobs:
-  # ==================== Check (Linux runner + Podman container) ====================
+  # ==================== Check (Linux runner) ====================
   check:
     name: Lint & Test
-    runs-on: linux
-    container:
-      image: xterminal-builder
+    runs-on: ubuntu-latest
     steps:
+      - name: 配置内网 Git 认证
+        run: |
+          git config --global url."http://z7ping:${{ secrets.GITEA_TOKEN }}@192.168.31.239:53000/".insteadOf "http://192.168.31.239:53000/"
+
       - name: Checkout
-        uses: https://gitea.7ping.site/actions/checkout@v4
+        uses: http://192.168.31.239:53000/actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: http://192.168.31.239:53000/actions/setup-node@v4
+        with:
+          node-version: '22'
+          mirror-url: 'https://npmmirror.com/mirrors/node'
 
       - name: Install frontend deps
-        run: npm ci
+        run: |
+          npm config set registry https://registry.npmmirror.com/
+          npm ci
+
+      - name: Setup Rust
+        uses: http://192.168.31.239:53000/dtolnay/rust-toolchain@stable
 
       - name: Rust cache
-        uses: https://gitea.7ping.site/actions/cache@v4
+        uses: http://192.168.31.239:53000/actions/cache@v4
         with:
           path: |
-            /root/.cargo/bin/
-            /root/.cargo/registry/index/
-            /root/.cargo/registry/cache/
-            /root/.cargo/git/db/
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
             src-tauri/target/
           key: check-${{ hashFiles('src-tauri/Cargo.lock') }}
 
@@ -71,30 +73,33 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
-  # ==================== Windows .msi (Windows runner, default) ====================
+  # ==================== Windows .msi (Windows runner) ====================
   build-windows:
     name: Windows (.msi)
-    runs-on: windows
-    needs: [check]
+    runs-on: windows-latest
+    if: ${{ github.event.inputs.build_windows == 'true' }}
     steps:
       - name: Checkout
-        uses: https://gitea.7ping.site/actions/checkout@v4
+        uses: http://192.168.31.239:53000/actions/checkout@v4
 
       - name: Setup Node.js
-        uses: https://gitea.7ping.site/actions/setup-node@v4
+        uses: http://192.168.31.239:53000/actions/setup-node@v4
         with:
           node-version: '22'
+          mirror-url: 'https://npmmirror.com/mirrors/node'
 
       - name: Install frontend deps
-        run: npm ci
+        run: |
+          npm config set registry https://registry.npmmirror.com/
+          npm ci
 
       - name: Setup Rust
-        uses: https://gitea.7ping.site/dtolnay/rust-toolchain@stable
+        uses: http://192.168.31.239:53000/dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
       - name: Rust cache
-        uses: https://gitea.7ping.site/actions/cache@v4
+        uses: http://192.168.31.239:53000/actions/cache@v4
         with:
           path: |
             ~\.cargo\bin\
@@ -111,37 +116,47 @@ jobs:
         run: npx tauri build --bundles msi
 
       - name: Upload .msi artifact
-        uses: https://gitea.7ping.site/actions/upload-artifact@v4
+        uses: http://192.168.31.239:53000/actions/upload-artifact@v4
         with:
           name: xterminal-pro-msi
           path: src-tauri\target\release\bundle\msi\*.msi
           retention-days: 30
 
-  # ==================== Linux .deb (Linux runner + Podman, manual) ====================
+  # ==================== Linux .deb (Linux runner) ====================
   build-linux:
     name: Linux (.deb)
-    runs-on: linux
-    container:
-      image: xterminal-builder
-    if: >-
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.build_linux == 'true') ||
-      (startsWith(github.ref, 'refs/tags/v'))
-    needs: [check]
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.build_linux == 'true' }}
     steps:
+      - name: 配置内网 Git 认证
+        run: |
+          git config --global url."http://z7ping:${{ secrets.GITEA_TOKEN }}@192.168.31.239:53000/".insteadOf "http://192.168.31.239:53000/"
+
       - name: Checkout
-        uses: https://gitea.7ping.site/actions/checkout@v4
+        uses: http://192.168.31.239:53000/actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: http://192.168.31.239:53000/actions/setup-node@v4
+        with:
+          node-version: '22'
+          mirror-url: 'https://npmmirror.com/mirrors/node'
 
       - name: Install frontend deps
-        run: npm ci
+        run: |
+          npm config set registry https://registry.npmmirror.com/
+          npm ci
+
+      - name: Setup Rust
+        uses: http://192.168.31.239:53000/dtolnay/rust-toolchain@stable
 
       - name: Rust cache
-        uses: https://gitea.7ping.site/actions/cache@v4
+        uses: http://192.168.31.239:53000/actions/cache@v4
         with:
           path: |
-            /root/.cargo/bin/
-            /root/.cargo/registry/index/
-            /root/.cargo/registry/cache/
-            /root/.cargo/git/db/
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
             src-tauri/target/
           key: deb-${{ hashFiles('src-tauri/Cargo.lock') }}
 
@@ -152,93 +167,8 @@ jobs:
         run: cargo tauri build --bundles deb
 
       - name: Upload .deb artifact
-        uses: https://gitea.7ping.site/actions/upload-artifact@v4
+        uses: http://192.168.31.239:53000/actions/upload-artifact@v4
         with:
           name: xterminal-pro-deb
           path: src-tauri/target/release/bundle/deb/*.deb
           retention-days: 30
-
-  # ==================== macOS .dmg (Linux runner + Podman, manual) ====================
-  build-macos:
-    name: macOS (.dmg)
-    runs-on: linux
-    container:
-      image: xterminal-builder
-    if: >-
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.build_macos == 'true') ||
-      (startsWith(github.ref, 'refs/tags/v'))
-    needs: [check]
-    steps:
-      - name: Checkout
-        uses: https://gitea.7ping.site/actions/checkout@v4
-
-      - name: Install frontend deps
-        run: npm ci
-
-      - name: Rust cache
-        uses: https://gitea.7ping.site/actions/cache@v4
-        with:
-          path: |
-            /root/.cargo/bin/
-            /root/.cargo/registry/index/
-            /root/.cargo/registry/cache/
-            /root/.cargo/git/db/
-            src-tauri/target/
-          key: dmg-${{ hashFiles('src-tauri/Cargo.lock') }}
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Build .dmg
-        run: cargo tauri build --bundles dmg
-
-      - name: Upload .dmg artifact
-        uses: https://gitea.7ping.site/actions/upload-artifact@v4
-        with:
-          name: xterminal-pro-dmg
-          path: src-tauri/target/release/bundle/dmg/*.dmg
-          retention-days: 30
-
-  # ==================== Release (tag only) ====================
-  release:
-    name: Create Release
-    needs: [build-windows, build-linux, build-macos]
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: linux
-    steps:
-      - name: Download all artifacts
-        uses: https://gitea.7ping.site/actions/download-artifact@v4
-        with:
-          path: dist
-        continue-on-error: true
-
-      - name: Create release on Gitea
-        env:
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          REPO="${{ gitea.repository }}"
-
-          curl -s -X POST \
-            "https://gitea.7ping.site/api/v1/repos/${REPO}/releases" \
-            -H "Authorization: token ${GITEA_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"tag_name\": \"${TAG}\",
-              \"name\": \"XTerminal Pro ${TAG}\",
-              \"body\": \"Auto build, see attachments.\"
-            }"
-
-          RELEASE_ID=$(curl -s \
-            "https://gitea.7ping.site/api/v1/repos/${REPO}/releases/tags/${TAG}" \
-            -H "Authorization: token ${GITEA_TOKEN}" \
-            | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
-
-          for f in dist/*/*.deb dist/*/*.msi dist/*/*.dmg; do
-            [ -f "$f" ] || continue
-            echo "Uploading $(basename $f)..."
-            curl -s -X POST \
-              "https://gitea.7ping.site/api/v1/repos/${REPO}/releases/${RELEASE_ID}/assets" \
-              -H "Authorization: token ${GITEA_TOKEN}" \
-              -F "attachment=@${f}"
-          done
