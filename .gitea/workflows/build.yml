@@ -96,7 +96,7 @@ jobs:
     env:
       RUSTUP_HOME: F:\gitea-cache\rustup
       CARGO_HOME: F:\gitea-cache\cargo
-      CARGO_TARGET_DIR: src-tauri\target
+      CARGO_TARGET_DIR: F:\gitea-cache\target
       OPENSSL_DIR: F:\gitea-cache\vcpkg\installed\x64-windows
       OPENSSL_STATIC: 1
       HTTP_PROXY: http://192.168.31.87:7897
@@ -127,7 +127,7 @@ jobs:
             F:\gitea-cache\cargo\registry\index\
             F:\gitea-cache\cargo\registry\cache\
             F:\gitea-cache\cargo\git\db\
-            src-tauri\target\
+            F:\gitea-cache\target\
             node_modules\
           key: win-msi-${{ hashFiles('src-tauri/Cargo.lock', 'package-lock.json') }}
 
@@ -146,7 +146,7 @@ jobs:
         uses: http://192.168.31.239:53000/actions/upload-artifact@v4
         with:
           name: xterminal-pro-msi
-          path: src-tauri\target\release\bundle\msi\*.msi
+          path: F:\gitea-cache\target\release\bundle\msi\*.msi
           retention-days: 30
 
   # ==================== Linux .deb (Linux runner) ====================
