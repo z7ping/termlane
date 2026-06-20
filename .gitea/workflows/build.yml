@@ -134,7 +134,8 @@ jobs:
             F:\gitea-cache\cargo\registry\cache\
             F:\gitea-cache\cargo\git\db\
             src-tauri\target\
-          key: win-msi-${{ hashFiles('src-tauri/Cargo.lock') }}
+            node_modules\
+          key: win-msi-${{ hashFiles('src-tauri/Cargo.lock', 'package-lock.json') }}
 
       - name: Build frontend
         run: npm run build
