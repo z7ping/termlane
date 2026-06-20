@@ -99,12 +99,20 @@ jobs:
       CARGO_TARGET_DIR: src-tauri\target
       OPENSSL_DIR: F:\gitea-cache\vcpkg\installed\x64-windows
       OPENSSL_STATIC: 1
-      PATH: F:\gitea-cache\node\node-v22.23.0-win-x64;F:\gitea-cache\cargo\bin;F:\gitea-cache\rustup\bin;F:\gitea-cache\vcpkg;${{ env.PATH }}
     steps:
       - name: Checkout
         uses: http://192.168.31.239:53000/actions/checkout@v4
 
+      - name: 设置工具链路径
+        shell: bash
+        run: |
+          echo "F:\gitea-cache\node\node-v22.23.0-win-x64" >> $GITHUB_PATH
+          echo "F:\gitea-cache\cargo\bin" >> $GITHUB_PATH
+          echo "F:\gitea-cache\rustup\bin" >> $GITHUB_PATH
+          echo "F:\gitea-cache\vcpkg" >> $GITHUB_PATH
+
       - name: 验证工具链
+        shell: bash
         run: |
           node -v
           npm -v
@@ -112,6 +120,7 @@ jobs:
           cargo --version
 
       - name: Install frontend deps
+        shell: bash
         run: |
           npm config set registry https://registry.npmmirror.com/
           npm ci --prefer-offline
