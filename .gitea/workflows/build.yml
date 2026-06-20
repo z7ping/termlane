@@ -119,13 +119,7 @@ jobs:
           npm -v
           rustc --version
           cargo --version
-
-      - name: Install frontend deps
-        run: |
-          npm config set registry https://registry.npmmirror.com/
-          npm ci --prefer-offline
-
-      - name: Rust cache
+      - name: Restore cache
         uses: http://192.168.31.239:53000/actions/cache@v4
         with:
           path: |
@@ -136,6 +130,11 @@ jobs:
             src-tauri\target\
             node_modules\
           key: win-msi-${{ hashFiles('src-tauri/Cargo.lock', 'package-lock.json') }}
+
+      - name: Install frontend deps
+        run: |
+          npm config set registry https://registry.npmmirror.com/
+          npm ci --prefer-offline
 
       - name: Build frontend
         run: npm run build
