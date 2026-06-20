@@ -99,6 +99,8 @@ jobs:
       CARGO_TARGET_DIR: src-tauri\target
       OPENSSL_DIR: F:\gitea-cache\vcpkg\installed\x64-windows
       OPENSSL_STATIC: 1
+      HTTP_PROXY: http://192.168.31.87:7897
+      HTTPS_PROXY: http://192.168.31.87:7897
     steps:
       - name: Checkout
         uses: http://192.168.31.239:53000/actions/checkout@v4
