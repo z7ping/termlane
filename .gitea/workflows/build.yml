@@ -104,14 +104,12 @@ jobs:
         uses: http://192.168.31.239:53000/actions/checkout@v4
 
       - name: 设置工具链路径
-        shell: pwsh
+        shell: cmd
         run: |
-          @(
-            "F:\gitea-cache\node\node-v22.23.0-win-x64"
-            "F:\gitea-cache\cargo\bin"
-            "F:\gitea-cache\rustup\bin"
-            "F:\gitea-cache\vcpkg"
-          ) | ForEach-Object { Add-Content -Path $env:GITHUB_PATH -Value $_ }
+          echo F:\gitea-cache\node\node-v22.23.0-win-x64>>%GITHUB_PATH%
+          echo F:\gitea-cache\cargo\bin>>%GITHUB_PATH%
+          echo F:\gitea-cache\rustup\bin>>%GITHUB_PATH%
+          echo F:\gitea-cache\vcpkg>>%GITHUB_PATH%
 
       - name: 验证工具链
         run: |
