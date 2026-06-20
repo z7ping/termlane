@@ -23,6 +23,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_BUILD_JOBS: 2
+  CARGO_INCREMENTAL: '1'
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
   # ==================== Check (Linux runner) ====================
@@ -46,10 +48,23 @@ jobs:
       - name: Install frontend deps
         run: |
           npm config set registry https://registry.npmmirror.com/
-          npm ci
+          npm ci --prefer-offline
+
+      - name: 配置Rust国内镜像(sparse+rsproxy)
+        shell: bash
+        run: |
+          mkdir -p ~/.cargo
+          cat > ~/.cargo/config.toml << 'TOML'
+          [source.crates-io]
+          replace-with = "rsproxy"
+          [source.rsproxy]
+          registry = "https://rsproxy.cn/crates.io-index/"
+          TOML
 
       - name: Setup Rust
-        uses: http://192.168.31.239:53000/dtolnay/rust-toolchain@stable
+        uses: http://192.168.31.239:53000/3rd-party/rust-toolchain@stable
+        with:
+          toolchain: stable
 
       - name: Rust cache
         uses: http://192.168.31.239:53000/actions/cache@v4
@@ -81,7 +96,7 @@ jobs:
     env:
       RUSTUP_HOME: F:\gitea-cache\rustup
       CARGO_HOME: F:\gitea-cache\cargo
-      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      CARGO_TARGET_DIR: src-tauri\target
       OPENSSL_DIR: F:\gitea-cache\vcpkg\installed\x64-windows
       OPENSSL_STATIC: 1
       PATH: F:\gitea-cache\node\node-v22.23.0-win-x64;F:\gitea-cache\cargo\bin;F:\gitea-cache\rustup\bin;F:\gitea-cache\vcpkg;${{ env.PATH }}
@@ -89,10 +104,18 @@ jobs:
       - name: Checkout
         uses: http://192.168.31.239:53000/actions/checkout@v4
 
+      - name: 验证工具链
+        run: |
+          node -v
+          npm -v
+          rustc --version
+          cargo --version
+
       - name: Install frontend deps
         run: |
           npm config set registry https://registry.npmmirror.com/
-          npm ci
+          npm ci --prefer-offline
+
       - name: Rust cache
         uses: http://192.168.31.239:53000/actions/cache@v4
         with:
@@ -139,10 +162,23 @@ jobs:
       - name: Install frontend deps
         run: |
           npm config set registry https://registry.npmmirror.com/
-          npm ci
+          npm ci --prefer-offline
+
+      - name: 配置Rust国内镜像(sparse+rsproxy)
+        shell: bash
+        run: |
+          mkdir -p ~/.cargo
+          cat > ~/.cargo/config.toml << 'TOML'
+          [source.crates-io]
+          replace-with = "rsproxy"
+          [source.rsproxy]
+          registry = "https://rsproxy.cn/crates.io-index/"
+          TOML
 
       - name: Setup Rust
-        uses: http://192.168.31.239:53000/dtolnay/rust-toolchain@stable
+        uses: http://192.168.31.239:53000/3rd-party/rust-toolchain@stable
+        with:
+          toolchain: stable
 
       - name: Rust cache
         uses: http://192.168.31.239:53000/actions/cache@v4
