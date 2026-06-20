@@ -78,34 +78,29 @@ jobs:
     name: Windows (.msi)
     runs-on: windows-latest
     if: ${{ github.event.inputs.build_windows == 'true' }}
+    env:
+      RUSTUP_HOME: F:\gitea-cache\rustup
+      CARGO_HOME: F:\gitea-cache\cargo
+      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      OPENSSL_DIR: F:\gitea-cache\vcpkg\installed\x64-windows
+      OPENSSL_STATIC: 1
+      PATH: F:\gitea-cache\node\node-v22.23.0-win-x64;F:\gitea-cache\cargo\bin;F:\gitea-cache\rustup\bin;F:\gitea-cache\vcpkg;${{ env.PATH }}
     steps:
       - name: Checkout
         uses: http://192.168.31.239:53000/actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: http://192.168.31.239:53000/actions/setup-node@v4
-        with:
-          node-version: '22'
-          mirror-url: 'https://npmmirror.com/mirrors/node'
 
       - name: Install frontend deps
         run: |
           npm config set registry https://registry.npmmirror.com/
           npm ci
-
-      - name: Setup Rust
-        uses: http://192.168.31.239:53000/dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
       - name: Rust cache
         uses: http://192.168.31.239:53000/actions/cache@v4
         with:
           path: |
-            ~\.cargo\bin\
-            ~\.cargo\registry\index\
-            ~\.cargo\registry\cache\
-            ~\.cargo\git\db\
+            F:\gitea-cache\cargo\bin\
+            F:\gitea-cache\cargo\registry\index\
+            F:\gitea-cache\cargo\registry\cache\
+            F:\gitea-cache\cargo\git\db\
             src-tauri\target\
           key: win-msi-${{ hashFiles('src-tauri/Cargo.lock') }}
 
