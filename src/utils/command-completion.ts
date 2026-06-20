@@ -1,6 +1,6 @@
-// command-completion.js - 命令自动补全
+// command-completion.ts - 命令自动补全
 
-const commonCommands = [
+const commonCommands: string[] = [
   // 文件操作
   'ls', 'ls -la', 'ls -lh', 'cd', 'pwd', 'mkdir', 'rmdir', 'rm', 'rm -rf', 'cp', 'mv', 'touch', 'cat', 'less', 'more', 'head', 'tail', 'tail -f', 'find', 'locate', 'which', 'whereis',
   // 文本处理
@@ -25,7 +25,7 @@ const commonCommands = [
   'vim', 'nano', 'vi',
 ]
 
-export function getCompletions(input) {
+export function getCompletions(input: string): string[] {
   if (!input || input.length < 2) return []
 
   const lower = input.toLowerCase()
@@ -36,7 +36,7 @@ export function getCompletions(input) {
   return matches
 }
 
-export function getSmartCompletions(input, history = []) {
+export function getSmartCompletions(input: string, history: string[] = []): string[] {
   // First check common commands
   let completions = getCompletions(input)
 

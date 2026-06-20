@@ -1,6 +1,9 @@
-// i18n.js - 国际化支持
+// i18n.ts - 国际化支持
 
-const messages = {
+type TranslationValue = string | Record<string, TranslationValue>
+type TranslationMessages = Record<string, TranslationValue>
+
+const messages: Record<string, TranslationMessages> = {
   zh: {
     app: { name: 'XTerminal Pro', welcome: '欢迎使用 XTerminal Pro' },
     sidebar: { connections: '连接', add: '新建连接', search: '搜索连接...', noResults: '没有匹配的连接', empty: '点击 + 添加第一个连接', quickCmd: '快捷命令' },
@@ -29,27 +32,31 @@ const messages = {
   },
 }
 
-let currentLocale = localStorage.getItem('xterminal_locale') || 'zh'
+let currentLocale: string = localStorage.getItem('xterminal_locale') || 'zh'
 
-export function t(key) {
+export function t(key: string): string {
   const keys = key.split('.')
-  let result = messages[currentLocale]
+  let result: TranslationValue | undefined = messages[currentLocale]
   for (const k of keys) {
-    result = result?.[k]
+    if (result && typeof result === 'object') {
+      result = result[k]
+    } else {
+      return key
+    }
   }
-  return result || key
+  return (typeof result === 'string' ? result : key) || key
 }
 
-export function setLocale(locale) {
+export function setLocale(locale: string): void {
   currentLocale = locale
   localStorage.setItem('xterminal_locale', locale)
 }
 
-export function getLocale() {
+export function getLocale(): string {
   return currentLocale
 }
 
-export function getLocales() {
+export function getLocales(): string[] {
   return Object.keys(messages)
 }
 

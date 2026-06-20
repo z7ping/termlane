@@ -1,5 +1,5 @@
 // src/__tests__/scheduler.test.js - 定时任务调度器测试
-import { getScheduledTasks, saveScheduledTasks, addScheduledTask, removeScheduledTask, toggleScheduledTask } from '../utils/scheduler.js'
+import { getScheduledTasks, saveScheduledTasks, addScheduledTask, removeScheduledTask, toggleScheduledTask } from '../utils/scheduler.ts'
 
 describe('定时任务调度器', () => {
   beforeEach(() => {

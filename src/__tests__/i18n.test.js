@@ -1,5 +1,5 @@
 // src/__tests__/i18n.test.js - 国际化功能测试
-const i18n = require('../utils/i18n.js')
+const i18n = require('../utils/i18n.ts')
 
 // Mock localStorage 用于 Node.js 环境
 if (typeof globalThis.localStorage === 'undefined') {

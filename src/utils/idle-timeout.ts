@@ -1,11 +1,17 @@
 // 空闲超时自动断开
+
+export type TimeoutCallback = (connectionId: string) => void
+
 export class IdleTimeoutManager {
+  private timeout: number
+  private timers: Map<string, ReturnType<typeof setTimeout>>
+
   constructor(timeoutMinutes = 30) {
     this.timeout = timeoutMinutes * 60 * 1000
     this.timers = new Map()
   }
 
-  reset(connectionId, onTimeout) {
+  reset(connectionId: string, onTimeout: TimeoutCallback): void {
     this.clear(connectionId)
     const timer = setTimeout(() => {
       onTimeout(connectionId)
@@ -14,7 +20,7 @@ export class IdleTimeoutManager {
     this.timers.set(connectionId, timer)
   }
 
-  clear(connectionId) {
+  clear(connectionId: string): void {
     const timer = this.timers.get(connectionId)
     if (timer) {
       clearTimeout(timer)
@@ -22,16 +28,16 @@ export class IdleTimeoutManager {
     }
   }
 
-  clearAll() {
+  clearAll(): void {
     for (const timer of this.timers.values()) clearTimeout(timer)
     this.timers.clear()
   }
 
-  setTimeout(minutes) {
+  setTimeout(minutes: number): void {
     this.timeout = minutes * 60 * 1000
   }
 }
 
-export function createIdleManager(minutes = 30) {
+export function createIdleManager(minutes = 30): IdleTimeoutManager {
   return new IdleTimeoutManager(minutes)
 }

@@ -25,4 +25,4 @@ export const STORAGE_KEYS = {
   LOCALE: 'xterminal_locale',
   SKIPPED_VERSION: 'skipped_version',
   RECORDING_DIR: 'xterminal_recordingDir',
-}
+} as const

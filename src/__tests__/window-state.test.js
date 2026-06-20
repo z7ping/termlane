@@ -1,5 +1,5 @@
 // src/__tests__/window-state.test.js - 窗口状态持久化测试
-import { saveWindowState, loadWindowState, clearWindowState, startAutoSave } from '../utils/window-state.js'
+import { saveWindowState, loadWindowState, clearWindowState, startAutoSave } from '../utils/window-state.ts'
 
 describe('窗口状态持久化', () => {
   beforeEach(() => {

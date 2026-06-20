@@ -1,5 +1,5 @@
 // src/__tests__/tauri.test.js - Tauri 工具函数测试
-import { invoke, listen, isTauri } from '../utils/tauri.js'
+import { invoke, listen, isTauri } from '../utils/tauri.ts'
 
 describe('tauri.js 工具函数', () => {
   // RED - 先写失败的测试

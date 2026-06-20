@@ -1,5 +1,13 @@
 // 断线自动重连
+
+export type ReconnectCallback = (connectionId: string) => Promise<void>
+
 export class AutoReconnectManager {
+  maxRetries: number
+  retryDelay: number
+  private retries: Map<string, number>
+  private reconnectCallbacks: Map<string, ReconnectCallback>
+
   constructor(maxRetries = 3, retryDelay = 5_000) {
     this.maxRetries = maxRetries
     this.retryDelay = retryDelay
@@ -7,12 +15,12 @@ export class AutoReconnectManager {
     this.reconnectCallbacks = new Map()
   }
 
-  register(connectionId, callback) {
+  register(connectionId: string, callback: ReconnectCallback): void {
     this.reconnectCallbacks.set(connectionId, callback)
     this.retries.set(connectionId, 0)
   }
 
-  onDisconnect(connectionId) {
+  onDisconnect(connectionId: string): boolean {
     const retries = this.retries.get(connectionId) || 0
     const callback = this.reconnectCallbacks.get(connectionId)
 
@@ -31,16 +39,16 @@ export class AutoReconnectManager {
     return false
   }
 
-  onConnect(connectionId) {
+  onConnect(connectionId: string): void {
     this.retries.set(connectionId, 0) // Reset on successful connection
   }
 
-  unregister(connectionId) {
+  unregister(connectionId: string): void {
     this.retries.delete(connectionId)
     this.reconnectCallbacks.delete(connectionId)
   }
 }
 
-export function createReconnectManager(maxRetries = 3, retryDelay = 5_000) {
+export function createReconnectManager(maxRetries = 3, retryDelay = 5_000): AutoReconnectManager {
   return new AutoReconnectManager(maxRetries, retryDelay)
 }

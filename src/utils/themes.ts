@@ -1,4 +1,28 @@
-export const themes = {
+export interface TerminalTheme {
+  name: string
+  background: string
+  foreground: string
+  cursor: string
+  selection: string
+  black: string
+  red: string
+  green: string
+  yellow: string
+  blue: string
+  magenta: string
+  cyan: string
+  white: string
+  brightBlack: string
+  brightRed: string
+  brightGreen: string
+  brightYellow: string
+  brightBlue: string
+  brightMagenta: string
+  brightCyan: string
+  brightWhite: string
+}
+
+export const themes: Record<string, TerminalTheme> = {
   dark: {
     name: '经典暗色',
     background: '#1e1e1e', foreground: '#d4d4d4', cursor: '#aeafad', selection: '#264f78',
@@ -49,10 +73,10 @@ export const themes = {
   },
 }
 
-export function getTheme(name) {
+export function getTheme(name: string): TerminalTheme {
   return themes[name] || themes.dark
 }
 
-export function getThemeNames() {
+export function getThemeNames(): { value: string; label: string }[] {
   return Object.entries(themes).map(([key, val]) => ({ value: key, label: val.name }))
 }

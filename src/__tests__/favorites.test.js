@@ -1,10 +1,10 @@
 // src/__tests__/favorites.test.js - 连接收藏/置顶功能测试
 import { vi } from 'vitest'
-import { getFavorites, toggleFavorite, isFavorite, sortWithFavorites } from '../utils/favorites.js'
+import { getFavorites, toggleFavorite, isFavorite, sortWithFavorites } from '../utils/favorites.ts'
 
 // Mock secureStore used by favorites.js
 const mockStore = {}
-vi.mock('../utils/secure-store-browser.js', () => ({
+vi.mock('../utils/secure-store-browser', () => ({
   secureStore: {
     get: vi.fn(async (key) => mockStore[key] ?? null),
     set: vi.fn(async (key, value) => { mockStore[key] = value }),
@@ -32,7 +32,7 @@ describe('连接收藏/置顶功能', () => {
     })
 
     test('store异常时返回空数组', async () => {
-      const { secureStore } = await import('../utils/secure-store-browser.js')
+      const { secureStore } = await import('../utils/secure-store-browser.ts')
       secureStore.get.mockRejectedValueOnce(new Error('corrupt'))
 
       const favs = await getFavorites()

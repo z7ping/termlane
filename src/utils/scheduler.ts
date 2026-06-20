@@ -1,18 +1,39 @@
 // 定时任务调度器
 import { STORAGE_KEYS } from './storage-keys'
 
-export function getScheduledTasks() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [] }
+export interface ScheduledTask {
+  id: string
+  name: string
+  command: string
+  schedule: string
+  connectionId: string
+  enabled: boolean
+  lastRun: string | null
+  nextRun: string
+  createdAt: string
+}
+
+export interface TaskInput {
+  name: string
+  command: string
+  schedule: string
+  connectionId: string
+}
+
+const STORAGE_KEY = STORAGE_KEYS.SCHEDULED_TASKS
+
+export function getScheduledTasks(): ScheduledTask[] {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '') || [] }
   catch { return [] }
 }
 
-export function saveScheduledTasks(tasks) {
+export function saveScheduledTasks(tasks: ScheduledTask[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks))
 }
 
-export function addScheduledTask(task) {
+export function addScheduledTask(task: TaskInput): ScheduledTask[] {
   const tasks = getScheduledTasks()
-  const newTask = {
+  const newTask: ScheduledTask = {
     id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9),
     name: task.name,
     command: task.command,
@@ -28,13 +49,13 @@ export function addScheduledTask(task) {
   return tasks
 }
 
-export function removeScheduledTask(id) {
+export function removeScheduledTask(id: string): ScheduledTask[] {
   const tasks = getScheduledTasks().filter(t => t.id !== id)
   saveScheduledTasks(tasks)
   return tasks
 }
 
-export function toggleScheduledTask(id) {
+export function toggleScheduledTask(id: string): ScheduledTask[] {
   const tasks = getScheduledTasks().map(t => {
     if (t.id === id) {
       return { ...t, enabled: !t.enabled }
@@ -45,7 +66,7 @@ export function toggleScheduledTask(id) {
   return tasks
 }
 
-function calculateNextRun(schedule) {
+function calculateNextRun(schedule: string): string {
   // Simple implementation - in production would use a proper cron parser
   const now = new Date()
   const parts = schedule.split(' ')

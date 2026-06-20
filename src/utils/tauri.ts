@@ -1,28 +1,33 @@
-// utils/tauri.js - Tauri IPC wrapper
+// utils/tauri.ts - Tauri IPC wrapper
 // Tauri 环境使用原生 IPC，浏览器使用 mock
 
-let _invoke, _listen, _isTauri;
+type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
+type ListenFn = (event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>
+
+let _invoke: InvokeFn | null
+let _listen: ListenFn | null
+let _isTauri: boolean
 
 try {
   // Tauri v2: withGlobalTauri 注入 window.__TAURI__
   if (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.core) {
-    _invoke = window.__TAURI__.core.invoke;
-    _listen = window.__TAURI__.event.listen;
-    _isTauri = true;
+    _invoke = window.__TAURI__.core.invoke as InvokeFn
+    _listen = window.__TAURI__.event.listen as ListenFn
+    _isTauri = true
   } else {
-    throw new Error('Not in Tauri');
+    throw new Error('Not in Tauri')
   }
 } catch {
-  _isTauri = false;
-  _invoke = null;
-  _listen = null;
+  _isTauri = false
+  _invoke = null
+  _listen = null
 }
 
-export const isTauri = _isTauri;
+export const isTauri: boolean = _isTauri
 
-export const invoke = _isTauri
-  ? _invoke
-  : async (cmd, args = {}) => {
+export const invoke: InvokeFn = _isTauri
+  ? _invoke!
+  : async (cmd: string, args: Record<string, unknown> = {}) => {
       // 浏览器 mock
       switch (cmd) {
         case 'ssh_connect': {
@@ -32,7 +37,7 @@ export const invoke = _isTauri
         }
         case 'ssh_connect_key': return `mock_session_key_${Date.now()}`;
         case 'ssh_connect_jump': return `mock_session_jump_${Date.now()}`;
-        case 'ssh_execute': return mockExecute(args.command);
+        case 'ssh_execute': return mockExecute(args.command as string);
         case 'ssh_disconnect': return null;
         case 'ssh_list_sessions': return [];
         case 'ssh_start_shell': return `mock_shell_${Date.now()}`;
@@ -43,8 +48,8 @@ export const invoke = _isTauri
         case 'load_connections': return [{ id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' }];
         case 'save_connection': case 'delete_connection': return null;
         case 'get_app_version': return '0.1.0';
-        case 'sftp_list_local': return mockLocalFiles(args.path);
-        case 'sftp_list_remote': return mockRemoteFiles(args.path);
+        case 'sftp_list_local': return mockLocalFiles(args.path as string);
+        case 'sftp_list_remote': return mockRemoteFiles(args.path as string);
         case 'sftp_upload': return `上传: ${args.local} -> ${args.remote}`;
         case 'sftp_download': return `下载: ${args.remote} -> ${args.local}`;
         case 'sftp_rename': return `已重命名`;
@@ -64,16 +69,16 @@ export const invoke = _isTauri
       }
     };
 
-export const listen = _isTauri
-  ? _listen
-  : async (event, callback) => {
+export const listen: ListenFn = _isTauri
+  ? _listen!
+  : async (event: string, callback: (event: { payload: unknown }) => void) => {
       // Mock listen - no-op
       return () => {};
     };
 
-function mockExecute(command) {
+function mockExecute(command: string): string {
   const bin = command.trim().split(/\s+/)[0];
-  const responses = {
+  const responses: Record<string, string> = {
     help: '可用命令: help, clear, echo, date, whoami, pwd, ls, uname, df, free, exit',
     clear: '\x1b[2J\x1b[H',
     date: new Date().toString(),
@@ -93,7 +98,7 @@ function mockExecute(command) {
   return responses[command] || responses[bin] || `\x1b[31m${bin}: command not found\x1b[0m\n提示: 浏览器演示模式`;
 }
 
-function mockLocalFiles(path) {
+function mockLocalFiles(path: string): FileItem[] {
   return [
     { name: '..', path: '/home/user', size: 0, isDir: true, modified: '2026-03-30', permissions: 'drwxr-xr-x' },
     { name: 'Documents', path: '/home/user/Documents', size: 4096, isDir: true, modified: '2026-03-30', permissions: 'drwxr-xr-x' },
@@ -101,12 +106,21 @@ function mockLocalFiles(path) {
   ];
 }
 
-function mockRemoteFiles(path) {
+function mockRemoteFiles(path: string): FileItem[] {
   return [
     { name: '..', path: '/', size: 0, isDir: true, modified: '2026-03-01', permissions: 'drwxr-xr-x' },
     { name: 'etc', path: '/etc', size: 4096, isDir: true, modified: '2026-03-30', permissions: 'drwxr-xr-x' },
     { name: 'home', path: '/home', size: 4096, isDir: true, modified: '2026-01-15', permissions: 'drwxr-xr-x' },
   ];
+}
+
+interface FileItem {
+  name: string
+  path: string
+  size: number
+  isDir: boolean
+  modified: string
+  permissions: string
 }
 
 export default { invoke, listen, isTauri };

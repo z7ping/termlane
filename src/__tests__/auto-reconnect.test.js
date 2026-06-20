@@ -1,5 +1,5 @@
 // src/__tests__/auto-reconnect.test.js - 自动重连功能测试
-import { AutoReconnectManager, createReconnectManager } from '../utils/auto-reconnect.js'
+import { AutoReconnectManager, createReconnectManager } from '../utils/auto-reconnect.ts'
 
 describe('AutoReconnectManager 自动重连', () => {
   test('AutoReconnectManager 类可导入', () => {

@@ -1,5 +1,5 @@
 // src/__tests__/secure-storage.test.js - 安全存储测试
-import { secureStore, storePassword, getPassword, removePassword } from '../utils/secure-store-browser.js'
+import { secureStore, storePassword, getPassword, removePassword } from '../utils/secure-store-browser.ts'
 
 describe('安全存储', () => {
   beforeEach(async () => {

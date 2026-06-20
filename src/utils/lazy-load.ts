@@ -1,5 +1,8 @@
 // 懒加载工具（非活跃标签不渲染）
-export function shouldRender(tabId, activeTabId, recentlyActive) {
+
+export type RecentlyActive = Record<string, number>
+
+export function shouldRender(tabId: string, activeTabId: string, recentlyActive: RecentlyActive): boolean {
   // Always render active tab
   if (tabId === activeTabId) return true
   // Render recently active tabs (within last 5 minutes)
@@ -9,7 +12,7 @@ export function shouldRender(tabId, activeTabId, recentlyActive) {
   return false
 }
 
-export function markActive(tabId, recentlyActive) {
+export function markActive(tabId: string, recentlyActive: RecentlyActive): RecentlyActive {
   recentlyActive[tabId] = Date.now()
   return { ...recentlyActive }
 }

@@ -1,5 +1,5 @@
 // src/__tests__/connection-tags.test.js - 连接标签功能测试
-import { getTags, addTag, removeTag, getTagColor } from '../utils/connection-tags.js'
+import { getTags, addTag, removeTag, getTagColor } from '../utils/connection-tags.ts'
 
 describe('连接标签功能', () => {
   beforeEach(() => {

@@ -21,7 +21,7 @@ const ENCRYPTION_KEY_NAME = 'xt_secure_key'
  * pure browser storage; if stronger guarantees are needed, use the desktop
  * build or integrate a server-side secret manager.
  */
-async function getEncryptionKey() {
+async function getEncryptionKey(): Promise<CryptoKey> {
   try {
     // 尝试从sessionStorage获取已存在的密钥
     const storedKey = sessionStorage.getItem(ENCRYPTION_KEY_NAME)
@@ -57,10 +57,15 @@ async function getEncryptionKey() {
   }
 }
 
+interface EncryptedData {
+  ciphertext: string
+  iv: string
+}
+
 /**
  * AES-GCM 加密
  */
-async function encryptData(data) {
+async function encryptData(data: string): Promise<EncryptedData> {
   try {
     const key = await getEncryptionKey()
     const encoder = new TextEncoder()
@@ -91,7 +96,7 @@ async function encryptData(data) {
 /**
  * AES-GCM 解密
  */
-async function decryptData(ciphertext, iv) {
+async function decryptData(ciphertext: string, iv: string): Promise<string | null> {
   try {
     const key = await getEncryptionKey()
     const encryptedData = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0))
@@ -119,11 +124,9 @@ async function decryptData(ciphertext, iv) {
  * 使用AES-GCM加密 + localStorage
  */
 class BrowserSecureStorage {
-  constructor() {
-    this.PREFIX = 'xt_secure_'
-  }
+  readonly PREFIX = 'xt_secure_'
 
-  async set(key, value) {
+  async set(key: string, value: unknown): Promise<boolean> {
     try {
       const json = JSON.stringify(value)
       const encrypted = await encryptData(json)
@@ -138,29 +141,29 @@ class BrowserSecureStorage {
     }
   }
 
-  async get(key) {
+  async get<T = unknown>(key: string): Promise<T | null> {
     try {
       const raw = localStorage.getItem(this.PREFIX + key)
       if (!raw) return null
 
-      const encrypted = JSON.parse(raw)
+      const encrypted: EncryptedData = JSON.parse(raw)
       const decrypted = await decryptData(encrypted.ciphertext, encrypted.iv)
       if (!decrypted) return null
 
-      return JSON.parse(decrypted)
+      return JSON.parse(decrypted) as T
     } catch (error) {
       console.error(`Failed to retrieve ${key}:`, error)
       return null
     }
   }
 
-  async remove(key) {
+  async remove(key: string): Promise<void> {
     localStorage.removeItem(this.PREFIX + key)
   }
 
-  async clear() {
+  async clear(): Promise<void> {
     // 清除所有以 PREFIX 开头的键
-    const keys = []
+    const keys: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
       if (key?.startsWith(this.PREFIX)) {
@@ -173,8 +176,8 @@ class BrowserSecureStorage {
   /**
    * 列出所有存储的键（不包含前缀）
    */
-  async keys() {
-    const result = []
+  async keys(): Promise<string[]> {
+    const result: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
       if (key?.startsWith(this.PREFIX)) {
@@ -187,7 +190,7 @@ class BrowserSecureStorage {
   /**
    * 检查键是否存在
    */
-  async has(key) {
+  async has(key: string): Promise<boolean> {
     return localStorage.getItem(this.PREFIX + key) !== null
   }
 }
@@ -195,7 +198,7 @@ class BrowserSecureStorage {
 /**
  * 创建安全存储实例
  */
-function createSecureStorage() {
+function createSecureStorage(): BrowserSecureStorage {
   return new BrowserSecureStorage()
 }
 
@@ -207,55 +210,55 @@ export const secureStore = createSecureStorage()
 /**
  * 密码存储辅助函数
  */
-export async function storePassword(connectionId, password) {
+export async function storePassword(connectionId: string, password: string): Promise<boolean> {
   return secureStore.set(`pwd_${connectionId}`, password)
 }
 
-export async function getPassword(connectionId) {
-  return secureStore.get(`pwd_${connectionId}`)
+export async function getPassword(connectionId: string): Promise<string | null> {
+  return secureStore.get<string>(`pwd_${connectionId}`)
 }
 
-export async function removePassword(connectionId) {
+export async function removePassword(connectionId: string): Promise<void> {
   return secureStore.remove(`pwd_${connectionId}`)
 }
 
 /**
  * 书签存储辅助函数
  */
-export async function storeBookmarks(bookmarks) {
+export async function storeBookmarks(bookmarks: unknown): Promise<boolean> {
   return secureStore.set('bookmarks', bookmarks)
 }
 
-export async function getBookmarks() {
-  return secureStore.get('bookmarks')
+export async function getBookmarks<T = unknown>(): Promise<T | null> {
+  return secureStore.get<T>('bookmarks')
 }
 
 /**
  * 收藏夹存储辅助函数
  */
-export async function storeFavorites(favorites) {
+export async function storeFavorites(favorites: unknown): Promise<boolean> {
   return secureStore.set('favorites', favorites)
 }
 
-export async function getFavorites() {
-  return secureStore.get('favorites')
+export async function getFavorites<T = unknown>(): Promise<T | null> {
+  return secureStore.get<T>('favorites')
 }
 
 /**
  * 定时任务存储辅助函数
  */
-export async function storeSchedulerTasks(tasks) {
+export async function storeSchedulerTasks(tasks: unknown): Promise<boolean> {
   return secureStore.set('scheduler_tasks', tasks)
 }
 
-export async function getSchedulerTasks() {
-  return secureStore.get('scheduler_tasks')
+export async function getSchedulerTasks<T = unknown>(): Promise<T | null> {
+  return secureStore.get<T>('scheduler_tasks')
 }
 
 /**
  * 浏览器兼容性检查
  */
-export function checkBrowserSupport() {
+export function checkBrowserSupport(): boolean {
   const features = {
     crypto: 'crypto' in window && 'subtle' in window.crypto,
     localStorage: typeof Storage !== 'undefined',
@@ -266,7 +269,7 @@ export function checkBrowserSupport() {
   }
 
   const supported = Object.values(features).every(Boolean)
-  
+
   if (!supported) {
     console.error('Browser support check failed:', features)
     return false
@@ -275,23 +278,30 @@ export function checkBrowserSupport() {
   return true
 }
 
+interface StorageInfo {
+  keyCount: number
+  totalSize: number
+  details: Record<string, number>
+  availableSpace: number
+}
+
 /**
  * 导出存储统计信息
  */
-export async function getStorageInfo() {
+export async function getStorageInfo(): Promise<StorageInfo> {
   const store = createSecureStorage()
   const keys = await store.keys()
-  
+
   let totalSize = 0
-  const details = {}
-  
+  const details: Record<string, number> = {}
+
   for (const key of keys) {
     const raw = localStorage.getItem(store.PREFIX + key)
     const size = raw ? new Blob([raw]).size : 0
     totalSize += size
     details[key] = size
   }
-  
+
   return {
     keyCount: keys.length,
     totalSize,

@@ -3,12 +3,12 @@
  * 将旧的非安全存储迁移到新的安全存储
  */
 
-import { secureStore } from './secure-store-browser.js'
+import { secureStore } from './secure-store-browser'
 
 /**
  * 迁移书签数据
  */
-async function migrateBookmarks() {
+async function migrateBookmarks(): Promise<boolean> {
   try {
     const oldKey = 'xterminal_bookmarks'
     const oldData = localStorage.getItem(oldKey)
@@ -39,7 +39,7 @@ async function migrateBookmarks() {
 /**
  * 迁移收藏夹数据
  */
-async function migrateFavorites() {
+async function migrateFavorites(): Promise<boolean> {
   try {
     const oldKey = 'xterminal_favorites'
     const oldData = localStorage.getItem(oldKey)
@@ -69,7 +69,7 @@ async function migrateFavorites() {
 /**
  * 迁移定时任务数据
  */
-async function migrateSchedulerTasks() {
+async function migrateSchedulerTasks(): Promise<boolean> {
   try {
     const oldKey = 'scheduler_tasks'
     const oldData = localStorage.getItem(oldKey)
@@ -100,13 +100,13 @@ async function migrateSchedulerTasks() {
  * 迁移密码数据
  * 从旧的 Base64 编码迁移到新的 AES-GCM 加密
  */
-async function migratePasswords() {
+async function migratePasswords(): Promise<boolean> {
   try {
     const prefix = 'xt_pwd_'
     let migratedCount = 0
 
     // 查找所有旧密码键
-    const keys = []
+    const keys: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
       if (key?.startsWith(prefix)) {
@@ -153,7 +153,7 @@ async function migratePasswords() {
 /**
  * 迁移宏数据
  */
-async function migrateMacros() {
+async function migrateMacros(): Promise<boolean> {
   try {
     const oldKey = 'xterminal_macros'
     const oldData = localStorage.getItem(oldKey)
@@ -183,7 +183,7 @@ async function migrateMacros() {
 /**
  * 执行所有迁移
  */
-export async function migrateAll() {
+export async function migrateAll(): Promise<boolean> {
   console.log('🔄 Starting storage migration...')
 
   const results = await Promise.all([
@@ -210,14 +210,14 @@ export async function migrateAll() {
 /**
  * 检查是否需要迁移
  */
-export function needsMigration() {
+export function needsMigration(): boolean {
   return localStorage.getItem('xt_storage_migrated') !== 'v1'
 }
 
 /**
  * 自动迁移（在应用启动时调用）
  */
-export async function autoMigrate() {
+export async function autoMigrate(): Promise<void> {
   if (needsMigration()) {
     console.log('Storage requires migration...')
     await migrateAll()
