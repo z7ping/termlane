@@ -58,10 +58,14 @@ function loadTabsState() {
 // ---- Tab management ----
 
 async function onSelectConnection(conn) {
-  // Load password from keyring if not present in the connection object
+  // Load password: keyring first, then localStorage fallback
   let password = conn.password
   if (conn.authType === 'password' && !password && conn.id) {
-    try { password = await invoke('keyring_load_password', { connId: conn.id }) } catch (e) {}
+    try { password = await invoke('keyring_load_password', { connId: conn.id }) } catch (_) {}
+    if (!password) {
+      const stored = localStorage.getItem(`xterminal-pwd_${conn.id}`)
+      if (stored) password = stored
+    }
   }
   const connWithPassword = password ? { ...conn, password } : conn
   activeConnectionId.value = connWithPassword.id
@@ -102,7 +106,9 @@ async function onSaveConnection(conn, editingConn) {
   const newConn = editingConn ? { ...editingConn, ...conn } : { ...conn, id: `conn_${Date.now()}` }
   try {
     if (conn.authType === 'password' && conn.password) {
-      await invoke('keyring_save_password', { connId: newConn.id, password: conn.password })
+      // Save to keyring (primary) and localStorage (fallback)
+      try { await invoke('keyring_save_password', { connId: newConn.id, password: conn.password }) } catch (_) {}
+      localStorage.setItem(`xterminal-pwd_${newConn.id}`, conn.password)
     }
     await invoke('save_connection', { conn: newConn })
     await loadConnections()
@@ -129,11 +135,20 @@ function onDuplicateConnection(conn) {
 async function onTestConnection(conn) {
   _toast('正在测试连接...', 'info')
   try {
+    let password = conn.password
+    // Try keyring + localStorage fallback
+    if (conn.authType === 'password' && !password && conn.id) {
+      try { password = await invoke('keyring_load_password', { connId: conn.id }) } catch (_) {}
+      if (!password) {
+        const stored = localStorage.getItem(`xterminal-pwd_${conn.id}`)
+        if (stored) password = stored
+      }
+    }
     let sid
     if (conn.authType === 'key') {
       sid = await invoke('ssh_connect_key', { host: conn.host, port: conn.port || 22, username: conn.username, keyPath: conn.keyPath || '', passphrase: conn.passphrase || '' })
     } else {
-      sid = await invoke('ssh_connect', { host: conn.host, port: conn.port || 22, username: conn.username, password: conn.password || '' })
+      sid = await invoke('ssh_connect', { host: conn.host, port: conn.port || 22, username: conn.username, password: password || '' })
     }
     _toast(`✓ ${conn.name} 连接成功`, 'success')
     await invoke('ssh_disconnect', { sessionId: sid })

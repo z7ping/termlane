@@ -184,7 +184,12 @@ onMounted(async () => {
     try {
       const pwd = await invoke('keyring_load_password', { connId: props.editing.id })
       if (pwd) form.password = pwd
-    } catch (e) { /* keyring not available */ }
+    } catch (_) { /* keyring not available */ }
+    // localStorage fallback
+    if (!form.password) {
+      const stored = localStorage.getItem(`xterminal-pwd_${props.editing.id}`)
+      if (stored) form.password = stored
+    }
   }
 })
 
