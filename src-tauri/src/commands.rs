@@ -111,7 +111,13 @@ pub fn ssh_start_shell(
 
 #[tauri::command]
 pub fn ssh_shell_input(session_id: String, data: String) -> Result<(), String> {
-    crate::ssh::shell_input(&session_id, &data)
+    eprintln!("[DEBUG cmd] ssh_shell_input: sid={} dataLen={}", session_id, data.len());
+    let r = crate::ssh::shell_input(&session_id, &data);
+    match &r {
+        Ok(()) => eprintln!("[DEBUG cmd] ssh_shell_input OK"),
+        Err(e) => eprintln!("[DEBUG cmd] ssh_shell_input FAIL: {}", e),
+    }
+    r
 }
 
 #[tauri::command]
@@ -138,21 +144,28 @@ pub fn sftp_list_local(path: String) -> Result<Vec<crate::sftp::FileEntry>, Stri
 
 #[tauri::command]
 pub fn sftp_list_remote(session_id: String, path: String) -> Result<Vec<crate::sftp::FileEntry>, String> {
+    validate_string_len("path", &path)?;
     crate::sftp::list_remote(&session_id, &path)
 }
 
 #[tauri::command]
 pub fn sftp_upload(session_id: String, local: String, remote: String) -> Result<String, String> {
+    validate_string_len("local", &local)?;
+    validate_string_len("remote", &remote)?;
     crate::sftp::upload(&session_id, &local, &remote)
 }
 
 #[tauri::command]
 pub fn sftp_download(session_id: String, remote: String, local: String) -> Result<String, String> {
+    validate_string_len("remote", &remote)?;
+    validate_string_len("local", &local)?;
     crate::sftp::download(&session_id, &remote, &local)
 }
 
 #[tauri::command]
 pub fn sftp_rename(session_id: String, old_path: String, new_path: String) -> Result<String, String> {
+    validate_string_len("old_path", &old_path)?;
+    validate_string_len("new_path", &new_path)?;
     crate::sftp::rename_file(&session_id, &old_path, &new_path)
 }
 
@@ -172,21 +185,26 @@ pub fn sftp_delete(session_id: String, path: String, is_dir: bool) -> Result<Str
 
 #[tauri::command]
 pub fn sftp_mkdir(session_id: String, path: String) -> Result<String, String> {
+    validate_string_len("path", &path)?;
     crate::sftp::create_dir(&session_id, &path)
 }
 
 #[tauri::command]
 pub fn sftp_chmod(session_id: String, path: String, mode: String) -> Result<String, String> {
+    validate_string_len("path", &path)?;
     crate::sftp::chmod(&session_id, &path, &mode)
 }
 
 #[tauri::command]
 pub fn sftp_read_file(session_id: String, path: String) -> Result<String, String> {
+    validate_string_len("path", &path)?;
     crate::sftp::read_file(&session_id, &path)
 }
 
 #[tauri::command]
 pub fn sftp_write_file(session_id: String, path: String, content: String) -> Result<String, String> {
+    validate_string_len("path", &path)?;
+    validate_string_len("content", &content)?;
     crate::sftp::write_file(&session_id, &path, &content)
 }
 

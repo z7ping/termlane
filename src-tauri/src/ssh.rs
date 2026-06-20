@@ -8,6 +8,7 @@ use std::net::TcpStream;
 use std::sync::Mutex;
 use ssh2::Session;
 use tauri::{AppHandle, Emitter};
+use ssh2::{CheckResult, KnownHostFileKind};
 
 
 use crate::utils;
@@ -64,10 +65,99 @@ static PTY_SESSIONS: std::sync::LazyLock<Mutex<HashMap<String, Session>>> =
 
 // ─── Helpers ───
 
-fn create_session(tcp: TcpStream) -> Result<Session, String> {
-    let mut session = Session::new().map_err(|e| e.to_string())?;
+/// Create an SSH session from a TCP stream, then verify the remote host key
+/// against ~/.ssh/known_hosts.  If the host is unknown the key is trusted on
+/// first use (TOFU) and persisted; if the key has changed the connection is
+/// rejected with a clear error.
+fn create_session(tcp: TcpStream, host: &str) -> Result<Session, String> {
+    // Step 0: ensure blocking mode
+    eprintln!("[DEBUG ssh] Step 0: setting blocking mode...");
+    tcp.set_nonblocking(false)
+        .map_err(|e| {
+            eprintln!("[DEBUG ssh] FAIL set_nonblocking: {}", e);
+            format!("设置阻塞模式失败: {}", e)
+        })?;
+    eprintln!("[DEBUG ssh] Step 0 OK: blocking mode set");
+
+    // Step 1: create session
+    eprintln!("[DEBUG ssh] Step 1: Session::new()...");
+    let mut session = Session::new().map_err(|e| {
+        eprintln!("[DEBUG ssh] FAIL Session::new: {}", e);
+        e.to_string()
+    })?;
+    eprintln!("[DEBUG ssh] Step 1 OK");
+
+    // Step 2: set TCP stream
+    eprintln!("[DEBUG ssh] Step 2: set_tcp_stream...");
     session.set_tcp_stream(tcp);
-    session.handshake().map_err(|e| format!("握手失败: {}", e))?;
+    eprintln!("[DEBUG ssh] Step 2 OK");
+
+    // Step 3: handshake (the tricky part on Windows)
+    eprintln!("[DEBUG ssh] Step 3: handshake...");
+    session.handshake().map_err(|e| {
+        let code = e.code();
+        let msg = e.message();
+        eprintln!(
+            "[DEBUG ssh] FAIL handshake: code={} msg={}",
+            code, msg
+        );
+        format!("握手失败: [{}] {}", code, msg)
+    })?;
+    eprintln!("[DEBUG ssh] Step 3 OK: handshake succeeded");
+
+    // ── Host-key verification (TOFU style) ──
+    let (key, key_type) = session.host_key()
+        .ok_or_else(|| "无法获取服务器主机密钥".to_string())?;
+
+    let known_hosts_path = dirs::home_dir()
+        .ok_or_else(|| "无法确定用户主目录".to_string())?
+        .join(".ssh")
+        .join("known_hosts");
+
+    // Ensure ~/.ssh directory exists
+    if let Some(parent) = known_hosts_path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+
+    let mut known_hosts = session.known_hosts()
+        .map_err(|e| format!("无法初始化 known_hosts 检查: {}", e))?;
+
+    if known_hosts_path.exists() {
+        known_hosts.read_file(&known_hosts_path, KnownHostFileKind::OpenSSH)
+            .map_err(|e| format!("读取 known_hosts 失败: {}", e))?;
+    }
+
+    let key_format = match key_type {
+        ssh2::HostKeyType::Rsa      => ssh2::KnownHostKeyFormat::SshRsa,
+        ssh2::HostKeyType::Dss      => ssh2::KnownHostKeyFormat::SshDss,
+        ssh2::HostKeyType::Ecdsa256 => ssh2::KnownHostKeyFormat::Ecdsa256,
+        ssh2::HostKeyType::Ecdsa384 => ssh2::KnownHostKeyFormat::Ecdsa384,
+        ssh2::HostKeyType::Ecdsa521 => ssh2::KnownHostKeyFormat::Ecdsa521,
+        ssh2::HostKeyType::Ed25519  => ssh2::KnownHostKeyFormat::Ed25519,
+        _                          => ssh2::KnownHostKeyFormat::SshRsa,
+    };
+    match known_hosts.check(host, key) {
+        CheckResult::Match => {
+            // Key is trusted — proceed
+        }
+        CheckResult::NotFound => {
+            // TOFU — trust on first use
+            known_hosts.add(host, key, host, key_format)
+                .map_err(|e| format!("添加主机密钥到 known_hosts 失败: {}", e))?;
+            known_hosts.write_file(&known_hosts_path, KnownHostFileKind::OpenSSH)
+                .map_err(|e| format!("写入 known_hosts 失败: {}", e))?;
+        }
+        CheckResult::Mismatch => {
+            return Err(format!(
+                "⚠️ 主机密钥不匹配！服务器 {} 的密钥已变更，可能是中间人攻击或服务器重装了系统。\
+                  如需继续连接请手动编辑 ~/.ssh/known_hosts 删除该主机的条目。", host
+            ));
+        }
+        CheckResult::Failure => {
+            return Err("主机密钥验证失败".to_string());
+        }
+    }
+
     Ok(session)
 }
 
@@ -84,15 +174,48 @@ pub async fn connect(
         .map_err(|e| format!("地址无效: {}", e))?;
     let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS))
         .map_err(|e| format!("连接失败: {}", e))?;
-    tcp.set_read_timeout(Some(std::time::Duration::from_secs(READ_TIMEOUT_SECS)))
-        .ok();
 
-    let mut session = create_session(tcp)?;
-    session
-        .userauth_password(username, password)
-        .map_err(|e| format!("认证失败: {}", e))?;
+    let session = create_session(tcp, host)?;
+
+    // Session is blocking by default; libssh2 on Windows has a quirk where
+    // EAGAIN (-37) can surface even in blocking mode when the socket buffer
+    // hasn't received the server's auth response yet.  Retry a few times.
+    eprintln!("[DEBUG ssh] Step 4: userauth_password...");
+    let mut auth_err = String::new();
+    for attempt in 1..=5 {
+        match session.userauth_password(username, password) {
+            Ok(()) => {
+                eprintln!("[DEBUG ssh] Step 4 OK (attempt {})", attempt);
+                break;
+            }
+            Err(e) => {
+                auth_err = format!("认证失败: {}", e);
+                let msg = e.message().to_lowercase();
+                eprintln!(
+                    "[DEBUG ssh] Step 4 attempt {} FAIL: code={} msg={}",
+                    attempt, e.code(), e.message()
+                );
+                // EAGAIN = retry; server_busy/too many auth = retry
+                if msg.contains("would block")
+                    || msg.contains("again")
+                    || msg.contains("busy")
+                    || msg.contains("too many")
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(200 * attempt));
+                    continue;
+                }
+                return Err(auth_err);
+            }
+        }
+    }
     if !session.authenticated() {
-        return Err("用户名或密码错误".into());
+        // On first failure, auth_err might still be empty (unlikely, but guard).
+        let detail = if auth_err.is_empty() {
+            "用户名或密码错误".to_string()
+        } else {
+            auth_err
+        };
+        return Err(detail);
     }
 
     let id = format!("ssh-exec-{}-{}", host.replace('.', "_"), utils::unix_now());
@@ -122,7 +245,7 @@ pub async fn connect_with_key(
         .map_err(|e| format!("地址无效: {}", e))?;
     let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS))
         .map_err(|e| format!("连接失败: {}", e))?;
-    let mut session = create_session(tcp)?;
+    let session = create_session(tcp, host)?;
     if passphrase.is_empty() {
         session
             .userauth_pubkey_file(
@@ -205,49 +328,79 @@ pub fn start_shell(
         .map_err(|e| format!("地址无效: {}", e))?;
     let tcp = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS))
         .map_err(|e| format!("连接失败: {}", e))?;
-    tcp.set_read_timeout(Some(std::time::Duration::from_secs(PTY_READ_TIMEOUT_SECS)))
-        .ok();
 
-    let mut session = create_session(tcp)?;
+    let session = create_session(tcp, host)?;
 
-    // 2. Authenticate
+    // 2. Authenticate (with EAGAIN retry for Windows Winsock quirk)
+    eprintln!("[DEBUG ssh] Step PTY auth: authenticating...");
+    let mut auth_err = String::new();
     if let Some(kp) = key_path {
         let pp = passphrase.unwrap_or("");
-        if pp.is_empty() {
-            session
-                .userauth_pubkey_file(username, None, std::path::Path::new(kp), None)
-                .map_err(|e| format!("密钥认证失败: {}", e))?;
-        } else {
-            session
-                .userauth_pubkey_file(
-                    username,
-                    None,
-                    std::path::Path::new(kp),
-                    Some(pp),
-                )
-                .map_err(|e| format!("密钥认证失败: {}", e))?;
+        for attempt in 1..=5 {
+            let r = if pp.is_empty() {
+                session.userauth_pubkey_file(username, None, std::path::Path::new(kp), None)
+            } else {
+                session.userauth_pubkey_file(username, None, std::path::Path::new(kp), Some(pp))
+            };
+            match r {
+                Ok(()) => { eprintln!("[DEBUG ssh] Step PTY auth OK (key, attempt {})", attempt); break; }
+                Err(e) => {
+                    auth_err = format!("密钥认证失败: {}", e);
+                    let msg = e.message().to_lowercase();
+                    eprintln!("[DEBUG ssh] Step PTY auth key attempt {} FAIL: code={} msg={}", attempt, e.code(), e.message());
+                    if msg.contains("would block") || msg.contains("again") || msg.contains("busy") || msg.contains("too many") {
+                        std::thread::sleep(std::time::Duration::from_millis(200 * attempt));
+                        continue;
+                    }
+                    return Err(auth_err);
+                }
+            }
         }
     } else {
-        session
-            .userauth_password(username, password)
-            .map_err(|e| format!("认证失败: {}", e))?;
+        for attempt in 1..=5 {
+            match session.userauth_password(username, password) {
+                Ok(()) => { eprintln!("[DEBUG ssh] Step PTY auth OK (password, attempt {})", attempt); break; }
+                Err(e) => {
+                    auth_err = format!("认证失败: {}", e);
+                    let msg = e.message().to_lowercase();
+                    eprintln!("[DEBUG ssh] Step PTY auth password attempt {} FAIL: code={} msg={}", attempt, e.code(), e.message());
+                    if msg.contains("would block") || msg.contains("again") || msg.contains("busy") || msg.contains("too many") {
+                        std::thread::sleep(std::time::Duration::from_millis(200 * attempt));
+                        continue;
+                    }
+                    return Err(auth_err);
+                }
+            }
+        }
     }
 
-    if !session.authenticated() {
-        return Err("认证失败".into());
-    }
+    eprintln!("[DEBUG ssh] Step PTY auth OK (all attempts passed, authenticated={})",
+             session.authenticated());
 
-    // Set non-blocking mode on session before creating channel
-    session.set_blocking(false);
+    // IMPORTANT: Keep session BLOCKING when creating the channel.
+    // set_blocking(false) on Windows makes channel_session() return EAGAIN (-37)
+    // immediately.  We'll switch the channel (not the session) to non-blocking
+    // once everything is set up.
 
-    // 3. Request shell channel
-    let mut channel = session.channel_session().map_err(|e| e.to_string())?;
+    // 3. Request shell channel (keep session blocking here)
+    eprintln!("[DEBUG ssh] Step PTY: channel_session...");
+    let mut channel = session.channel_session()
+        .map_err(|e| format!("创建通道失败: [{}] {}", e.code(), e.message()))?;
+    eprintln!("[DEBUG ssh] Step PTY: channel_session OK");
     channel
         .request_pty_size(cols as u32, rows as u32, None, None)
         .map_err(|e| format!("PTY 失败: {}", e))?;
     channel
         .shell()
         .map_err(|e| format!("启动 shell 失败: {}", e))?;
+    eprintln!("[DEBUG ssh] Step PTY: shell started OK");
+
+    // Now that channel+shell are created, switch session to non-blocking
+    // for the reader thread (so channel.read() returns WouldBlock instead
+    // of blocking forever while we also need to check input_rx.try_recv()).
+    eprintln!("[DEBUG ssh] Step PTY: setting session to non-blocking...");
+    session.set_blocking(false);
+    eprintln!("[DEBUG ssh] Step PTY: session now non-blocking");
 
     let session_id = format!("ssh-shell-{}-{}", host.replace('.', "_"), utils::unix_now());
     let sid = session_id.clone();
@@ -306,11 +459,33 @@ pub fn start_shell(
 
             // ── Write user input to SSH ──
             while let Ok(input) = input_rx.try_recv() {
+                eprintln!("[DEBUG reader] input_rx got: len={}", input.len());
                 if input == "\x04" {
                     // Ctrl+D → send EOF
                     channel.send_eof().ok();
                 } else {
-                    channel.write_all(input.as_bytes()).ok();
+                    // In non-blocking mode, write may also return WouldBlock.
+                    // Retry a few times before giving up.
+                    let data = input.as_bytes();
+                    let mut written = 0;
+                    for retry in 0..10 {
+                        match channel.write(&data[written..]) {
+                            Ok(n) => {
+                                written += n;
+                                eprintln!("[DEBUG reader] channel.write OK: {} bytes (total {}/{})", n, written, data.len());
+                                if written >= data.len() { break; }
+                            }
+                            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                eprintln!("[DEBUG reader] channel.write WouldBlock retry {}", retry);
+                                std::thread::sleep(std::time::Duration::from_millis(5));
+                                continue;
+                            }
+                            Err(e) => {
+                                eprintln!("[DEBUG reader] channel.write FAIL: {:?}", e);
+                                break;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -333,7 +508,7 @@ pub fn start_shell(
         drop(channel);
     });
 
-    // 6. Store state
+    // 6. Store state (BEFORE spawning reader thread so shell_input can find it)
     lock!(PTY_SHELLS).insert(
         session_id.clone(),
         PtyShell {
@@ -416,7 +591,7 @@ pub async fn connect_jump(
         .map_err(|e| format!("跳板机地址无效: {}", e))?;
     let jump_tcp = TcpStream::connect_timeout(&jump_addr, std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS))
         .map_err(|e| format!("跳板机连接失败: {}", e))?;
-    let mut jump_session = create_session(jump_tcp)?;
+    let jump_session = create_session(jump_tcp, jump_host)?;
     jump_session
         .userauth_password(jump_user, jump_pass)
         .map_err(|e| format!("跳板机认证失败: {}", e))?;
@@ -606,17 +781,17 @@ mod tests {
     #[test]
     fn test_monitor_data_deserialize() {
         let json = r#"{
-            "cpu_usage": 25.5,
-            "memory_total": 8589934592,
-            "memory_used": 4294967296,
-            "memory_percent": 50.0,
-            "disk_total": 107374182400,
-            "disk_used": 53687091200,
-            "disk_percent": 50.0,
-            "load_1": 1.5,
-            "load_5": 1.2,
-            "load_15": 0.8,
-            "uptime_seconds": 86400
+            "cpuUsage": 25.5,
+            "memoryTotal": 8589934592,
+            "memoryUsed": 4294967296,
+            "memoryPercent": 50.0,
+            "diskTotal": 107374182400,
+            "diskUsed": 53687091200,
+            "diskPercent": 50.0,
+            "load1": 1.5,
+            "load5": 1.2,
+            "load15": 0.8,
+            "uptimeSeconds": 86400
         }"#;
         let data: MonitorData = serde_json::from_str(json).expect("deserialize MonitorData");
         assert!((data.cpu_usage - 25.5).abs() < 0.01);

@@ -108,7 +108,7 @@ function createTerminal(container) {
   const scrollback = parseInt(localStorage.getItem(STORAGE_KEYS.SCROLLBACK)) || 10000
   const t = new Terminal({
     cursorBlink: true, fontSize,
-    fontFamily: "'Consolas', 'Cascadia Code', 'Courier New', monospace",
+    fontFamily: "'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
     theme: theme.value, scrollback,
   })
   const fit = new FitAddon()
@@ -301,12 +301,17 @@ async function startPtyShell(t, conn, isReconnect = false) {
     // Send user input to PTY shell
     t.onData(async (data) => {
       lastActivity = Date.now() // Reset idle timer
+      console.log('[TerminalPanel] onData fired, shellId=', shellId, 'isConnected=', isConnected, 'dataLen=', data?.length)
       if (shellId && isConnected) {
         try {
+          console.log('[TerminalPanel] invoke ssh_shell_input...')
           await invoke('ssh_shell_input', { sessionId: shellId, data })
-        } catch {
-          // input failed silently
+          console.log('[TerminalPanel] invoke ssh_shell_input OK')
+        } catch (e) {
+          console.error('[TerminalPanel] ssh_shell_input FAILED:', e)
         }
+      } else {
+        console.log('[TerminalPanel] onData skipped: no shellId or not connected')
       }
     })
 

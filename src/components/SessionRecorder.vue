@@ -45,7 +45,7 @@
           <button @click="playing = null" class="" style="color: var(--fg-muted)">✕</button>
         </div>
         <div ref="playbackRef" class="h-80 bg-black overflow-auto font-mono text-sm p-3" style="color: #d4d4d4;">
-          <div v-for="(line, i) in playbackLines" :key="i" class="whitespace-pre-wrap break-all" v-html="ansiToHtml(line)" />
+          <div v-for="(line, i) in playbackLines" :key="i" class="whitespace-pre-wrap break-all" v-html="ansiToHtml(line)" @click.prevent @keydown.prevent />
         </div>
         <div class="p-3 border-t flex items-center gap-3" style="border-color: var(--border)">
           <button @click="togglePlayback" class="text-sm px-3 py-1 rounded text-white" :style="playbackActive ? { background: 'var(--danger)' } : { background: 'var(--accent)' }">
@@ -62,6 +62,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { invoke, listen } from '../utils/tauri.js'
+import DOMPurify from 'dompurify'
 
 const props = defineProps({ sessionId: String, connectionName: String })
 

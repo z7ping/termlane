@@ -9,14 +9,14 @@ let _listen: ListenFn | null
 let _isTauri: boolean
 
 try {
-  // Tauri v2: withGlobalTauri 注入 window.__TAURI__
-  if (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.core) {
-    _invoke = window.__TAURI__.core.invoke as InvokeFn
-    _listen = window.__TAURI__.event.listen as ListenFn
-    _isTauri = true
-  } else {
-    throw new Error('Not in Tauri')
-  }
+  // Tauri v2: withGlobalTauri (deprecated but still needed) or @tauri-apps/api
+  // When withGlobalTauri is disabled, use direct import from @tauri-apps/api
+  _invoke = typeof window !== 'undefined'
+    && ((window as { __TAURI__?: { core: { invoke: InvokeFn } } }).__TAURI__?.core?.invoke)
+  _listen = typeof window !== 'undefined'
+    && ((window as { __TAURI__?: { event: { listen: ListenFn } } }).__TAURI__?.event?.listen)
+  _isTauri = !!_invoke && !!_listen
+  if (!_isTauri) throw new Error('Not in Tauri')
 } catch {
   _isTauri = false
   _invoke = null
