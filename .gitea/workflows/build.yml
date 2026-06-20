@@ -143,7 +143,7 @@ jobs:
         run: npx tauri build --bundles msi
 
       - name: Upload .msi artifact
-        uses: http://192.168.31.239:53000/actions/upload-artifact@v4
+        uses: http://192.168.31.239:53000/actions/upload-artifact@v3
         with:
           name: xterminal-pro-msi
           path: F:\gitea-cache\target\release\bundle\msi\*.msi
@@ -207,7 +207,7 @@ jobs:
         run: cargo tauri build --bundles deb
 
       - name: Upload .deb artifact
-        uses: http://192.168.31.239:53000/actions/upload-artifact@v4
+        uses: http://192.168.31.239:53000/actions/upload-artifact@v3
         with:
           name: xterminal-pro-deb
           path: src-tauri/target/release/bundle/deb/*.deb
