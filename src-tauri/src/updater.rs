@@ -10,6 +10,15 @@ pub struct UpdateInfo {
     pub published_at: String,
 }
 
+fn parse_version(value: &str) -> Result<Version, String> {
+    Version::parse(value.trim().trim_start_matches('v'))
+        .map_err(|e| format!("版本号无效 `{}`: {}", value, e))
+}
+
+fn is_newer_version(current: &str, latest: &str) -> Result<bool, String> {
+    Ok(parse_version(latest)? > parse_version(current)?)
+}
+
 /// Check for updates from Gitea API.
 /// Returns Ok(Some(update)) only when the latest release is newer than the
 /// current app version. Returns Ok(None) when there is no release or the app is
@@ -17,9 +26,6 @@ pub struct UpdateInfo {
 #[tauri::command]
 pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>, String> {
     const GITEA_API_URL: &str = "https://gitea.7ping.site/api/v1/repos/ai-area/xterminal-pro/releases/latest";
-
-    let current = Version::parse(current_version.trim_start_matches('v'))
-        .map_err(|e| format!("当前版本号无效: {}", e))?;
 
     let client = reqwest::Client::builder()
         .user_agent(format!("XTerminal-Pro/{}", env!("CARGO_PKG_VERSION")))
@@ -46,14 +52,11 @@ pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>,
         .await
         .map_err(|e| format!("解析 Gitea API 响应失败: {}", e))?;
 
-    let latest_version_text = release.tag_name.trim_start_matches('v');
-    let latest = Version::parse(latest_version_text)
-        .map_err(|e| format!("Release 版本号无效: {}", e))?;
-
-    if latest <= current {
+    if !is_newer_version(&current_version, &release.tag_name)? {
         return Ok(None);
     }
 
+    let latest = parse_version(&release.tag_name)?;
     Ok(Some(UpdateInfo {
         version: latest.to_string(),
         tag_name: release.tag_name,
@@ -69,4 +72,35 @@ struct GiteaRelease {
     body: Option<String>,
     html_url: Option<String>,
     published_at: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_newer_release() {
+        assert!(is_newer_version("0.1.0", "0.1.1").unwrap());
+    }
+
+    #[test]
+    fn ignores_same_release() {
+        assert!(!is_newer_version("0.1.0", "0.1.0").unwrap());
+    }
+
+    #[test]
+    fn ignores_older_release() {
+        assert!(!is_newer_version("0.2.0", "0.1.9").unwrap());
+    }
+
+    #[test]
+    fn accepts_v_prefix() {
+        assert!(is_newer_version("v0.1.0", "v0.2.0").unwrap());
+    }
+
+    #[test]
+    fn follows_semver_prerelease_ordering() {
+        assert!(is_newer_version("1.0.0-alpha.1", "1.0.0").unwrap());
+        assert!(!is_newer_version("1.0.0", "1.0.0-rc.1").unwrap());
+    }
 }
