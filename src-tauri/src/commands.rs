@@ -241,16 +241,6 @@ pub fn keyring_delete_password(conn_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn save_window_state(state: crate::config::WindowState) -> Result<(), String> {
-    crate::config::save_window_state(state)
-}
-
-#[tauri::command]
-pub fn load_window_state() -> Result<crate::config::WindowState, String> {
-    crate::config::load_window_state()
-}
-
-#[tauri::command]
 pub fn list_recordings() -> Result<Vec<crate::config::RecordingMeta>, String> {
     crate::config::list_recordings()
 }
@@ -297,10 +287,6 @@ pub fn local_list_shells() -> Vec<String> {
     crate::local_pty::list_local_shells()
 }
 
-// ─── Updater ───
-
-
-
 // ─── Network ───
 
 #[tauri::command]
@@ -324,5 +310,3 @@ pub fn tcp_ping(host: String, port: u16) -> Result<u64, String> {
 pub fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
-
-// ─── Greet (保留) ───
