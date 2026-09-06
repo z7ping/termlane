@@ -6,7 +6,7 @@
         <div class="text-sm" style="color: var(--fg-primary)">发现新版本</div>
         <div class="text-xs" style="color: var(--fg-muted)">v{{ currentVersion }} → v{{ newVersion }}</div>
       </div>
-      <button @click="showUpdate = false" class="ml-auto text-xs" style="color: var(--fg-muted)">✕</button>
+      <button @click="dismiss" class="ml-auto text-xs" style="color: var(--fg-muted)">✕</button>
     </div>
 
     <div class="p-3">
@@ -15,20 +15,14 @@
         <div v-for="note in releaseNotes" :key="note">{{ note }}</div>
       </div>
 
-      <div v-if="downloading" class="mt-3">
-        <div class="flex justify-between text-xs mb-1" style="color: var(--fg-muted)">
-          <span>下载中...</span>
-          <span>{{ downloadProgress }}%</span>
-        </div>
-        <div class="w-full h-2 rounded-full overflow-hidden" style="background: var(--bg-elevated)">
-          <div class="h-full rounded-full transition-all" style="background: var(--accent)" :style="{ width: downloadProgress + '%' }" />
-        </div>
+      <div class="mt-3 text-xs leading-5" style="color: var(--fg-muted)">
+        当前仅提供版本检查。应用内下载安装将在签名更新链路完成后启用，避免展示无法真正执行的“假更新”。
       </div>
 
       <div class="flex gap-2 mt-3">
-        <button @click="skipVersion" class="flex-1 px-3 py-1.5 text-xs rounded" style="color: var(--fg-muted); border-color: var(--border-subtle)">跳过此版本</button>
-        <button @click="downloadUpdate" :disabled="downloading" class="flex-1 px-3 py-1.5 text-xs rounded disabled:opacity-50" style="background: var(--accent); color: white">
-          {{ downloading ? '下载中...' : '立即更新' }}
+        <button @click="skipVersion" class="flex-1 px-3 py-1.5 text-xs rounded" style="color: var(--fg-muted); border: 1px solid var(--border-subtle)">跳过此版本</button>
+        <button @click="dismiss" class="flex-1 px-3 py-1.5 text-xs rounded" style="background: var(--accent); color: white">
+          稍后提醒
         </button>
       </div>
     </div>
@@ -40,67 +34,39 @@ import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
 const showUpdate = ref(false)
-const currentVersion = ref('0.1.0')
+const currentVersion = ref('')
 const newVersion = ref('')
 const releaseNotes = ref([])
-const downloading = ref(false)
-const downloadProgress = ref(0)
 
-// Check for updates via Tauri backend (bypasses CORS)
 async function checkForUpdates() {
-  try {
-    // Optional: skip update check in development
-    if (import.meta.env.DEV) {
-      console.log('Development mode: skipping update check')
-      return
-    }
+  if (import.meta.env.DEV) return
 
+  try {
+    currentVersion.value = await invoke('get_app_version')
     const updateInfo = await invoke('check_update', { currentVersion: currentVersion.value })
 
-    if (updateInfo) {
-      // Has new update
-      newVersion.value = updateInfo.version
-      releaseNotes.value = updateInfo.body.split('\n').filter(l => l.trim())
-      showUpdate.value = true
-      console.log(`发现新版本: v${updateInfo.version}`)
-    } else {
-      // No update or no release - silent
-      console.log('Already on latest version or no release available')
-    }
+    if (!updateInfo) return
+    if (localStorage.getItem('skipped_version') === updateInfo.version) return
+
+    newVersion.value = updateInfo.version
+    releaseNotes.value = updateInfo.body.split('\n').filter(line => line.trim())
+    showUpdate.value = true
   } catch (err) {
-    // Silent fail - don't bother user if update check fails
+    // 更新检查失败不影响主流程，也不打扰用户。
     console.warn('Update check failed:', err)
   }
 }
 
-async function downloadUpdate() {
-  downloading.value = true
-  downloadProgress.value = 0
-
-  // Simulate download progress
-  const interval = setInterval(() => {
-    downloadProgress.value += Math.floor(Math.random() * 15) + 5
-    if (downloadProgress.value >= 100) {
-      downloadProgress.value = 100
-      clearInterval(interval)
-      setTimeout(() => {
-        showUpdate.value = false
-        downloading.value = false
-        // In real Tauri app, would call updater API here
-        // window.__TAURI__.updater.installUpdate()
-      }, 500)
-    }
-  }, 200)
+function dismiss() {
+  showUpdate.value = false
 }
 
 function skipVersion() {
-  showUpdate.value = false
-  // Save skipped version to localStorage
   localStorage.setItem('skipped_version', newVersion.value)
+  dismiss()
 }
 
 onMounted(() => {
-  // Check on startup after 3 seconds
   setTimeout(checkForUpdates, 3000)
 })
 </script>
