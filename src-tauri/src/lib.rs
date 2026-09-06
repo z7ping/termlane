@@ -9,7 +9,7 @@ mod updater;
 
 pub fn run() {
     tauri::Builder::default()
-
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             // SSH Exec
             commands::ssh_connect,
@@ -43,8 +43,6 @@ pub fn run() {
             commands::keyring_save_password,
             commands::keyring_load_password,
             commands::keyring_delete_password,
-            commands::save_window_state,
-            commands::load_window_state,
             commands::list_recordings,
             commands::save_recording_meta,
             commands::delete_recording,
