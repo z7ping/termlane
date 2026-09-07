@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::Mutex;
-use ssh2::{CheckResult, HashType, HostKeyType, KnownHostFileKind, KnownHostKeyFormat, Session};
+use ssh2::{CheckResult, ErrorCode, HashType, HostKeyType, KnownHostFileKind, KnownHostKeyFormat, Session};
 use tauri::{AppHandle, Emitter};
 
 use crate::utils;
@@ -57,7 +57,9 @@ struct PtyShell {
 static PTY_SHELLS: std::sync::LazyLock<Mutex<HashMap<String, PtyShell>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Session objects owned by PTY threads (for disconnect/cleanup)
+/// Authenticated SSH Session objects backing interactive PTY shells.
+/// The same SSH transport may open additional exec channels for remote file
+/// management without establishing a second connection or duplicating secrets.
 static PTY_SESSIONS: std::sync::LazyLock<Mutex<HashMap<String, Session>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -117,6 +119,87 @@ fn host_key_error(
         "fingerprint": fingerprint,
     });
     format!("{}:{}", code, detail)
+}
+
+fn is_ssh_eagain(error: &ssh2::Error) -> bool {
+    matches!(error.code(), ErrorCode::Session(-37))
+}
+
+fn retry_nonblocking_ssh<T>(
+    operation_name: &str,
+    mut operation: impl FnMut() -> Result<T, ssh2::Error>,
+) -> Result<T, String> {
+    let started = std::time::Instant::now();
+    loop {
+        match operation() {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if is_ssh_eagain(&error)
+                    && started.elapsed() < std::time::Duration::from_secs(READ_TIMEOUT_SECS) =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_FAST_MS));
+            }
+            Err(error) if is_ssh_eagain(&error) => {
+                return Err(format!("{}超时", operation_name));
+            }
+            Err(error) => {
+                return Err(format!("{}失败: {}", operation_name, error));
+            }
+        }
+    }
+}
+
+fn execute_blocking_session(session: &Session, command: &str) -> Result<String, String> {
+    let mut channel = session.channel_session().map_err(|e| e.to_string())?;
+    channel.exec(command).map_err(|e| e.to_string())?;
+    let mut output = String::new();
+    channel
+        .read_to_string(&mut output)
+        .map_err(|e| format!("读取远程命令输出失败: {}", e))?;
+    channel.wait_close().map_err(|e| e.to_string())?;
+    let exit = channel.exit_status().unwrap_or(-1);
+    Ok(format!("{}\n[exit: {}]", output, exit))
+}
+
+fn execute_nonblocking_session(session: &Session, command: &str) -> Result<String, String> {
+    let mut channel = retry_nonblocking_ssh("创建远程命令通道", || session.channel_session())?;
+    retry_nonblocking_ssh("启动远程命令", || channel.exec(command))?;
+
+    let started = std::time::Instant::now();
+    let mut output = Vec::new();
+    let mut buffer = [0u8; PTY_BUF_SIZE];
+
+    loop {
+        match channel.read(&mut buffer) {
+            Ok(0) if channel.eof() => break,
+            Ok(0) => {
+                if started.elapsed() >= std::time::Duration::from_secs(READ_TIMEOUT_SECS) {
+                    return Err("读取远程命令输出超时".to_string());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_FAST_MS));
+            }
+            Ok(read) => output.extend_from_slice(&buffer[..read]),
+            Err(error)
+                if error.kind() == std::io::ErrorKind::WouldBlock
+                    || error.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                if channel.eof() {
+                    break;
+                }
+                if started.elapsed() >= std::time::Duration::from_secs(READ_TIMEOUT_SECS) {
+                    return Err("读取远程命令输出超时".to_string());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_FAST_MS));
+            }
+            Err(error) => return Err(format!("读取远程命令输出失败: {}", error)),
+        }
+    }
+
+    retry_nonblocking_ssh("关闭远程命令通道", || channel.wait_close())?;
+    let exit = retry_nonblocking_ssh("读取远程命令退出状态", || channel.exit_status())
+        .unwrap_or(-1);
+    let output = String::from_utf8_lossy(&output).into_owned();
+    Ok(format!("{}\n[exit: {}]", output, exit))
 }
 
 /// Create an SSH session from a TCP stream and verify the remote host key
@@ -356,16 +439,21 @@ pub async fn connect_with_key(
 }
 
 pub async fn execute(session_id: &str, command: &str) -> Result<String, String> {
-    let sessions = lock!(SESSIONS);
-    let session = sessions.get(session_id).ok_or("会话不存在")?;
-    let mut ch = session.channel_session().map_err(|e| e.to_string())?;
-    ch.request_pty("xterm-256color", None, None).ok();
-    ch.exec(command).map_err(|e| e.to_string())?;
-    let mut output = String::new();
-    ch.read_to_string(&mut output).ok();
-    ch.wait_close().ok();
-    let exit = ch.exit_status().unwrap_or(-1);
-    Ok(format!("{}\n[exit: {}]", output, exit))
+    {
+        let sessions = lock!(SESSIONS);
+        if let Some(session) = sessions.get(session_id) {
+            return execute_blocking_session(session, command);
+        }
+    }
+
+    {
+        let sessions = lock!(PTY_SESSIONS);
+        if let Some(session) = sessions.get(session_id) {
+            return execute_nonblocking_session(session, command);
+        }
+    }
+
+    Err("会话不存在".to_string())
 }
 
 pub fn disconnect(session_id: &str) -> Result<(), String> {
@@ -820,6 +908,14 @@ mod tests {
         assert_eq!(json["port"], 2222);
         assert_eq!(json["algorithm"], "ssh-ed25519");
         assert_eq!(json["fingerprint"], "SHA256:01:02");
+    }
+
+    #[test]
+    fn test_eagain_detection() {
+        let eagain = ssh2::Error::new(ErrorCode::Session(-37), "would block");
+        let other = ssh2::Error::new(ErrorCode::Session(-1), "other");
+        assert!(is_ssh_eagain(&eagain));
+        assert!(!is_ssh_eagain(&other));
     }
 
     #[test]
