@@ -73,7 +73,7 @@
               <select v-model="form.icon" class="rounded px-2 text-sm" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);">
                 <option value="🖥️">🖥️</option>
                 <option value="☁️">☁️</option>
-                <option value="🏠">🏠</option>
+                <option value="🏠">🏠️</option>
                 <option value="🔒">🔒</option>
                 <option value="🌐">🌐</option>
                 <option value="💾">💾</option>
@@ -159,7 +159,7 @@ const form = reactive({
 
 const canSave = computed(() => {
   if (!form.name || !form.host || !form.username || !form.port) return false
-  if (form.authType === 'password') return !!form.password || !!props.editing?.id
+  if (form.authType === 'password') return !!form.password
   return !!form.keyPath
 })
 
