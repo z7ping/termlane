@@ -43,6 +43,22 @@ fn new_session_id(kind: &str) -> String {
     format!("ssh-{}-{:x}-{:x}", kind, timestamp, sequence)
 }
 
+fn validate_shell_session_id(session_id: &str) -> Result<(), String> {
+    if session_id.is_empty() || session_id.len() > 128 {
+        return Err("无效的 SSH Shell Session ID".to_string());
+    }
+    if !session_id
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
+        return Err("SSH Shell Session ID 只能包含字母、数字、- 和 _".to_string());
+    }
+    if lock!(PTY_SHELLS).contains_key(session_id) || lock!(PTY_SESSIONS).contains_key(session_id) {
+        return Err("SSH Shell Session ID 已存在".to_string());
+    }
+    Ok(())
+}
+
 fn known_host_entry(host: &str, port: u16) -> String {
     if port == 22 {
         host.to_string()
@@ -342,6 +358,7 @@ pub fn disconnect(session_id: &str) -> Result<(), String> {
 
 pub fn start_shell(
     app: AppHandle,
+    session_id: &str,
     host: &str,
     port: u16,
     username: &str,
@@ -352,6 +369,8 @@ pub fn start_shell(
     cols: u16,
     rows: u16,
 ) -> Result<String, String> {
+    validate_shell_session_id(session_id)?;
+
     let tcp = connect_tcp(host, port, CONNECT_TIMEOUT_SECS)?;
     let session = create_session(tcp, host, port, trust_new_host_key)?;
 
@@ -433,7 +452,7 @@ pub fn start_shell(
 
     session.set_blocking(false);
 
-    let session_id = new_session_id("shell");
+    let session_id = session_id.to_string();
     let sid = session_id.clone();
 
     let (input_tx, input_rx) = crossbeam_channel::unbounded::<String>();
@@ -524,7 +543,7 @@ pub fn start_shell(
             _reader: reader,
         },
     );
-    lock!(PTY_SESSIONS).insert(session_id.clone(), session);
+    lock!(PTY_SESSIONS).insert(session_id, session);
 
     Ok(sid)
 }
@@ -619,8 +638,15 @@ mod tests {
 
     #[test]
     fn session_ids_do_not_collide() {
-        let first = new_session_id("shell");
-        let second = new_session_id("shell");
+        let first = new_session_id("test");
+        let second = new_session_id("test");
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn shell_session_id_validation_is_strict() {
+        assert!(validate_shell_session_id("ssh-shell-abc_123").is_ok());
+        assert!(validate_shell_session_id("").is_err());
+        assert!(validate_shell_session_id("bad/id").is_err());
     }
 }
