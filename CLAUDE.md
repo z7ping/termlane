@@ -1,115 +1,142 @@
 # CLAUDE.md
 
-This file provides source-repository guidance for agents working on XTerminal Pro. When documentation conflicts with current code or build configuration, current code/config wins and the stale documentation must be corrected.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-XTerminal Pro is a lightweight desktop SSH terminal + SFTP + multi-server manager built with Tauri v2, Vue 3, Vite and Rust. The current authoritative application version is `0.1.0` (`package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`).
+XTerminal Pro is a lightweight desktop SSH terminal + SFTP + multi-server manager built on Tauri v2, Vue 3 and Rust.
 
-Product direction: keep startup fast, memory use low, interaction direct, configuration minimal, and avoid feature/framework bloat. Prefer mature official or well-maintained implementations for generic infrastructure; reserve custom code for product-specific behavior.
+Product direction: keep SSH / terminal / SFTP daily workflows fast, low-resource, direct and low-configuration. Do not turn the project into a feature-heavy terminal suite by default.
+
+Current build metadata is `0.1.0`; the project is in 1.0 closure. Historical README/PLAN claims are not authoritative when they conflict with current code.
 
 ## Essential Commands
 
 ```bash
-# Browser dev mode; uses the browser/mock path, not real SSH/SFTP
+# Browser UI development (mock/fallback only)
 npm run dev
 
-# Full desktop runtime
+# Full desktop app
 npm run tauri:dev
 
-# Production build
-npm run tauri:build
-
-# Frontend tests
+# Frontend validation
 npm test
 npm run test:smoke
-npm run test:coverage
-
-# Type check
 npx vue-tsc --noEmit
+npm run build
 
-# Rust checks/tests (run from src-tauri/)
+# Rust validation
+cd src-tauri
 cargo check
 cargo test
+
+# Production bundle
+npm run tauri:build
 ```
 
-- Node.js >= 18.
-- Rust must satisfy the Tauri plugin requirements; `tauri-plugin-window-state` requires Rust >= 1.77.2.
-- Linux build dependencies include WebKitGTK/GTK/OpenSSL development packages.
-- Windows builds use the MSVC Rust toolchain and OpenSSL environment configured by the project build environment.
+GitHub Actions runs the frontend and Rust quality gates on pull requests. Do not mark a change validated when the latest relevant CI run is failing or still incomplete.
 
 ## Architecture
 
 ```text
-Vue 3 WebView --Tauri IPC/events--> Rust backend --native--> SSH / PTY / filesystem / keyring
+Vue 3 WebView
+  -> @tauri-apps/api ESM invoke/listen
+  -> Tauri command boundary
+  -> Rust ssh2 / portable-pty / keyring / filesystem
 ```
 
 ### Frontend
 
-- Entry: `src/main.ts` -> `src/App.vue`.
-- State: no Pinia/Vuex. Shared application state is currently centered in `src/composables/useAppState.js` plus local component refs.
-- IPC abstraction: `src/utils/tauri.ts` wraps Tauri invoke/listen behavior and provides browser mock behavior. Browser mode is not evidence that native SSH/SFTP works.
-- `App.vue` lazy-loads secondary feature views; the terminal shell is a primary synchronous view.
-- Browser secure-storage fallback uses AES-GCM with its key material available to the browser session. Treat it as a development/browser fallback, not equivalent to the desktop OS keyring.
+- Entry: `src/main.ts -> src/App.vue`.
+- No Pinia/Vuex. Shared state is primarily in `src/composables/useAppState.js`.
+- `src/utils/tauri.ts` is the single Tauri IPC/browser-mock boundary.
+- `withGlobalTauri` is disabled. Do not reintroduce `window.__TAURI__`; use the bundled `@tauri-apps/api` ESM APIs.
+- Browser mode is a UI/mock environment. It does not prove SSH, PTY, SFTP, Keyring or packaging correctness.
+- TypeScript migration is gradual: utility modules are mostly `.ts`, many Vue components still use plain `<script setup>`.
 
 ### Rust backend
 
-| Module | Responsibility |
-| --- | --- |
-| `lib.rs` | Tauri builder, plugins and command registration |
-| `commands.rs` | IPC validation/delegation |
-| `ssh.rs` | SSH connections, authentication and interactive PTY |
-| `sftp.rs` | Remote/local file operations |
-| `config.rs` | Connection config, keyring credentials and recording metadata |
-| `local_pty.rs` | Local shell via `portable-pty` |
-| `updater.rs` | Gitea release version check only; no in-app install yet |
-| `utils.rs` | Shared Rust helpers/macros |
+- `src-tauri/src/lib.rs`: Tauri builder, plugins and command registration.
+- `commands.rs`: IPC validation and delegation.
+- `ssh.rs`: SSH connection, host-key verification and PTY shell.
+- `sftp.rs`: remote file operations.
+- `local_pty.rs`: local shell via `portable-pty`.
+- `config.rs`: non-secret connection config, OS Keyring credentials, recording metadata.
+- `updater.rs`: release version check only; it is not a real installer.
 
-Window geometry persistence is handled by the official `tauri-plugin-window-state`. Do not reintroduce a parallel `window_state.json` implementation.
+## Credential Boundary
 
-## Important Engineering Risks
+Desktop secrets have one authoritative storage path: the Rust OS Keyring backend.
 
-- `ssh2` is synchronous. Avoid hiding blocking SSH work inside async functions without an explicit blocking/threading strategy.
-- PTY/session lifecycle must be reviewed for thread/session cleanup and idle resource use before 1.0.
-- Do not call a feature complete because a Vue component exists. Verify UI entry -> state -> IPC -> Rust/native behavior -> error path -> tests/manual validation.
-- Keep dependencies deliberate. Do not add VueUse, virtual-list frameworks, split-pane frameworks, or a UI framework solely to replace small stable local helpers; add them only when the local requirement has actually outgrown the simple implementation.
+Rules:
+
+- Never persist `password` or `passphrase` in `connections.json`, Tab snapshots, localStorage, logs or ordinary frontend state snapshots.
+- `src/utils/credentials.ts` removes transient secrets before ordinary persistence and resolves credentials at connection time.
+- Historical `xterminal-pwd_<id>` plaintext localStorage values are migration input only; migrate them to the secure backend and delete the plaintext key.
+- Duplicating a connection must not duplicate its credentials.
+- Browser mode uses `secure-store-browser.ts` AES-GCM fallback only because no OS Keyring exists there. Its sessionStorage-held key is XSS-extractable and must not be described as desktop-equivalent security.
+
+## SSH Host-Key Trust Model
+
+Current code uses OpenSSH `~/.ssh/known_hosts` semantics:
+
+- port 22 -> normal `host` entry;
+- non-default port -> `[host]:port` and `check_port`;
+- known + matching -> connect;
+- unknown -> return structured algorithm + SHA256 fingerprint, show it to the user, and require explicit “trust and connect” before writing known_hosts;
+- mismatch -> hard reject; do not provide a silent overwrite path.
+
+Do not weaken this flow to restore automatic TOFU.
+
+## ProxyJump Boundary
+
+1.0 currently does **not** support ProxyJump.
+
+The historical `ssh_connect_jump` implementation only tested a jump-host `direct-tcpip` channel and then connected directly from the client to the target. That implementation and its UI entry are being removed because it was not a real jump connection.
+
+Do not restore a `jump` command or UI until the target SSH session actually runs over the intermediate transport. Do not add a second SSH stack casually just to recover a checkbox feature.
+
+## Window State / Updater
+
+- Window position/size persistence uses official `tauri-plugin-window-state`; do not recreate the deleted custom WindowState IPC/JSON path.
+- Updater currently performs version discovery only.
+- Do not add simulated download/install progress.
+- A real updater belongs to the release pipeline and must use Tauri's signed updater artifacts, public key and endpoint metadata.
+
+## Dependency / Reuse Policy
+
+Prefer mature official/ecosystem implementation for protocol, security and platform infrastructure, but lightweight is a higher-order constraint than “replace every local helper”.
+
+Current decisions:
+
+- Keep the small fixed-height `VirtualList` until requirements actually need a larger virtualization library.
+- Keep the small split-resize composable until nested panes/accessibility/constraint complexity justifies a library.
+- Existing xterm `fit/search/web-links` addons cover current proven needs; do not add WebGL/Unicode/clipboard addons without an actual requirement or measured problem.
+- Do not introduce VueUse/Pinia merely for stylistic consistency.
+- Remove unused dependencies when the lockfile can be updated and CI proves the change.
 
 ## Testing
 
-- Vitest 4.x + jsdom.
-- Tests live in `src/__tests__/`.
-- `npm run test:smoke` runs `src/__tests__/smoke-vitest.test.js`.
-- Rust unit tests run with `cargo test` from `src-tauri/`.
-- Browser mocks are useful for frontend behavior but cannot validate SSH/SFTP/PTY native integration.
-- For changes to native desktop flows, add Rust/integration coverage where practical and record a real Tauri runtime validation path.
+- Vitest is the frontend unit-test framework.
+- `npm run test:smoke` is a Vitest suite and must remain executable.
+- Security boundaries added or changed should have focused tests.
+- Browser mocks must use the same command names and argument shapes as native IPC where practical.
+- Component existence or mock success does not count as native capability verification.
+
+## Current Known Release Work
+
+Tracked in:
+
+- #1 foundation consolidation
+- #2 UI/product interaction closure
+- #3 1.0 release baseline
+
+Important remaining release work includes real desktop flow verification, signed updater pipeline, dependency-security review, package/install verification, performance measurement and documentation consistency.
 
 ## Coding Conventions
 
-- Use Conventional Commits (`feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`).
-- Prefer focused changes over compatibility shims and duplicated implementations.
-- Remove obsolete code after replacing an implementation; do not leave two competing paths active.
-- Keep the current gradual TypeScript migration direction; do not perform broad mechanical rewrites unrelated to the task.
-- Prefer Chinese comments/doc text where project-facing explanation is needed; identifiers and protocol/library names remain their canonical names.
-
-## Security Architecture
-
-- CSP is enabled in `src-tauri/tauri.conf.json` and restricts scripts/styles/images/connections/fonts. Keep it enabled and narrow permissions rather than disabling it to fix integration problems.
-- Desktop credentials use the OS keyring through the Rust `keyring` crate. Do not persist passwords in connection JSON/localStorage.
-- SSH host keys are currently checked against `~/.ssh/known_hosts` using TOFU behavior: known matching keys are accepted, unknown hosts are added on first use, and mismatches are rejected. Before 1.0, audit non-default-port handling and provide a deliberate first-use fingerprint/host-trust UX instead of treating the current implementation as final.
-- Tauri capability `default` currently grants `core:default` to the `main` window. When adding plugins or frontend plugin commands, grant only the permissions actually required.
-- `withGlobalTauri` is currently enabled. Do not expand globally exposed capabilities without a security reason.
-
-## Update Strategy
-
-The current updater path only checks the latest Gitea release. It must not simulate downloading/installing updates.
-
-Tauri's official updater requires signed updater artifacts, a durable signing private key, embedded public key and a compatible update endpoint/static JSON. Implement the official updater only together with that release/signing pipeline; do not ship an unsigned or placeholder updater flow.
-
-## Key Documentation
-
-- `docs/ARCHITECTURE.md`
-- `docs/API.md`
-- `docs/CODING-STANDARDS.md`
-- `docs/TESTING.md`
-- `docs/PLAN.md` — historical plan; verify against current code before treating checkboxes as current status
-- `docs/SPEC.md`
+- Conventional Commits.
+- Chinese is preferred for durable project documentation and user-facing product text.
+- Keep frontend IPC through `src/utils/tauri.ts` unless a direct official API is intentionally required.
+- Do not introduce patch-style parallel implementations: when replacing infrastructure, remove the obsolete path.
+- Do not claim a feature complete because a command/component/PLAN checkbox exists; inspect the full user-to-native path.
