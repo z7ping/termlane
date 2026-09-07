@@ -11,10 +11,8 @@ import {
 } from '../utils/credentials.js'
 import { parseHostKeyError } from '../utils/ssh-host-key.js'
 
-// Local terminal connection template (always present)
 const LOCAL_CONN = { id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' }
 
-// Singleton state — shared across all components that call useAppState()
 const connections = ref([LOCAL_CONN])
 const latencyMap = ref({})
 const tabs = ref([])
@@ -26,17 +24,10 @@ const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value
 const activeConnection = computed(() => connections.value.find(c => c.id === activeConnectionId.value))
 const activeSessionId = computed(() => sessionMap.value[activeTabId.value] || null)
 
-// ---- Callbacks (set by the host component) ----
 let _toastFn = null
 
-/**
- * Set the toast notification callback. Call this from the host component.
- * @param {(msg: string, type?: string) => void} fn
- */
 export function setToast(fn) { _toastFn = fn }
 function _toast(msg, type = 'info') { _toastFn?.(msg, type) }
-
-// ---- Persistence helpers ----
 
 function persistentTab(tab) {
   return {
@@ -57,7 +48,6 @@ async function loadConnections() {
   try {
     const saved = await invoke('load_connections')
     if (saved?.length > 0) {
-      // One-time migration of the historical plaintext xterminal-pwd_* keys.
       for (const conn of saved) {
         if (!conn?.id || conn.id === 'local') continue
         try {
@@ -77,7 +67,6 @@ function loadTabsState() {
   try {
     const savedTabs = JSON.parse(localStorage.getItem(STORAGE_KEYS.TABS) || '[]')
     if (savedTabs.length > 0) {
-      // Strip secrets from legacy tab snapshots immediately and rewrite the safe form.
       tabs.value = savedTabs.map(tab => ({
         ...tab,
         connection: stripConnectionSecrets(tab.connection || {}),
@@ -88,14 +77,11 @@ function loadTabsState() {
   } catch (e) { console.warn('[XTerminal] Load tabs error:', e) }
 }
 
-// ---- Tab management ----
-
 async function onSelectConnection(conn) {
   const safeConnection = stripConnectionSecrets(conn)
   activeConnectionId.value = safeConnection.id
   const existing = tabs.value.find(t => t.connectionId === safeConnection.id)
   if (existing) {
-    // Refresh non-secret connection metadata in case the connection was edited.
     existing.name = safeConnection.name
     existing.connection = safeConnection
     activeTabId.value = existing.id
@@ -139,17 +125,18 @@ function openLocalTerminal() {
   if (local) onSelectConnection(local)
 }
 
-// ---- Connection management ----
-
 async function onSaveConnection(conn, editingConn) {
   const id = editingConn?.id || conn.id || `conn_${Date.now()}`
   const merged = editingConn ? { ...editingConn, ...conn, id } : { ...conn, id }
   const safeConnection = stripConnectionSecrets(merged)
+  const credential = conn.authType === 'password'
+    ? conn.password
+    : conn.authType === 'key'
+      ? conn.passphrase
+      : ''
 
   try {
-    if (conn.authType === 'password' && conn.password) {
-      await saveCredential(id, conn.password)
-    }
+    if (credential) await saveCredential(id, credential)
     await invoke('save_connection', { conn: safeConnection })
     await loadConnections()
     _toast('连接已保存', 'success')
@@ -180,9 +167,7 @@ function onDuplicateConnection(conn) {
 async function onTestConnection(conn) {
   _toast('正在测试连接...', 'info')
   try {
-    const password = conn.authType === 'password' && conn.id
-      ? await loadCredential(conn.id)
-      : ''
+    const credential = conn.id ? await loadCredential(conn.id) : ''
 
     let sid
     if (conn.authType === 'key') {
@@ -191,7 +176,7 @@ async function onTestConnection(conn) {
         port: conn.port || 22,
         username: conn.username,
         keyPath: conn.keyPath || '',
-        passphrase: conn.passphrase || '',
+        passphrase: credential,
         trustNewHostKey: false,
       })
     } else {
@@ -199,7 +184,7 @@ async function onTestConnection(conn) {
         host: conn.host,
         port: conn.port || 22,
         username: conn.username,
-        password,
+        password: credential,
         trustNewHostKey: false,
       })
     }
@@ -228,8 +213,6 @@ function onToggleFavorite(conn) {
   }
 }
 
-// ---- Session management ----
-
 function onSessionConnected(tabId, sid) {
   sessionMap.value[tabId] = sid
   saveTabsState()
@@ -246,8 +229,6 @@ function onQuickCommand(cmd) {
     _toast('请先连接服务器', 'info')
   }
 }
-
-// ---- Latency polling ----
 
 let pingTimer = null
 
@@ -272,11 +253,8 @@ function stopPingPolling() {
   if (pingTimer) { clearInterval(pingTimer); pingTimer = null }
 }
 
-// ---- Composable entry point ----
-
 export function useAppState() {
   return {
-    // Reactive state
     connections,
     latencyMap,
     tabs,
@@ -286,29 +264,21 @@ export function useAppState() {
     activeTab,
     activeConnection,
     activeSessionId,
-
-    // Initialization
     loadConnections,
     loadTabsState,
     saveTabsState,
     startPingPolling,
     stopPingPolling,
-
-    // Tab actions
     onSelectConnection,
     closeTab,
     closeOtherTabs,
     closeAllTabs,
     openLocalTerminal,
-
-    // Connection actions
     onSaveConnection,
     onDeleteConnection,
     onDuplicateConnection,
     onTestConnection,
     onToggleFavorite,
-
-    // Session actions
     onSessionConnected,
     onSessionDisconnected,
     onQuickCommand,
