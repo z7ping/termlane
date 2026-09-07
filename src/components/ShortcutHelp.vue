@@ -27,7 +27,7 @@
         </section>
       </div>
 
-      <div class="help-footer">按 <kbd>?</kbd> 打开此面板；快捷键可在设置中调整。</div>
+      <div class="help-footer">应用快捷键可在设置中调整；终端控制键保持 Shell 的标准行为。</div>
     </div>
   </div>
 </template>
@@ -45,8 +45,8 @@ const shortcutGroups = computed(() => [
     name: '终端',
     items: [
       { name: '搜索终端输出', binding: getShortcut('搜索') },
-      { name: '清屏', binding: getShortcut('清屏') },
-      { name: '中断当前命令', binding: getShortcut('中断'), note: '终端有选中文本时，Ctrl+C 优先复制选中内容。' },
+      { name: '清屏', binding: 'Ctrl+L', note: '终端固定控制键，不在应用设置中重映射。' },
+      { name: '中断当前命令', binding: 'Ctrl+C', note: '有选中文本时优先复制选中内容。' },
     ],
   },
   {
@@ -54,10 +54,10 @@ const shortcutGroups = computed(() => [
     items: [
       { name: '新建本地终端', binding: getShortcut('新建标签') },
       { name: '关闭当前标签', binding: getShortcut('关闭标签') },
-      { name: '切换侧边栏', binding: getShortcut('切换侧边栏') || 'Ctrl+B' },
+      { name: '切换侧边栏', binding: getShortcut('切换侧边栏') },
       { name: '打开设置', binding: getShortcut('设置') },
       { name: '全屏', binding: getShortcut('全屏') },
-      { name: '快捷键帮助', binding: '?' },
+      { name: '快捷键帮助', binding: getShortcut('帮助') },
     ],
   },
 ])
