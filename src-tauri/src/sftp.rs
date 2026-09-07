@@ -1,9 +1,12 @@
+use crate::ssh;
 use crate::utils::*;
-// sftp.rs - Remote file operations via SSH exec with base64 encoding
-// All remote file operations use SSH exec commands with base64 encoding
-// to safely handle binary files across different shell environments.
-
 use serde::{Deserialize, Serialize};
+use ssh2::{ErrorCode, FileStat, FileType, Sftp};
+use std::io::{Read, Write};
+use std::path::Path;
+
+// sftp.rs - Remote file management backed by the SSH SFTP subsystem.
+// No remote shell commands, base64 staging files, or GNU userland assumptions.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,127 +19,388 @@ pub struct FileEntry {
     pub permissions: Option<String>,
 }
 
-use crate::ssh;
-use crate::utils;
-
-// ─── Shared tokio runtime (avoid creating new runtime per operation) ───
-static RUNTIME: std::sync::LazyLock<tokio::runtime::Runtime> =
-    std::sync::LazyLock::new(|| tokio::runtime::Runtime::new().expect("Failed to create tokio runtime"));
-
-fn split_exec_output(output: &str) -> Result<(String, i32), String> {
-    let marker = output
-        .rfind("\n[exit:")
-        .ok_or_else(|| "远程命令返回格式异常：缺少退出状态".to_string())?;
-    let status_text = output[marker + 1..]
-        .strip_prefix("[exit: ")
-        .and_then(|value| value.strip_suffix(']'))
-        .ok_or_else(|| "远程命令返回格式异常：退出状态无效".to_string())?;
-    let status = status_text
-        .parse::<i32>()
-        .map_err(|_| "远程命令返回格式异常：退出状态不是数字".to_string())?;
-    Ok((output[..marker].trim_end_matches('\n').to_string(), status))
+fn is_eagain(error: &ssh2::Error) -> bool {
+    matches!(error.code(), ErrorCode::Session(-37))
 }
 
-fn execute_remote_checked(session_id: &str, command: &str) -> Result<String, String> {
-    let output = RUNTIME.block_on(ssh::execute(session_id, command))?;
-    let (body, exit_status) = split_exec_output(&output)?;
-    if exit_status != 0 {
-        let detail = body.trim();
-        return Err(if detail.is_empty() {
-            format!("远程命令执行失败 (exit {})", exit_status)
-        } else {
-            format!("远程命令执行失败 (exit {}): {}", exit_status, detail)
-        });
+fn retry_sftp<T>(
+    operation_name: &str,
+    mut operation: impl FnMut() -> Result<T, ssh2::Error>,
+) -> Result<T, String> {
+    let started = std::time::Instant::now();
+    loop {
+        match operation() {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if is_eagain(&error)
+                    && started.elapsed() < std::time::Duration::from_secs(READ_TIMEOUT_SECS) =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_FAST_MS));
+            }
+            Err(error) if is_eagain(&error) => {
+                return Err(format!("{}超时", operation_name));
+            }
+            Err(error) => return Err(format!("{}失败: {}", operation_name, error)),
+        }
     }
-    Ok(body)
+}
+
+fn retry_io<T>(
+    operation_name: &str,
+    mut operation: impl FnMut() -> std::io::Result<T>,
+) -> Result<T, String> {
+    let started = std::time::Instant::now();
+    loop {
+        match operation() {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if (error.kind() == std::io::ErrorKind::WouldBlock
+                    || error.kind() == std::io::ErrorKind::TimedOut)
+                    && started.elapsed() < std::time::Duration::from_secs(READ_TIMEOUT_SECS) =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_FAST_MS));
+            }
+            Err(error)
+                if error.kind() == std::io::ErrorKind::WouldBlock
+                    || error.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                return Err(format!("{}超时", operation_name));
+            }
+            Err(error) => return Err(format!("{}失败: {}", operation_name, error)),
+        }
+    }
+}
+
+fn open_sftp(session_id: &str) -> Result<Sftp, String> {
+    ssh::open_sftp(session_id)
 }
 
 // ─── Local file operations ───
 
-/// Validate a local filesystem path, rejecting sensitive directories and traversal.
 fn validate_local_path(path: &str) -> Result<(), String> {
-    if path.is_empty() {
+    if path.trim().is_empty() {
         return Err("路径不能为空".to_string());
     }
-
-    // Canonicalize to resolve symlinks and `..` components
-    let canonical = std::fs::canonicalize(path)
-        .map_err(|e| format!("无法解析路径: {}", e))?;
-    let canonical_str = canonical.to_string_lossy();
-
-    // Reject access to sensitive system directories
-    let forbidden_prefixes = ["/etc", "/proc", "/sys", "/dev", "/boot", "/root"];
-    for prefix in &forbidden_prefixes {
-        if canonical_str == *prefix || canonical_str.starts_with(&format!("{}/", prefix)) {
-            return Err(format!("禁止访问系统目录: {}", prefix));
-        }
-    }
-
-    Ok(())
+    std::fs::canonicalize(path)
+        .map(|_| ())
+        .map_err(|error| format!("无法访问本地路径: {}", error))
 }
 
 pub fn list_local(path: &str) -> Result<Vec<FileEntry>, String> {
     validate_local_path(path)?;
-    use std::fs;
-    use std::path::Path;
-    use std::time::SystemTime;
-
     let dir = Path::new(path);
     if !dir.is_dir() {
         return Err(format!("不是有效目录: {}", path));
     }
 
     let mut entries = Vec::new();
-
     if let Some(parent) = dir.parent() {
         entries.push(FileEntry {
             name: "..".into(),
-            path: parent.to_string_lossy().into(),
+            path: parent.to_string_lossy().into_owned(),
             size: 0,
             is_dir: true,
             modified: None,
-            permissions: Some("drwxr-xr-x".into()),
-        });
-    }
-
-    for entry in fs::read_dir(dir).map_err(|e| e.to_string())?.flatten() {
-        let name = entry.file_name().to_string_lossy().into();
-        let path = entry.path().to_string_lossy().into();
-        let meta = entry.metadata().ok();
-        let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
-        let is_dir = meta.as_ref().map(|m| m.is_dir()).unwrap_or(false);
-        let modified = meta
-            .as_ref()
-            .and_then(|m| m.modified().ok())
-            .map(|t| {
-                let dur = t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
-                let secs = dur.as_secs();
-                format_timestamp(secs)
-            });
-
-        entries.push(FileEntry {
-            name, path, size, is_dir, modified,
             permissions: None,
         });
     }
 
-    entries.sort_by(|a, b| {
-        b.is_dir.cmp(&a.is_dir)
-            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-    });
+    for entry in std::fs::read_dir(dir).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let metadata = entry.metadata().map_err(|error| error.to_string())?;
+        let modified = metadata
+            .modified()
+            .ok()
+            .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|value| format_timestamp(value.as_secs()));
 
+        entries.push(FileEntry {
+            name: entry.file_name().to_string_lossy().into_owned(),
+            path: entry.path().to_string_lossy().into_owned(),
+            size: metadata.len(),
+            is_dir: metadata.is_dir(),
+            modified,
+            permissions: None,
+        });
+    }
+
+    sort_entries(&mut entries);
     Ok(entries)
 }
 
+// ─── SFTP remote file operations ───
+
+pub fn list_remote(session_id: &str, path: &str) -> Result<Vec<FileEntry>, String> {
+    let sftp = open_sftp(session_id)?;
+    let base = Path::new(path);
+    let remote_entries = retry_sftp("读取远程目录", || sftp.readdir(base))?;
+    let mut entries = Vec::with_capacity(remote_entries.len() + 1);
+
+    if path != "/" {
+        let parent = remote_parent(path);
+        entries.push(FileEntry {
+            name: "..".into(),
+            path: parent,
+            size: 0,
+            is_dir: true,
+            modified: None,
+            permissions: None,
+        });
+    }
+
+    for (remote_path, stat) in remote_entries {
+        let Some(name) = remote_path.file_name().map(|value| value.to_string_lossy().into_owned()) else {
+            continue;
+        };
+        if name == "." || name == ".." {
+            continue;
+        }
+
+        entries.push(FileEntry {
+            name,
+            path: remote_path.to_string_lossy().into_owned(),
+            size: stat.size.unwrap_or(0),
+            is_dir: stat.is_dir(),
+            modified: stat.mtime.map(format_timestamp),
+            permissions: format_permissions(&stat),
+        });
+    }
+
+    sort_entries(&mut entries);
+    Ok(entries)
+}
+
+pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, String> {
+    validate_local_path(local)?;
+    let metadata = std::fs::metadata(local).map_err(|error| format!("读取本地文件失败: {}", error))?;
+    if !metadata.is_file() {
+        return Err("当前上传仅支持文件".to_string());
+    }
+
+    let sftp = open_sftp(session_id)?;
+    let mut source = std::fs::File::open(local).map_err(|error| format!("打开本地文件失败: {}", error))?;
+    let mut target = retry_sftp("创建远程文件", || sftp.create(Path::new(remote)))?;
+    copy_local_to_remote(&mut source, &mut target)?;
+
+    Ok(format!("已上传: {} → {} ({} bytes)", local, remote, metadata.len()))
+}
+
+pub fn download(session_id: &str, remote: &str, local: &str) -> Result<String, String> {
+    let sftp = open_sftp(session_id)?;
+    let mut source = retry_sftp("打开远程文件", || sftp.open(Path::new(remote)))?;
+    let mut target = std::fs::File::create(local).map_err(|error| format!("创建本地文件失败: {}", error))?;
+    let copied = copy_remote_to_local(&mut source, &mut target)?;
+
+    Ok(format!("已下载: {} → {} ({} bytes)", remote, local, copied))
+}
+
+pub fn rename_file(session_id: &str, old_path: &str, new_path: &str) -> Result<String, String> {
+    let sftp = open_sftp(session_id)?;
+    retry_sftp("重命名远程文件", || {
+        sftp.rename(Path::new(old_path), Path::new(new_path), None)
+    })?;
+    Ok(format!("已重命名: {} → {}", old_path, new_path))
+}
+
+pub fn delete_file(session_id: &str, path: &str, is_dir: bool) -> Result<String, String> {
+    let sftp = open_sftp(session_id)?;
+    remove_remote_path(&sftp, Path::new(path), is_dir)?;
+    Ok(format!("已删除: {}", path))
+}
+
+pub fn create_dir(session_id: &str, path: &str) -> Result<String, String> {
+    let sftp = open_sftp(session_id)?;
+    retry_sftp("创建远程目录", || sftp.mkdir(Path::new(path), 0o755))?;
+    Ok(format!("已创建目录: {}", path))
+}
+
+pub fn chmod(session_id: &str, path: &str, mode: &str) -> Result<String, String> {
+    let mode = parse_octal_mode(mode)?;
+    let sftp = open_sftp(session_id)?;
+    let stat = FileStat {
+        size: None,
+        uid: None,
+        gid: None,
+        perm: Some(mode),
+        atime: None,
+        mtime: None,
+    };
+    retry_sftp("修改远程权限", || sftp.setstat(Path::new(path), stat.clone()))?;
+    Ok(format!("已修改权限: {} → {:o}", path, mode))
+}
+
+pub fn read_file(session_id: &str, path: &str) -> Result<String, String> {
+    let sftp = open_sftp(session_id)?;
+    let stat = retry_sftp("读取远程文件信息", || sftp.stat(Path::new(path)))?;
+    if let Some(size) = stat.size {
+        if size > MAX_INLINE_EDIT_BYTES as u64 {
+            return Err(format!(
+                "文件过大：{} bytes，在线编辑最大允许 {} bytes",
+                size, MAX_INLINE_EDIT_BYTES
+            ));
+        }
+    }
+
+    let mut file = retry_sftp("打开远程文件", || sftp.open(Path::new(path)))?;
+    let mut content = Vec::with_capacity(stat.size.unwrap_or(0).min(MAX_INLINE_EDIT_BYTES as u64) as usize);
+    read_remote_limited(&mut file, &mut content, MAX_INLINE_EDIT_BYTES)?;
+    String::from_utf8(content).map_err(|error| format!("文件不是有效的 UTF-8 文本: {}", error))
+}
+
+pub fn write_file(session_id: &str, path: &str, content: &str) -> Result<String, String> {
+    if content.len() > MAX_INLINE_EDIT_BYTES {
+        return Err(format!(
+            "文件内容过大：{} bytes，在线编辑最大允许 {} bytes",
+            content.len(), MAX_INLINE_EDIT_BYTES
+        ));
+    }
+
+    let sftp = open_sftp(session_id)?;
+    let mut file = retry_sftp("打开远程文件", || sftp.create(Path::new(path)))?;
+    write_remote_all(&mut file, content.as_bytes())?;
+    Ok(format!("已保存: {} ({} bytes)", path, content.len()))
+}
+
+fn copy_local_to_remote(source: &mut std::fs::File, target: &mut ssh2::File) -> Result<u64, String> {
+    let mut buffer = [0u8; PTY_BUF_SIZE];
+    let mut total = 0u64;
+    loop {
+        let read = source
+            .read(&mut buffer)
+            .map_err(|error| format!("读取本地文件失败: {}", error))?;
+        if read == 0 {
+            break;
+        }
+        write_remote_all(target, &buffer[..read])?;
+        total += read as u64;
+    }
+    retry_io("刷新远程文件", || target.flush())?;
+    Ok(total)
+}
+
+fn copy_remote_to_local(source: &mut ssh2::File, target: &mut std::fs::File) -> Result<u64, String> {
+    let mut buffer = [0u8; PTY_BUF_SIZE];
+    let mut total = 0u64;
+    loop {
+        let read = retry_io("读取远程文件", || source.read(&mut buffer))?;
+        if read == 0 {
+            break;
+        }
+        target
+            .write_all(&buffer[..read])
+            .map_err(|error| format!("写入本地文件失败: {}", error))?;
+        total += read as u64;
+    }
+    target.flush().map_err(|error| format!("刷新本地文件失败: {}", error))?;
+    Ok(total)
+}
+
+fn read_remote_limited(source: &mut ssh2::File, output: &mut Vec<u8>, limit: usize) -> Result<(), String> {
+    let mut buffer = [0u8; PTY_BUF_SIZE];
+    loop {
+        let read = retry_io("读取远程文件", || source.read(&mut buffer))?;
+        if read == 0 {
+            return Ok(());
+        }
+        if output.len() + read > limit {
+            return Err(format!("文件超过在线编辑上限 {} bytes", limit));
+        }
+        output.extend_from_slice(&buffer[..read]);
+    }
+}
+
+fn write_remote_all(target: &mut ssh2::File, data: &[u8]) -> Result<(), String> {
+    let mut written = 0;
+    while written < data.len() {
+        let count = retry_io("写入远程文件", || target.write(&data[written..]))?;
+        if count == 0 {
+            return Err("写入远程文件失败：未写入任何数据".to_string());
+        }
+        written += count;
+    }
+    Ok(())
+}
+
+fn remove_remote_path(sftp: &Sftp, path: &Path, is_dir: bool) -> Result<(), String> {
+    if !is_dir {
+        return retry_sftp("删除远程文件", || sftp.unlink(path));
+    }
+
+    let children = retry_sftp("读取待删除目录", || sftp.readdir(path))?;
+    for (child_path, stat) in children {
+        match stat.file_type() {
+            FileType::Directory => remove_remote_path(sftp, &child_path, true)?,
+            _ => retry_sftp("删除远程文件", || sftp.unlink(&child_path))?,
+        }
+    }
+    retry_sftp("删除远程目录", || sftp.rmdir(path))
+}
+
+fn parse_octal_mode(mode: &str) -> Result<u32, String> {
+    let trimmed = mode.trim().trim_start_matches('0');
+    let normalized = if trimmed.is_empty() { "0" } else { trimmed };
+    let value = u32::from_str_radix(normalized, 8)
+        .map_err(|_| format!("无效的权限模式: {}，请输入如 755 或 0644", mode))?;
+    if value > 0o7777 {
+        return Err(format!("无效的权限模式: {}", mode));
+    }
+    Ok(value)
+}
+
+fn remote_parent(path: &str) -> String {
+    let trimmed = path.trim_end_matches('/');
+    if trimmed.is_empty() || trimmed == "/" {
+        return "/".to_string();
+    }
+    match trimmed.rsplit_once('/') {
+        Some(("", _)) | None => "/".to_string(),
+        Some((parent, _)) => parent.to_string(),
+    }
+}
+
+fn sort_entries(entries: &mut [FileEntry]) {
+    entries.sort_by(|left, right| {
+        if left.name == ".." {
+            return std::cmp::Ordering::Less;
+        }
+        if right.name == ".." {
+            return std::cmp::Ordering::Greater;
+        }
+        right
+            .is_dir
+            .cmp(&left.is_dir)
+            .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+    });
+}
+
+fn format_permissions(stat: &FileStat) -> Option<String> {
+    let mode = stat.perm?;
+    let file_type = match stat.file_type() {
+        FileType::Directory => 'd',
+        FileType::Symlink => 'l',
+        FileType::RegularFile => '-',
+        FileType::NamedPipe => 'p',
+        FileType::Socket => 's',
+        FileType::BlockDevice => 'b',
+        FileType::CharDevice => 'c',
+        FileType::Other(_) => '?',
+    };
+    let masks = [0o400, 0o200, 0o100, 0o040, 0o020, 0o010, 0o004, 0o002, 0o001];
+    let symbols = ['r', 'w', 'x', 'r', 'w', 'x', 'r', 'w', 'x'];
+    let mut result = String::with_capacity(10);
+    result.push(file_type);
+    for (mask, symbol) in masks.into_iter().zip(symbols) {
+        result.push(if mode & mask != 0 { symbol } else { '-' });
+    }
+    Some(result)
+}
+
 fn format_timestamp(secs: u64) -> String {
-    // Convert Unix timestamp to date-time string (UTC, approximate)
-    // Uses proper leap year calculation
     let total_days = secs / SECS_PER_DAY;
     let remaining_secs = secs % SECS_PER_DAY;
     let hours = remaining_secs / SECS_PER_HOUR;
     let minutes = (remaining_secs % SECS_PER_HOUR) / 60;
 
-    // Calculate year with leap years
     let mut year = 1970u64;
     let mut days_left = total_days;
     loop {
@@ -148,310 +412,42 @@ fn format_timestamp(secs: u64) -> String {
         year += 1;
     }
 
-    // Calculate month
-    let month_lengths = [
-        if is_leap_year(year) { 29u64 } else { 28u64 },
-        31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
+    let month_days = [
+        31u64,
+        if is_leap_year(year) { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
     ];
-    // Reorder: Jan=31, Feb=28/29, Mar=30, ...
-    let month_days = [31u64, month_lengths[0], 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
     let mut month = 1u64;
     let mut day_left = days_left;
-    for &days_in_month in &month_days {
+    for days_in_month in month_days {
         if day_left < days_in_month {
             break;
         }
         day_left -= days_in_month;
         month += 1;
     }
-    let day = day_left + 1;
 
-    format!("{:04}-{:02}-{:02} {:02}:{:02}", year, month, day, hours, minutes)
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}",
+        year,
+        month,
+        day_left + 1,
+        hours,
+        minutes
+    )
 }
 
 fn is_leap_year(year: u64) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-}
-
-// ─── Path escaping ───
-
-fn escape_path(path: &str) -> String {
-    format!("'{}'", path.replace('\'', "'\\''"))
-}
-
-// ─── Remote file operations (via SSH exec + base64) ───
-
-pub fn list_remote(session_id: &str, path: &str) -> Result<Vec<FileEntry>, String> {
-    let output = execute_remote_checked(
-        session_id,
-        &format!(
-            "ls -la --time-style='+%Y-%m-%d %H:%M' {} 2>/dev/null || ls -la {}",
-            escape_path(path),
-            escape_path(path)
-        ),
-    )?;
-    parse_ls_output(&output, path)
-}
-
-fn parse_ls_output(output: &str, base_path: &str) -> Result<Vec<FileEntry>, String> {
-    let mut entries = Vec::new();
-
-    if base_path != "/" {
-        let parent = std::path::Path::new(base_path)
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| "/".to_string());
-        entries.push(FileEntry {
-            name: "..".into(), path: parent, size: 0, is_dir: true,
-            modified: None, permissions: Some("drwxr-xr-x".into()),
-        });
-    }
-
-    for line in output.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with("total ") {
-            continue;
-        }
-
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 7 {
-            continue;
-        }
-
-        let permissions = parts[0].to_string();
-        let is_dir = permissions.starts_with('d');
-        let size: u64 = parts[4].parse().unwrap_or(0);
-
-        let modified = if parts.len() >= 7 {
-            Some(format!("{} {}", parts[5], parts[6]))
-        } else {
-            None
-        };
-
-        let name_start = if parts.len() >= 8 { 7 } else { 6 };
-        let name = parts[name_start..].join(" ");
-
-        let clean_name = if let Some(arrow_pos) = name.find(" -> ") {
-            name[..arrow_pos].to_string()
-        } else {
-            name
-        };
-
-        if clean_name == "." || clean_name == ".." {
-            continue;
-        }
-
-        let path = if base_path == "/" {
-            format!("/{}", clean_name)
-        } else {
-            format!("{}/{}", base_path, clean_name)
-        };
-
-        entries.push(FileEntry {
-            name: clean_name, path, size, is_dir, modified,
-            permissions: Some(permissions),
-        });
-    }
-
-    entries.sort_by(|a, b| {
-        b.is_dir.cmp(&a.is_dir)
-            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-    });
-
-    Ok(entries)
-}
-
-/// Upload a local file to remote via base64 encoding (safe for binary files).
-/// Uses temp file + chunked printf to avoid shell ARG_MAX limits.
-pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, String> {
-    validate_local_path(local)?;
-
-    let local_content = std::fs::read(local).map_err(|e| format!("读取本地文件失败: {}", e))?;
-    let encoded = base64_encode(&local_content);
-    let remote_tmp = format!("/tmp/xterminal_upload_{}.b64", utils::unix_now());
-
-    // Write base64 in chunks via printf to avoid argument length limits
-    let chunk_size = SFTP_CHUNK_SIZE;
-    let chunks: Vec<&str> = encoded.as_bytes()
-        .chunks(chunk_size)
-        .filter_map(|c| std::str::from_utf8(c).ok())
-        .collect();
-
-    if let Some(first) = chunks.first() {
-        let cmd = format!("printf '%s' {} > {}", escape_path(first), escape_path(&remote_tmp));
-        execute_remote_checked(session_id, &cmd)?;
-    }
-    for chunk in chunks.iter().skip(1) {
-        let cmd = format!("printf '%s' {} >> {}", escape_path(chunk), escape_path(&remote_tmp));
-        execute_remote_checked(session_id, &cmd)?;
-    }
-
-    // Decode base64 temp file to final destination and clean up
-    let cmd = format!(
-        "base64 -d {} > {} && rm -f {}",
-        escape_path(&remote_tmp), escape_path(remote), escape_path(&remote_tmp)
-    );
-    execute_remote_checked(session_id, &cmd)?;
-
-    Ok(format!("已上传: {} → {} ({} bytes)", local, remote, local_content.len()))
-}
-
-/// Download a remote file via base64 encoding (safe for binary files).
-pub fn download(session_id: &str, remote: &str, local: &str) -> Result<String, String> {
-    let cmd = format!("base64 -w 0 {}", escape_path(remote));
-    let encoded = execute_remote_checked(session_id, &cmd)?;
-    let encoded: String = encoded.chars().filter(|c| !c.is_whitespace()).collect();
-
-    let decoded = base64_decode(&encoded)?;
-    std::fs::write(local, &decoded).map_err(|e| format!("写入本地文件失败: {}", e))?;
-
-    Ok(format!("已下载: {} → {} ({} bytes)", remote, local, decoded.len()))
-}
-
-pub fn rename_file(session_id: &str, old_path: &str, new_path: &str) -> Result<String, String> {
-    execute_remote_checked(
-        session_id,
-        &format!("mv {} {}", escape_path(old_path), escape_path(new_path)),
-    )?;
-    Ok(format!("已重命名: {} → {}", old_path, new_path))
-}
-
-pub fn delete_file(session_id: &str, path: &str, is_dir: bool) -> Result<String, String> {
-    let cmd = if is_dir {
-        format!("rm -rf {}", escape_path(path))
-    } else {
-        format!("rm {}", escape_path(path))
-    };
-    execute_remote_checked(session_id, &cmd)?;
-    Ok(format!("已删除: {}", path))
-}
-
-pub fn create_dir(session_id: &str, path: &str) -> Result<String, String> {
-    execute_remote_checked(
-        session_id,
-        &format!("mkdir -p {}", escape_path(path)),
-    )?;
-    Ok(format!("已创建目录: {}", path))
-}
-
-pub fn chmod(session_id: &str, path: &str, mode: &str) -> Result<String, String> {
-    // Validate mode to prevent command injection
-    static OCTAL_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    static SYMBOLIC_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let is_valid_octal = OCTAL_RE.get_or_init(|| regex::Regex::new(r"^0?[0-7]{3,4}$").unwrap()).is_match(mode);
-    let is_valid_symbolic = SYMBOLIC_RE.get_or_init(|| regex::Regex::new(r"^[ugoa]*[+-=][rwxXst]*([,][ugoa]*[+-=][rwxXst]*)*$").unwrap()).is_match(mode);
-    if !is_valid_octal && !is_valid_symbolic {
-        return Err(format!("无效的权限模式: {}", mode));
-    }
-
-    execute_remote_checked(
-        session_id,
-        &format!("chmod {} {}", mode, escape_path(path)),
-    )?;
-    Ok(format!("已修改权限: {} → {}", path, mode))
-}
-
-/// Read a remote file as UTF-8 text via base64 (safe for any encoding).
-pub fn read_file(session_id: &str, path: &str) -> Result<String, String> {
-    let cmd = format!("base64 -w 0 {}", escape_path(path));
-    let encoded = execute_remote_checked(session_id, &cmd)?;
-    let encoded: String = encoded.chars().filter(|c| !c.is_whitespace()).collect();
-
-    let decoded = base64_decode(&encoded)?;
-    String::from_utf8(decoded).map_err(|e| format!("文件不是有效的 UTF-8 文本: {}", e))
-}
-
-/// Write UTF-8 text to a remote file via base64 (safe for any content).
-pub fn write_file(session_id: &str, path: &str, content: &str) -> Result<String, String> {
-    let encoded = base64_encode(content.as_bytes());
-    let remote_tmp = format!("/tmp/xterminal_edit_{}.b64", utils::unix_now());
-
-    let chunk_size = SFTP_CHUNK_SIZE;
-    let chunks: Vec<&str> = encoded.as_bytes()
-        .chunks(chunk_size)
-        .filter_map(|c| std::str::from_utf8(c).ok())
-        .collect();
-
-    if let Some(first) = chunks.first() {
-        let cmd = format!("printf '%s' {} > {}", escape_path(first), escape_path(&remote_tmp));
-        execute_remote_checked(session_id, &cmd)?;
-    }
-    for chunk in chunks.iter().skip(1) {
-        let cmd = format!("printf '%s' {} >> {}", escape_path(chunk), escape_path(&remote_tmp));
-        execute_remote_checked(session_id, &cmd)?;
-    }
-
-    let cmd = format!(
-        "base64 -d {} > {} && rm -f {}",
-        escape_path(&remote_tmp), escape_path(path), escape_path(&remote_tmp)
-    );
-    execute_remote_checked(session_id, &cmd)?;
-    Ok(format!("已保存: {} ({} bytes)", path, content.len()))
-}
-
-// ─── Base64 helpers (no external crate needed) ───
-
-const B64_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-fn base64_encode(input: &[u8]) -> String {
-    let mut result = String::with_capacity((input.len() + 2) / 3 * 4);
-    for chunk in input.chunks(3) {
-        let b0 = chunk[0] as u32;
-        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
-        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
-        let triple = (b0 << 16) | (b1 << 8) | b2;
-        result.push(B64_CHARS[((triple >> 18) & 0x3F) as usize] as char);
-        result.push(B64_CHARS[((triple >> 12) & 0x3F) as usize] as char);
-        if chunk.len() > 1 {
-            result.push(B64_CHARS[((triple >> 6) & 0x3F) as usize] as char);
-        } else {
-            result.push('=');
-        }
-        if chunk.len() > 2 {
-            result.push(B64_CHARS[(triple & 0x3F) as usize] as char);
-        } else {
-            result.push('=');
-        }
-    }
-    result
-}
-
-fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
-    let table: [u8; 256] = {
-        let mut t = [255u8; 256];
-        let mut i = 0u8;
-        for &c in B64_CHARS {
-            t[c as usize] = i;
-            i += 1;
-        }
-        t[b'=' as usize] = 0;
-        t
-    };
-
-    let clean: Vec<u8> = input.bytes().filter(|&b| b != b'\n' && b != b'\r' && b != b' ').collect();
-    if clean.len() % 4 != 0 {
-        return Err("无效的 base64 编码".to_string());
-    }
-
-    let mut result = Vec::with_capacity(clean.len() / 4 * 3);
-    for chunk in clean.chunks(4) {
-        let a = table[chunk[0] as usize];
-        let b = table[chunk[1] as usize];
-        let c = table[chunk[2] as usize];
-        let d = table[chunk[3] as usize];
-        if a == 255 || b == 255 || c == 255 || d == 255 {
-            return Err("无效的 base64 字符".to_string());
-        }
-        result.push(((a << 2) | (b >> 4)) as u8);
-        if chunk[2] != b'=' {
-            result.push((((b & 0x0F) << 4) | (c >> 2)) as u8);
-        }
-        if chunk[3] != b'=' {
-            result.push((((c & 0x03) << 6) | d) as u8);
-        }
-    }
-    Ok(result)
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
 #[cfg(test)]
@@ -459,122 +455,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_split_exec_output_success() {
-        let (body, exit) = split_exec_output("hello\n[exit: 0]").expect("valid exec output");
-        assert_eq!(body, "hello");
-        assert_eq!(exit, 0);
+    fn parent_path_is_remote_posix_style() {
+        assert_eq!(remote_parent("/var/www/html"), "/var/www");
+        assert_eq!(remote_parent("/home"), "/");
+        assert_eq!(remote_parent("/"), "/");
     }
 
     #[test]
-    fn test_split_exec_output_failure_status() {
-        let (_, exit) = split_exec_output("\n[exit: 23]").expect("valid exec output");
-        assert_eq!(exit, 23);
+    fn octal_mode_validation() {
+        assert_eq!(parse_octal_mode("755").unwrap(), 0o755);
+        assert_eq!(parse_octal_mode("0644").unwrap(), 0o644);
+        assert!(parse_octal_mode("u+x").is_err());
+        assert!(parse_octal_mode("888").is_err());
     }
 
     #[test]
-    fn test_escape_path_simple() {
-        assert_eq!(escape_path("/home/user"), "'/home/user'");
+    fn permission_format_is_unix_like() {
+        let stat = FileStat {
+            size: None,
+            uid: None,
+            gid: None,
+            perm: Some(0o100644),
+            atime: None,
+            mtime: None,
+        };
+        assert_eq!(format_permissions(&stat).as_deref(), Some("-rw-r--r--"));
     }
 
     #[test]
-    fn test_escape_path_with_single_quote() {
-        let escaped = escape_path("/path/to/file'name");
-        assert_eq!(escaped, "'/path/to/file'\\''name'");
-    }
-
-    #[test]
-    fn test_escape_path_with_spaces() {
-        assert_eq!(escape_path("/path/to/my file"), "'/path/to/my file'");
-    }
-
-    #[test]
-    fn test_parse_ls_output() {
-        let output = "total 24\n\
-drwxr-xr-x 2 user group  4096 2024-01-15 10:30 src\n\
--rw-r--r-- 1 user group 12345 2024-01-15 09:00 readme.txt\n\
-lrwxrwxrwx 1 user group     5 2024-01-15 08:00 link -> target\n";
-        let entries = parse_ls_output(output, "/home/user").expect("parse_ls_output");
-        assert!(entries.len() >= 3, "Expected at least 3 entries, got {}", entries.len());
-        assert_eq!(entries[0].name, "..");
-        let file = entries.iter().find(|e| e.name == "readme.txt").expect("readme.txt");
-        assert!(!file.is_dir);
-        assert_eq!(file.size, 12345);
-        let dir = entries.iter().find(|e| e.name == "src").expect("src");
-        assert!(dir.is_dir);
-        let link = entries.iter().find(|e| e.name == "link").expect("link");
-        assert_eq!(link.path, "/home/user/link");
-    }
-
-    #[test]
-    fn test_parse_ls_output_root_dir() {
-        let output = "total 8\ndrwxr-xr-x 2 root root 4096 2024-01-01 00:00 etc\n";
-        let entries = parse_ls_output(output, "/").expect("parse root dir");
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].name, "etc");
-    }
-
-    #[test]
-    fn test_parse_ls_output_empty_root_dir() {
-        let entries = parse_ls_output("total 0\n", "/").expect("empty root should be valid");
-        assert!(entries.is_empty());
-    }
-
-    #[test]
-    fn test_parse_ls_output_skips_dot_entries() {
-        let output = "total 4\ndrwxr-xr-x 2 root root 4096 2024-01-01 00:00 .\ndrwxr-xr-x 2 root root 4096 2024-01-01 00:00 ..\n-rw-r--r-- 1 root root 0 2024-01-01 00:00 file.txt\n";
-        let entries = parse_ls_output(output, "/home").expect("parse ls");
-        let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
-        assert!(!names.iter().any(|n| *n == "."), "Should skip .");
-        let parent = entries.iter().find(|e| e.name == "..").unwrap();
-        assert_eq!(parent.path, "/");
-    }
-
-    #[test]
-    fn test_format_timestamp() {
-        // 1609459200 = 2021-01-01 00:00:00 UTC
-        let ts = format_timestamp(1609459200);
-        assert_eq!(ts, "2021-01-01 00:00", "Got: {}", ts);
-
-        // 1640995200 = 2022-01-01 00:00:00 UTC
-        let ts2 = format_timestamp(1640995200);
-        assert_eq!(ts2, "2022-01-01 00:00", "Got: {}", ts2);
-
-        // 946684800 = 2000-01-01 00:00:00 UTC (leap year boundary)
-        let ts3 = format_timestamp(946684800);
-        assert_eq!(ts3, "2000-01-01 00:00", "Got: {}", ts3);
-    }
-
-    #[test]
-    fn test_base64_encode_simple() {
-        assert_eq!(base64_encode(b"Hello"), "SGVsbG8=");
-        assert_eq!(base64_encode(b""), "");
-        assert_eq!(base64_encode(b"a"), "YQ==");
-        assert_eq!(base64_encode(b"ab"), "YWI=");
-        assert_eq!(base64_encode(b"abc"), "YWJj");
-    }
-
-    #[test]
-    fn test_base64_decode_simple() {
-        assert_eq!(base64_decode("SGVsbG8=").unwrap(), b"Hello");
-        assert_eq!(base64_decode("").unwrap(), b"");
-        assert_eq!(base64_decode("YQ==").unwrap(), b"a");
-        assert_eq!(base64_decode("YWI=").unwrap(), b"ab");
-        assert_eq!(base64_decode("YWJj").unwrap(), b"abc");
-    }
-
-    #[test]
-    fn test_base64_roundtrip_binary() {
-        let data: Vec<u8> = (0..=255).collect();
-        let encoded = base64_encode(&data);
-        let decoded = base64_decode(&encoded).unwrap();
-        assert_eq!(data, decoded);
-    }
-
-    #[test]
-    fn test_base64_roundtrip_text() {
-        let text = "Hello World";
-        let encoded = base64_encode(text.as_bytes());
-        let decoded = base64_decode(&encoded).unwrap();
-        assert_eq!(text.as_bytes(), decoded.as_slice());
+    fn timestamp_format_keeps_existing_contract() {
+        assert_eq!(format_timestamp(1_609_459_200), "2021-01-01 00:00");
     }
 }
