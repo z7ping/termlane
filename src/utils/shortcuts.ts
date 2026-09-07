@@ -43,10 +43,20 @@ export function parseShortcut(keyStr: string): (event: KeyboardEvent) => boolean
   const key = parts.filter(part => !['ctrl', 'alt', 'shift', 'meta'].includes(part)).pop()?.toUpperCase() || ''
 
   return (event: KeyboardEvent) => {
+    const eventKey = event.key.toUpperCase()
+    if (eventKey !== key) return false
     if (event.ctrlKey !== ctrl) return false
     if (event.altKey !== alt) return false
-    if (event.shiftKey !== shift) return false
     if (event.metaKey !== meta) return false
-    return event.key.toUpperCase() === key
+
+    // `?`, `:`, `+` 等符号通常物理上需要 Shift 才能输入，但 event.key
+    // 已经是最终符号。只有快捷键显式写了 Shift 时才强制匹配 Shift。
+    const shiftedPrintableSymbol = !shift
+      && event.shiftKey
+      && key.length === 1
+      && !/[A-Z0-9]/.test(key)
+    if (!shiftedPrintableSymbol && event.shiftKey !== shift) return false
+
+    return true
   }
 }
