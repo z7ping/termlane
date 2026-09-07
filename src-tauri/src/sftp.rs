@@ -177,12 +177,14 @@ pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, Str
     }
 
     let sftp = open_sftp(session_id)?;
+    let existing_perm = remote_permissions(&sftp, remote);
     let mut source = std::fs::File::open(local).map_err(|error| format!("打开本地文件失败: {}", error))?;
     let temp_path = remote_temp_path(remote);
     let result = (|| {
         let mut target = retry_sftp("创建远程临时文件", || sftp.create(Path::new(&temp_path)))?;
         copy_local_to_remote(&mut source, &mut target)?;
         drop(target);
+        apply_remote_permissions(&sftp, &temp_path, existing_perm)?;
         replace_remote_file(&sftp, &temp_path, remote)
     })();
 
@@ -197,12 +199,17 @@ pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, Str
 pub fn download(session_id: &str, remote: &str, local: &str) -> Result<String, String> {
     let sftp = open_sftp(session_id)?;
     let mut source = retry_sftp("打开远程文件", || sftp.open(Path::new(remote)))?;
+    let original_permissions = std::fs::metadata(local).ok().map(|metadata| metadata.permissions());
     let temp_path = local_temp_path(local);
     let result = (|| {
         let mut target = std::fs::File::create(&temp_path)
             .map_err(|error| format!("创建本地临时文件失败: {}", error))?;
         let copied = copy_remote_to_local(&mut source, &mut target)?;
         drop(target);
+        if let Some(permissions) = original_permissions {
+            std::fs::set_permissions(&temp_path, permissions)
+                .map_err(|error| format!("保留本地文件权限失败: {}", error))?;
+        }
         replace_local_file(&temp_path, Path::new(local))?;
         Ok(copied)
     })();
@@ -237,15 +244,7 @@ pub fn create_dir(session_id: &str, path: &str) -> Result<String, String> {
 pub fn chmod(session_id: &str, path: &str, mode: &str) -> Result<String, String> {
     let mode = parse_octal_mode(mode)?;
     let sftp = open_sftp(session_id)?;
-    let stat = FileStat {
-        size: None,
-        uid: None,
-        gid: None,
-        perm: Some(mode),
-        atime: None,
-        mtime: None,
-    };
-    retry_sftp("修改远程权限", || sftp.setstat(Path::new(path), stat.clone()))?;
+    apply_remote_permissions(&sftp, path, Some(mode))?;
     Ok(format!("已修改权限: {} → {:o}", path, mode))
 }
 
@@ -276,12 +275,14 @@ pub fn write_file(session_id: &str, path: &str, content: &str) -> Result<String,
     }
 
     let sftp = open_sftp(session_id)?;
+    let existing_perm = remote_permissions(&sftp, path);
     let temp_path = remote_temp_path(path);
     let result = (|| {
         let mut file = retry_sftp("创建远程临时文件", || sftp.create(Path::new(&temp_path)))?;
         write_remote_all(&mut file, content.as_bytes())?;
         retry_io("刷新远程文件", || file.flush())?;
         drop(file);
+        apply_remote_permissions(&sftp, &temp_path, existing_perm)?;
         replace_remote_file(&sftp, &temp_path, path)
     })();
 
@@ -290,6 +291,27 @@ pub fn write_file(session_id: &str, path: &str, content: &str) -> Result<String,
     }
     result?;
     Ok(format!("已保存: {} ({} bytes)", path, content.len()))
+}
+
+fn remote_permissions(sftp: &Sftp, path: &str) -> Option<u32> {
+    retry_sftp("读取远程文件权限", || sftp.stat(Path::new(path)))
+        .ok()
+        .and_then(|stat| stat.perm)
+}
+
+fn apply_remote_permissions(sftp: &Sftp, path: &str, permissions: Option<u32>) -> Result<(), String> {
+    let Some(permissions) = permissions else {
+        return Ok(());
+    };
+    let stat = FileStat {
+        size: None,
+        uid: None,
+        gid: None,
+        perm: Some(permissions),
+        atime: None,
+        mtime: None,
+    };
+    retry_sftp("设置远程文件权限", || sftp.setstat(Path::new(path), stat.clone()))
 }
 
 fn replace_remote_file(sftp: &Sftp, temp: &str, target: &str) -> Result<(), String> {
