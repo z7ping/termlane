@@ -44,7 +44,7 @@
               class="delete-button"
               :aria-label="`删除 ${commandItem.name}`"
               title="删除"
-              @click.stop="deleteCommand(commandItem.id)"
+              @click.stop="requestDeleteCommand(commandItem.id)"
             >
               <Trash2 :size="13" :stroke-width="1.8" />
             </button>
@@ -53,8 +53,8 @@
       </section>
     </div>
 
-    <div v-if="showAdd" class="dialog-backdrop" @click.self="showAdd = false">
-      <div class="command-dialog" role="dialog" aria-modal="true" aria-label="新增快捷命令" @keydown.esc="showAdd = false">
+    <BaseModal :show="showAdd" width="340px" title="新增快捷命令" @close="showAdd = false">
+      <div class="command-dialog-content">
         <div class="dialog-title">新增快捷命令</div>
         <label>
           <span>名称</span>
@@ -78,7 +78,17 @@
           >添加</button>
         </div>
       </div>
-    </div>
+    </BaseModal>
+
+    <ConfirmDialog
+      :show="deleteCommandId != null"
+      title="删除快捷命令"
+      message="确认删除此快捷命令？此操作无法撤销。"
+      confirm-label="删除"
+      danger
+      @close="deleteCommandId = null"
+      @confirm="confirmDeleteCommand"
+    />
   </div>
 </template>
 
@@ -86,6 +96,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Command, Folder, Plus, Trash2 } from 'lucide-vue-next'
 import { STORAGE_KEYS } from '@/utils/storage-keys'
+import BaseModal from './BaseModal.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 
 defineEmits(['run'])
 
@@ -104,6 +116,7 @@ const DEFAULT_COMMANDS = [
 
 const commands = ref([])
 const showAdd = ref(false)
+const deleteCommandId = ref(null)
 const newCommand = reactive({ name: '', command: '', group: '自定义' })
 
 const groupedCommands = computed(() => {
@@ -161,7 +174,14 @@ function addCommand() {
   showAdd.value = false
 }
 
-function deleteCommand(id) {
+function requestDeleteCommand(id) {
+  deleteCommandId.value = id
+}
+
+function confirmDeleteCommand() {
+  const id = deleteCommandId.value
+  if (!id) return
+  deleteCommandId.value = null
   commands.value = commands.value.filter(item => item.id !== id)
   persistCommands()
 }
@@ -172,30 +192,27 @@ onMounted(loadCommands)
 <style scoped>
 .commands-view { position: relative; background: var(--bg-base); color: var(--fg-secondary); }
 .view-header { height: 36px; display: flex; align-items: center; gap: 7px; padding: 0 10px; flex-shrink: 0; border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); color: var(--fg-secondary); font-size: 12px; font-weight: 500; }
-.primary-action, .secondary-button, .primary-button { height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; border: 0; border-radius: 6px; font-size: 11px; }
+.primary-action, .secondary-button, .primary-button { height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; border: 0; border-radius: var(--radius-sm); font-size: 11px; }
 .primary-action, .primary-button { background: var(--accent); color: white; }
-.primary-button:disabled { cursor: not-allowed; opacity: 0.4; }
 .secondary-button { background: var(--bg-hover); color: var(--fg-secondary); }
 .empty-state { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; color: var(--fg-muted); font-size: 12px; text-align: center; }
 .empty-state span { font-size: 11px; }
 .command-group { margin-bottom: 15px; }
 .group-title { height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 4px; color: var(--fg-muted); font-size: 10px; font-weight: 600; }
-.group-count { padding: 0 5px; border-radius: 8px; background: var(--bg-hover); font-weight: 400; }
+.group-count { padding: 0 5px; border-radius: 999px; background: var(--bg-hover); font-weight: 400; }
 .command-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.command-card { min-width: 0; min-height: 52px; display: flex; align-items: center; gap: 6px; padding: 8px 7px 8px 10px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-surface); color: var(--fg-secondary); cursor: default; transition: background-color var(--transition-fast), border-color var(--transition-fast); }
+.command-card { min-width: 0; min-height: 52px; display: flex; align-items: center; gap: 6px; padding: 8px 7px 8px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius); background: var(--bg-surface); color: var(--fg-secondary); cursor: default; transition: background-color var(--transition-fast), border-color var(--transition-fast); }
 .command-card:hover { background: var(--bg-hover); border-color: var(--border); }
 .command-card:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 .command-name { overflow: hidden; color: var(--fg-primary); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.command-text { margin-top: 3px; overflow: hidden; color: var(--fg-muted); font-family: monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.command-text { margin-top: 3px; overflow: hidden; color: var(--fg-muted); font-family: var(--font-mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .delete-button { width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); opacity: 0; transition: opacity var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast); }
 .command-card:hover .delete-button, .delete-button:focus-visible { opacity: 1; }
 .delete-button:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
-.dialog-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0, 0, 0, 0.62); }
-.command-dialog { width: min(340px, 100%); padding: 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
-.dialog-title { margin-bottom: 12px; color: var(--fg-primary); font-size: 13px; font-weight: 600; }
-.command-dialog label { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; color: var(--fg-muted); font-size: 10px; }
-.command-dialog input { height: 31px; padding: 0 9px; border: 1px solid var(--border); border-radius: 6px; outline: none; background: var(--bg-base); color: var(--fg-primary); font-size: 12px; }
-.command-dialog input:focus { border-color: var(--accent); }
+.command-dialog-content .dialog-title { margin-bottom: 12px; color: var(--fg-primary); font-size: 13px; font-weight: 600; }
+.command-dialog-content label { display: flex; flex-direction: column; gap: 5px; margin-top: 9px; color: var(--fg-muted); font-size: 10px; }
+.command-dialog-content input { height: 31px; padding: 0 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; background: var(--bg-base); color: var(--fg-primary); font-size: 12px; }
+.command-dialog-content input:focus { border-color: var(--accent); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 14px; }
 @media (max-width: 760px) { .command-grid { grid-template-columns: minmax(0, 1fr); } }
 </style>

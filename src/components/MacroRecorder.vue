@@ -75,15 +75,21 @@
           >
             <Play :size="14" :stroke-width="1.8" />
           </button>
-          <button type="button" class="danger" title="删除" :disabled="drafting || replaying" @click="deleteSequence(sequence.id)">
+          <button
+            type="button"
+            class="danger"
+            title="删除"
+            :disabled="drafting || replaying"
+            @click="requestDeleteSequence(sequence.id)"
+          >
             <Trash2 :size="14" :stroke-width="1.8" />
           </button>
         </div>
       </div>
     </div>
 
-    <div v-if="showSave" class="dialog-backdrop" @click.self="showSave = false">
-      <div class="save-dialog" role="dialog" aria-modal="true" aria-label="保存命令序列" @keydown.esc="showSave = false">
+    <BaseModal :show="showSave" width="340px" title="保存命令序列" @close="showSave = false">
+      <div class="save-dialog-content">
         <div class="dialog-title">保存命令序列</div>
         <div class="dialog-description">{{ draftCommands.length }} 条命令</div>
         <input ref="nameInputRef" v-model="sequenceName" placeholder="序列名称" @keydown.enter="saveSequence" />
@@ -92,7 +98,17 @@
           <button type="button" class="primary-button" :disabled="!sequenceName.trim()" @click="saveSequence">保存</button>
         </div>
       </div>
-    </div>
+    </BaseModal>
+
+    <ConfirmDialog
+      :show="deleteSequenceId != null"
+      title="删除命令序列"
+      message="确认删除此命令序列？此操作无法撤销。"
+      confirm-label="删除"
+      danger
+      @close="deleteSequenceId = null"
+      @confirm="confirmDeleteSequence"
+    />
   </div>
 </template>
 
@@ -102,6 +118,8 @@ import { ListOrdered, ListPlus, Play, Plus, Square, Trash2, X } from 'lucide-vue
 import { invoke } from '../utils/tauri.js'
 import { secureStore } from '../utils/secure-store-browser'
 import { STORAGE_KEYS } from '@/utils/storage-keys'
+import BaseModal from './BaseModal.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 
 const props = defineProps({
   sessionId: String,
@@ -118,6 +136,7 @@ const commandInputRef = ref(null)
 const showSave = ref(false)
 const sequenceName = ref('')
 const nameInputRef = ref(null)
+const deleteSequenceId = ref(null)
 const replaying = ref(false)
 const replayIndex = ref(0)
 const replayTotal = ref(0)
@@ -215,8 +234,14 @@ function saveSequence() {
   sequenceName.value = ''
 }
 
-function deleteSequence(id) {
-  if (!window.confirm('确认删除此命令序列？')) return
+function requestDeleteSequence(id) {
+  deleteSequenceId.value = id
+}
+
+function confirmDeleteSequence() {
+  const id = deleteSequenceId.value
+  if (!id) return
+  deleteSequenceId.value = null
   sequences.value = sequences.value.filter(sequence => sequence.id !== id)
   persistSequences()
 }
@@ -283,30 +308,28 @@ onMounted(loadSequences)
 <style scoped>
 .sequence-view { position: relative; background: var(--bg-base); color: var(--fg-secondary); }
 .view-header { height: 36px; display: flex; align-items: center; gap: 7px; padding: 0 10px; flex-shrink: 0; border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); color: var(--fg-secondary); font-size: 12px; font-weight: 500; }
-.primary-action, .secondary-action, .primary-small, .text-action, .secondary-button, .primary-button { height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; border: 0; border-radius: 6px; font-size: 11px; }
+.primary-action, .secondary-action, .primary-small, .text-action, .secondary-button, .primary-button { height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; border: 0; border-radius: var(--radius-sm); font-size: 11px; }
 .primary-action, .primary-small, .primary-button { background: var(--accent); color: white; }
-.primary-action:disabled, .primary-small:disabled, .primary-button:disabled { cursor: not-allowed; opacity: 0.4; }
 .secondary-action, .secondary-button { background: var(--bg-hover); color: var(--fg-secondary); }
 .secondary-action.danger { color: var(--danger); }
 .text-action { background: transparent; color: var(--fg-muted); }
-.replay-status { color: var(--warning); font-family: monospace; font-size: 10px; }
+.replay-status { color: var(--warning); font-family: var(--font-mono); font-size: 10px; }
 .draft-panel { flex-shrink: 0; border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); }
 .draft-header { height: 34px; display: flex; align-items: center; gap: 7px; padding: 0 10px; color: var(--fg-secondary); font-size: 11px; }
-.draft-count { padding: 1px 5px; border-radius: 8px; background: var(--bg-hover); color: var(--fg-muted); font-size: 9px; }
+.draft-count { padding: 1px 5px; border-radius: 999px; background: var(--bg-hover); color: var(--fg-muted); font-size: 9px; }
 .command-entry { display: flex; gap: 6px; padding: 0 10px 9px; }
-.command-entry input { flex: 1; min-width: 0; height: 31px; padding: 0 9px; border: 1px solid var(--border); border-radius: 6px; outline: none; background: var(--bg-base); color: var(--fg-primary); font-size: 12px; }
+.command-entry input { flex: 1; min-width: 0; height: 31px; padding: 0 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; background: var(--bg-base); color: var(--fg-primary); font-size: 12px; }
 .command-entry input:focus { border-color: var(--accent); }
-.command-entry button { height: 31px; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; border: 0; border-radius: 6px; background: var(--accent-hover); color: var(--accent); font-size: 11px; }
-.command-entry button:disabled { opacity: 0.4; }
+.command-entry button { height: 31px; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; border: 0; border-radius: var(--radius-sm); background: var(--accent-hover); color: var(--accent); font-size: 11px; }
 .draft-list { max-height: 150px; overflow-y: auto; border-top: 1px solid var(--border-subtle); }
 .draft-row { min-height: 29px; display: flex; align-items: center; gap: 8px; padding: 0 9px; color: var(--fg-secondary); }
-.sequence-index { width: 20px; flex-shrink: 0; color: var(--fg-muted); font-family: monospace; font-size: 9px; text-align: right; }
+.sequence-index { width: 20px; flex-shrink: 0; color: var(--fg-muted); font-family: var(--font-mono); font-size: 9px; text-align: right; }
 .draft-row code { flex: 1; min-width: 0; overflow: hidden; color: var(--fg-secondary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .draft-row button { width: 23px; height: 23px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); }
 .draft-row button:hover { background: var(--bg-hover); color: var(--danger); }
 .empty-state { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; color: var(--fg-muted); font-size: 12px; text-align: center; }
 .empty-state span { max-width: 360px; font-size: 11px; }
-.sequence-card { min-height: 76px; display: flex; align-items: flex-start; gap: 10px; margin-bottom: 7px; padding: 10px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-surface); }
+.sequence-card { min-height: 76px; display: flex; align-items: flex-start; gap: 10px; margin-bottom: 7px; padding: 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius); background: var(--bg-surface); }
 .sequence-name { overflow: hidden; color: var(--fg-primary); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .sequence-meta { margin-top: 3px; color: var(--fg-muted); font-size: 9px; }
 .sequence-preview { display: flex; flex-direction: column; gap: 2px; margin-top: 7px; }
@@ -316,12 +339,9 @@ onMounted(loadSequences)
 .sequence-actions button { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); }
 .sequence-actions button:hover:not(:disabled) { background: var(--bg-hover); color: var(--fg-primary); }
 .sequence-actions button.danger:hover:not(:disabled) { color: var(--danger); }
-.sequence-actions button:disabled { opacity: 0.35; }
-.dialog-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0, 0, 0, 0.62); }
-.save-dialog { width: min(340px, 100%); padding: 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
-.dialog-title { color: var(--fg-primary); font-size: 13px; font-weight: 600; }
+.save-dialog-content .dialog-title { color: var(--fg-primary); font-size: 13px; font-weight: 600; }
 .dialog-description { margin-top: 4px; color: var(--fg-muted); font-size: 10px; }
-.save-dialog > input { width: 100%; height: 31px; margin-top: 11px; padding: 0 9px; border: 1px solid var(--border); border-radius: 6px; outline: none; background: var(--bg-base); color: var(--fg-primary); font-size: 12px; }
-.save-dialog > input:focus { border-color: var(--accent); }
+.save-dialog-content > input { width: 100%; height: 31px; margin-top: 11px; padding: 0 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; background: var(--bg-base); color: var(--fg-primary); font-size: 12px; }
+.save-dialog-content > input:focus { border-color: var(--accent); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 14px; }
 </style>
