@@ -36,7 +36,6 @@
 - 本地终端
 - 多标签页
 - 终端搜索
-- 分屏
 - 自动重连相关逻辑
 - 连接延迟检测
 - `~/.ssh/known_hosts` 主机身份校验
@@ -186,11 +185,10 @@ src-tauri/
 
 ## 1.0 收口路线
 
-当前停止无边界扩功能，按三个方向推进：
+去自研化与基础能力整合已完成第一阶段并合入 `main`。当前公开跟踪两个未完成方向：
 
-1. [#1 去自研化与基础能力整合](https://github.com/z7ping/termlane/issues/1)
-2. [#2 UI / 交互产品化整理](https://github.com/z7ping/termlane/issues/2)
-3. [#3 1.0 发布基线：核心链路、质量、安全与跨平台验证](https://github.com/z7ping/termlane/issues/3)
+1. [#1 UI / 交互产品化整理](https://github.com/z7ping/termlane/issues/1)
+2. [#2 1.0 发布基线：核心链路、质量、安全与跨平台验证](https://github.com/z7ping/termlane/issues/2)
 
 ## 文档
 
