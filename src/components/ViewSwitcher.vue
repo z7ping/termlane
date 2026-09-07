@@ -58,6 +58,7 @@ import {
   FileText,
   Folder,
   Gauge,
+  ListOrdered,
   Terminal,
   Wrench,
 } from 'lucide-vue-next'
@@ -88,7 +89,7 @@ const toolViews = [
   { value: 'notes', label: '笔记', icon: FileText },
   { value: 'bookmarks', label: '书签', icon: Bookmark },
   { value: 'commands', label: '快捷命令', icon: Command },
-  { value: 'macro', label: '宏', icon: Wrench },
+  { value: 'macro', label: '命令序列', icon: ListOrdered },
 ]
 
 const activeTool = computed(() => toolViews.find(item => item.value === props.modelValue) || null)
