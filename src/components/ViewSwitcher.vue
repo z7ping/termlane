@@ -51,20 +51,15 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
-  Activity,
   Bookmark,
   ChevronDown,
   Circle,
-  Clock,
   Command,
   FileText,
   Folder,
   Gauge,
-  Globe,
-  Network,
   Terminal,
   Wrench,
-  Zap,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -82,19 +77,17 @@ const menuOpen = ref(false)
 const primaryViews = [
   { value: 'terminal', label: '终端', icon: Terminal },
   { value: 'sftp', label: '文件', icon: Folder },
-  { value: 'batch', label: '批量', icon: Zap },
 ]
 
+// 1.0 只暴露已经接入真实运行链路的工具。
+// 批量、监控、代理、端口转发、定时任务保留源码用于后续真实实现，
+// 在完成 Native / Session 链路前不进入产品导航。
 const toolViews = [
-  { value: 'monitor', label: '监控', icon: Activity },
   { value: 'speed', label: '测速', icon: Gauge },
   { value: 'recorder', label: '录制', icon: Circle },
   { value: 'notes', label: '笔记', icon: FileText },
   { value: 'bookmarks', label: '书签', icon: Bookmark },
-  { value: 'proxy', label: '代理', icon: Globe },
   { value: 'commands', label: '快捷命令', icon: Command },
-  { value: 'forward', label: '端口转发', icon: Network },
-  { value: 'tasks', label: '定时任务', icon: Clock },
   { value: 'macro', label: '宏', icon: Wrench },
 ]
 
