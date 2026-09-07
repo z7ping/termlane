@@ -3,7 +3,7 @@ use crate::utils::*;
 use serde::{Deserialize, Serialize};
 use ssh2::{ErrorCode, FileStat, FileType, Sftp};
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 // sftp.rs - Remote file management backed by the SSH SFTP subsystem.
 // No remote shell commands, base64 staging files, or GNU userland assumptions.
@@ -137,10 +137,9 @@ pub fn list_remote(session_id: &str, path: &str) -> Result<Vec<FileEntry>, Strin
     let mut entries = Vec::with_capacity(remote_entries.len() + 1);
 
     if path != "/" {
-        let parent = remote_parent(path);
         entries.push(FileEntry {
             name: "..".into(),
-            path: parent,
+            path: remote_parent(path),
             size: 0,
             is_dir: true,
             modified: None,
@@ -179,8 +178,18 @@ pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, Str
 
     let sftp = open_sftp(session_id)?;
     let mut source = std::fs::File::open(local).map_err(|error| format!("打开本地文件失败: {}", error))?;
-    let mut target = retry_sftp("创建远程文件", || sftp.create(Path::new(remote)))?;
-    copy_local_to_remote(&mut source, &mut target)?;
+    let temp_path = remote_temp_path(remote);
+    let result = (|| {
+        let mut target = retry_sftp("创建远程临时文件", || sftp.create(Path::new(&temp_path)))?;
+        copy_local_to_remote(&mut source, &mut target)?;
+        drop(target);
+        replace_remote_file(&sftp, &temp_path, remote)
+    })();
+
+    if result.is_err() {
+        let _ = retry_sftp("清理远程临时文件", || sftp.unlink(Path::new(&temp_path)));
+    }
+    result?;
 
     Ok(format!("已上传: {} → {} ({} bytes)", local, remote, metadata.len()))
 }
@@ -188,9 +197,20 @@ pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, Str
 pub fn download(session_id: &str, remote: &str, local: &str) -> Result<String, String> {
     let sftp = open_sftp(session_id)?;
     let mut source = retry_sftp("打开远程文件", || sftp.open(Path::new(remote)))?;
-    let mut target = std::fs::File::create(local).map_err(|error| format!("创建本地文件失败: {}", error))?;
-    let copied = copy_remote_to_local(&mut source, &mut target)?;
+    let temp_path = local_temp_path(local);
+    let result = (|| {
+        let mut target = std::fs::File::create(&temp_path)
+            .map_err(|error| format!("创建本地临时文件失败: {}", error))?;
+        let copied = copy_remote_to_local(&mut source, &mut target)?;
+        drop(target);
+        replace_local_file(&temp_path, Path::new(local))?;
+        Ok(copied)
+    })();
 
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp_path);
+    }
+    let copied = result?;
     Ok(format!("已下载: {} → {} ({} bytes)", remote, local, copied))
 }
 
@@ -256,9 +276,54 @@ pub fn write_file(session_id: &str, path: &str, content: &str) -> Result<String,
     }
 
     let sftp = open_sftp(session_id)?;
-    let mut file = retry_sftp("打开远程文件", || sftp.create(Path::new(path)))?;
-    write_remote_all(&mut file, content.as_bytes())?;
+    let temp_path = remote_temp_path(path);
+    let result = (|| {
+        let mut file = retry_sftp("创建远程临时文件", || sftp.create(Path::new(&temp_path)))?;
+        write_remote_all(&mut file, content.as_bytes())?;
+        retry_io("刷新远程文件", || file.flush())?;
+        drop(file);
+        replace_remote_file(&sftp, &temp_path, path)
+    })();
+
+    if result.is_err() {
+        let _ = retry_sftp("清理远程临时文件", || sftp.unlink(Path::new(&temp_path)));
+    }
+    result?;
     Ok(format!("已保存: {} ({} bytes)", path, content.len()))
+}
+
+fn replace_remote_file(sftp: &Sftp, temp: &str, target: &str) -> Result<(), String> {
+    retry_sftp("提交远程文件", || {
+        sftp.rename(Path::new(temp), Path::new(target), None)
+    })
+}
+
+fn replace_local_file(temp: &Path, target: &Path) -> Result<(), String> {
+    if target.exists() {
+        std::fs::remove_file(target).map_err(|error| format!("替换本地文件失败: {}", error))?;
+    }
+    std::fs::rename(temp, target).map_err(|error| format!("提交本地文件失败: {}", error))
+}
+
+fn remote_temp_path(target: &str) -> String {
+    format!("{}.xterminal-{}.tmp", target, unique_suffix())
+}
+
+fn local_temp_path(target: &str) -> PathBuf {
+    let path = Path::new(target);
+    let file_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "download".to_string());
+    let temp_name = format!(".{}.xterminal-{}.tmp", file_name, unique_suffix());
+    path.parent().unwrap_or_else(|| Path::new(".")).join(temp_name)
+}
+
+fn unique_suffix() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos()
 }
 
 fn copy_local_to_remote(source: &mut std::fs::File, target: &mut ssh2::File) -> Result<u64, String> {
@@ -480,6 +545,17 @@ mod tests {
             mtime: None,
         };
         assert_eq!(format_permissions(&stat).as_deref(), Some("-rw-r--r--"));
+    }
+
+    #[test]
+    fn temp_paths_stay_near_targets() {
+        let remote = remote_temp_path("/var/www/app.txt");
+        assert!(remote.starts_with("/var/www/app.txt.xterminal-"));
+        assert!(remote.ends_with(".tmp"));
+
+        let local = local_temp_path("/tmp/app.txt");
+        assert_eq!(local.parent(), Some(Path::new("/tmp")));
+        assert!(local.file_name().unwrap().to_string_lossy().starts_with(".app.txt.xterminal-"));
     }
 
     #[test]
