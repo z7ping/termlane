@@ -3,9 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "轻量级SSH终端 + SFTP + 多服务器管理工具 (Tauri)",
-  "author": "龙虾003",
+  "description": "轻量级 SSH 终端、SFTP 与多服务器管理桌面应用",
+  "author": "z7ping",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/z7ping/termlane.git"
+  },
+  "bugs": {
+    "url": "https://github.com/z7ping/termlane/issues"
+  },
+  "homepage": "https://github.com/z7ping/termlane#readme",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
