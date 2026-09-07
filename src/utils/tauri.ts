@@ -17,9 +17,7 @@ export const invoke: InvokeFn = isTauri
           throw new Error('浏览器演示模式不支持真实 SSH 连接')
         }
         case 'ssh_connect_key': throw new Error('浏览器演示模式不支持真实 SSH 连接')
-        case 'ssh_execute': return mockExecute(args.command as string)
         case 'ssh_disconnect': return null
-        case 'ssh_list_sessions': return []
         case 'ssh_start_shell': return `mock_shell_${Date.now()}`
         case 'ssh_shell_input':
         case 'ssh_shell_resize':
@@ -64,27 +62,6 @@ export const invoke: InvokeFn = isTauri
 export const listen: ListenFn = isTauri
   ? (nativeListen as unknown as ListenFn)
   : async (_event: string, _callback: (event: { payload: unknown }) => void) => () => {}
-
-function mockExecute(command = ''): string {
-  const trimmed = command.trim()
-  const bin = trimmed.split(/\s+/)[0]
-  const responses: Record<string, string> = {
-    help: '可用命令: help, clear, echo, date, whoami, pwd, ls, uname, df, free, exit',
-    clear: '\x1b[2J\x1b[H',
-    date: new Date().toString(),
-    whoami: 'user',
-    pwd: '/home/user',
-    hostname: 'termlane',
-    uname: 'Linux termlane 6.6.0-generic x86_64 GNU/Linux',
-    ls: 'Desktop  Documents  Downloads',
-    'ls -la': 'total 28\ndrwxr-xr-x 7 user user 4096 .\ndrwxr-xr-x 3 root root 4096 ..',
-    'df -h': 'Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 100G 42G 58G 42% /',
-    'free -h': 'total used free shared buff/cache available\nMem: 15Gi 4.2Gi 8.1Gi 256Mi 3.1Gi 10Gi',
-    uptime: 'up 3 days, load average: 0.15, 0.20, 0.18',
-  }
-  if (bin === 'echo') return trimmed.slice(5)
-  return responses[trimmed] || responses[bin] || `${bin}: command not found\n提示: 浏览器演示模式`
-}
 
 function mockLocalFiles(_path: string): FileItem[] {
   return [

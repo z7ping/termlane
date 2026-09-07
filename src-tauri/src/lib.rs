@@ -12,13 +12,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
-            // SSH Exec
+            // SSH connection test
             commands::ssh_connect,
             commands::ssh_connect_key,
-            commands::ssh_execute,
             commands::ssh_disconnect,
-            commands::ssh_list_sessions,
-            commands::ssh_monitor,
             // SSH PTY Shell
             commands::ssh_start_shell,
             commands::ssh_shell_input,

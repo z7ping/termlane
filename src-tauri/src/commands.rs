@@ -63,7 +63,7 @@ fn validate_remote_delete_path(path: &str) -> Result<(), String> {
     Ok(())
 }
 
-// ─── SSH Exec ───
+// ─── SSH Connection Test ───
 
 #[tauri::command]
 pub async fn ssh_connect(
@@ -109,22 +109,6 @@ pub async fn ssh_connect_key(
         trust_new_host_key,
     )
     .await
-}
-
-#[tauri::command]
-pub async fn ssh_execute(session_id: String, command: String) -> Result<String, String> {
-    validate_string_len("command", &command)?;
-    crate::ssh::execute(&session_id, &command).await
-}
-
-#[tauri::command]
-pub async fn ssh_monitor(session_id: String) -> Result<crate::ssh::MonitorData, String> {
-    crate::ssh::get_monitor_data(&session_id).await
-}
-
-#[tauri::command]
-pub fn ssh_list_sessions() -> Vec<crate::ssh::SshSession> {
-    crate::ssh::list_sessions()
 }
 
 #[tauri::command]
