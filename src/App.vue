@@ -1,6 +1,10 @@
 <template>
   <div class="h-screen flex flex-col">
-    <TitleBar @toggle-sidebar="sidebarOpen = !sidebarOpen" @toggle-fullscreen="toggleFullscreen" />
+    <TitleBar
+      @toggle-sidebar="sidebarOpen = !sidebarOpen"
+      @toggle-fullscreen="toggleFullscreen"
+      @open-settings="viewMode = 'settings'"
+    />
 
     <div class="flex flex-1 overflow-hidden">
       <Sidebar
@@ -19,7 +23,7 @@
       />
 
       <div class="flex-1 flex flex-col overflow-hidden" style="background: var(--bg-base);">
-        <div class="h-9 flex items-center px-2" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
+        <div class="workspace-bar h-9 flex items-center px-2">
           <TabBar
             :tabs="tabs"
             :active-id="activeTabId"
@@ -28,18 +32,23 @@
             @close-others="closeOtherTabs"
             @close-all="closeAllTabs"
             @new="openLocalTerminal"
-            class="flex-1"
+            class="flex-1 min-w-0"
           />
-          <div v-if="activeTab" class="flex gap-1 ml-2">
-            <button v-for="vm in viewModes" :key="vm.value" @click="viewMode = vm.value" class="px-2 py-0.5 text-xs rounded-md transition-colors" :style="viewMode === vm.value ? 'background: var(--accent); color: white;' : 'color: var(--fg-muted); hover: background: var(--bg-hover);'" :class="viewMode === vm.value ? '' : 'hover:bg-white/5'">{{ vm.label }}</button>
-          </div>
+          <ViewSwitcher v-model="viewMode" />
         </div>
 
         <div class="flex-1 relative overflow-hidden">
           <ErrorBoundary>
             <template v-if="viewMode === 'terminal'">
               <keep-alive>
-                <TerminalPanel v-if="activeTab" :key="activeTabId" :tab="activeTab" :active="true" @connected="onSessionConnected(activeTabId, $event)" @disconnected="onSessionDisconnected(activeTabId)" />
+                <TerminalPanel
+                  v-if="activeTab"
+                  :key="activeTabId"
+                  :tab="activeTab"
+                  :active="true"
+                  @connected="onSessionConnected(activeTabId, $event)"
+                  @disconnected="onSessionDisconnected(activeTabId)"
+                />
               </keep-alive>
             </template>
             <SftpPanel v-if="viewMode === 'sftp'" :connection="activeConnection" :session-id="activeSessionId" :active="true" />
@@ -54,11 +63,13 @@
             <PortForward v-if="viewMode === 'forward'" />
             <ScheduledTasks v-if="viewMode === 'tasks'" />
             <MacroRecorder v-if="viewMode === 'macro'" :session-id="activeSessionId" />
+            <Settings v-if="viewMode === 'settings'" @open-proxy-settings="viewMode = 'proxy'" />
           </ErrorBoundary>
-          <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center text-gray-500">
+
+          <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center" style="color: var(--fg-muted);">
             <div class="text-center">
-              <div class="text-6xl mb-4">⌨️</div>
-              <div class="text-lg">XTerminal Pro</div>
+              <TerminalIcon :size="52" :stroke-width="1.2" class="mx-auto mb-4" />
+              <div class="text-lg" style="color: var(--fg-secondary);">XTerminal Pro</div>
               <div class="text-sm mt-2">从左侧选择一个连接，或按 + 打开本地终端</div>
             </div>
           </div>
@@ -70,7 +81,12 @@
     <Toast ref="toastRef" />
     <UpdateNotifier />
 
-    <ConnectionDialog v-if="showAddConnection" :editing="editingConnection" @save="(conn) => onSaveConnection(conn, editingConnection)" @close="showAddConnection = false; editingConnection = null" />
+    <ConnectionDialog
+      v-if="showAddConnection"
+      :editing="editingConnection"
+      @save="(conn) => onSaveConnection(conn, editingConnection)"
+      @close="showAddConnection = false; editingConnection = null"
+    />
     <ShortcutHelp :visible="showShortcuts" @close="showShortcuts = false" />
     <Onboarding />
   </div>
@@ -78,6 +94,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, defineAsyncComponent, defineComponent } from 'vue'
+import { Terminal as TerminalIcon } from 'lucide-vue-next'
 import { parseShortcut, getShortcut } from './utils/shortcuts.js'
 import { useAppState, setToast } from './composables/useAppState.js'
 
@@ -85,6 +102,7 @@ import { useAppState, setToast } from './composables/useAppState.js'
 import TitleBar from './components/TitleBar.vue'
 import Sidebar from './components/Sidebar.vue'
 import TabBar from './components/TabBar.vue'
+import ViewSwitcher from './components/ViewSwitcher.vue'
 import TerminalPanel from './components/TerminalPanel.vue'
 import StatusBar from './components/StatusBar.vue'
 import Toast from './components/Toast.vue'
@@ -104,6 +122,7 @@ const QuickCommands = defineAsyncComponent(() => import('./components/QuickComma
 const PortForward = defineAsyncComponent(() => import('./components/PortForward.vue'), asyncOpts)
 const ScheduledTasks = defineAsyncComponent(() => import('./components/ScheduledTasks.vue'), asyncOpts)
 const MacroRecorder = defineAsyncComponent(() => import('./components/MacroRecorder.vue'), asyncOpts)
+const Settings = defineAsyncComponent(() => import('./components/Settings.vue'), asyncOpts)
 const ConnectionDialog = defineAsyncComponent(() => import('./components/ConnectionDialog.vue'), asyncOpts)
 const UpdateNotifier = defineAsyncComponent(() => import('./components/UpdateNotifier.vue'), asyncOpts)
 const ShortcutHelp = defineAsyncComponent(() => import('./components/ShortcutHelp.vue'), asyncOpts)
@@ -129,22 +148,6 @@ const editingConnection = ref(null)
 const viewMode = ref('terminal')
 const toastRef = ref(null)
 
-const viewModes = [
-  { value: 'terminal', label: '⌨️ 终端' },
-  { value: 'sftp', label: '📁 文件' },
-  { value: 'batch', label: '⚡ 批量' },
-  { value: 'monitor', label: '📊 监控' },
-  { value: 'speed', label: '🚀 测速' },
-  { value: 'recorder', label: '⏺ 录制' },
-  { value: 'notes', label: '📝 笔记' },
-  { value: 'bookmarks', label: '🔖 书签' },
-  { value: 'proxy', label: '🌐 代理' },
-  { value: 'commands', label: '⚡ 命令' },
-  { value: 'forward', label: '🔗 转发' },
-  { value: 'tasks', label: '⏰ 定时' },
-  { value: 'macro', label: '🎯 宏' },
-]
-
 function showToast(msg, type = 'info') { toastRef.value?.show(msg, type) }
 
 function onEditConnection(conn) { editingConnection.value = conn; showAddConnection.value = true }
@@ -165,18 +168,12 @@ let _cleanupShortcutChanged = null
 let _cleanupBeforeUnload = null
 
 onMounted(async () => {
-  // Wire up toast callback so the composable can show notifications
   setToast(showToast)
-
-  // Mark app as ready to show (prevent FOUC)
   document.getElementById('app')?.classList.add('ready')
 
-  // Restore theme from localStorage
   const savedTheme = localStorage.getItem('xterminal-theme') || 'dark'
   document.documentElement.setAttribute('data-theme', savedTheme)
 
-  // Restore persisted application state. Window geometry is handled by the
-  // official Tauri window-state plugin in the desktop runtime.
   await loadConnections()
   loadTabsState()
 
@@ -184,29 +181,27 @@ onMounted(async () => {
   window.addEventListener('beforeunload', handleBeforeUnload)
   _cleanupBeforeUnload = handleBeforeUnload
 
-  // Global keyboard shortcuts (支持自定义快捷键)
   const setupGlobalShortcuts = () => {
     const handlers = []
 
-    // 新建标签
     const newTabKey = parseShortcut(getShortcut('新建标签'))
     handlers.push((e) => { if (newTabKey(e)) { openLocalTerminal(); e.preventDefault() } })
 
-    // 关闭标签
     const closeTabKey = parseShortcut(getShortcut('关闭标签'))
     handlers.push((e) => { if (closeTabKey(e) && activeTabId.value) { closeTab(activeTabId.value); e.preventDefault() } })
 
-    // 切换侧边栏
     const toggleSidebarKey = parseShortcut(getShortcut('切换侧边栏') || 'Ctrl+B')
     handlers.push((e) => { if (toggleSidebarKey(e)) { sidebarOpen.value = !sidebarOpen.value; e.preventDefault() } })
 
-    // 全屏
     const fullscreenKey = parseShortcut(getShortcut('全屏'))
     handlers.push((e) => { if (fullscreenKey(e)) { toggleFullscreen(); e.preventDefault() } })
 
-    // 帮助
     const helpKey = parseShortcut(getShortcut('帮助') || '?')
-    handlers.push((e) => { if (helpKey(e) && !e.ctrlKey && !e.altKey && !['INPUT','TEXTAREA'].includes(e.target.tagName)) { showShortcuts.value = !showShortcuts.value } })
+    handlers.push((e) => {
+      if (helpKey(e) && !e.ctrlKey && !e.altKey && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+        showShortcuts.value = !showShortcuts.value
+      }
+    })
 
     return handlers
   }
@@ -218,17 +213,14 @@ onMounted(async () => {
   }
   document.addEventListener('keydown', handleKeydown)
 
-  // 监听快捷键变化
   const handleShortcutChanged = () => {
     shortcutHandlers = setupGlobalShortcuts()
   }
   window.addEventListener('shortcut-changed', handleShortcutChanged)
 
-  // Save references for cleanup
   _cleanupKeydown = handleKeydown
   _cleanupShortcutChanged = handleShortcutChanged
 
-  // Start latency polling
   startPingPolling()
 })
 
@@ -239,3 +231,11 @@ onUnmounted(() => {
   if (_cleanupBeforeUnload) window.removeEventListener('beforeunload', _cleanupBeforeUnload)
 })
 </script>
+
+<style scoped>
+.workspace-bar {
+  min-width: 0;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+</style>
