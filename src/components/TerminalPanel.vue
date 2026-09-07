@@ -8,7 +8,7 @@
 
     <!-- Connection Failed Banner -->
     <div v-if="connectFailed" class="h-8 flex items-center justify-between px-3" style="background: rgba(220, 38, 38, 0.1); border-bottom: 2px solid var(--danger);">
-      <span class="text-xs font-medium" style="color: var(--danger);">🔴 连接失败</span>
+      <span class="text-xs font-medium" style="color: var(--danger);">连接失败</span>
       <button @click="retryConnection" class="px-3 py-0.5 text-xs rounded" style="background: var(--danger); color: white;">重试</button>
     </div>
 
@@ -17,6 +17,7 @@
       <div ref="containerRef" class="flex-1 overflow-hidden" :style="splitMode ? { width: splitLeftWidth + '%' } : {}" />
       <div v-if="splitMode" class="w-1 cursor-col-resize hover:bg-blue-500/50 transition-colors flex-shrink-0" @mousedown="startSplitResize" />
       <div v-if="splitMode" ref="splitContainerRef" class="flex-1 overflow-hidden" style="border-left: 1px solid var(--border-subtle);" />
+
       <!-- Connecting Overlay -->
       <div v-if="connecting" class="absolute inset-0 flex items-center justify-center z-20" style="background: color-mix(in srgb, var(--bg-base) 80%, transparent);">
         <div class="flex flex-col items-center gap-3">
@@ -24,12 +25,39 @@
           <div class="text-sm" style="color: var(--fg-muted);">正在连接...</div>
         </div>
       </div>
+
+      <!-- First-use Host Key Confirmation -->
+      <div v-if="hostKeyPrompt" class="absolute inset-0 z-30 flex items-center justify-center p-6" style="background: color-mix(in srgb, var(--bg-base) 92%, transparent);">
+        <div class="w-full max-w-lg rounded-xl p-5 shadow-2xl" style="background: var(--bg-elevated); border: 1px solid var(--border);">
+          <div class="text-sm font-semibold mb-1" style="color: var(--fg-primary);">首次连接：确认服务器身份</div>
+          <div class="text-xs mb-4" style="color: var(--fg-muted);">
+            {{ hostKeyTarget(hostKeyPrompt) }} 尚未记录在 known_hosts。请核对服务器指纹后再继续。
+          </div>
+          <div class="space-y-2 text-xs">
+            <div class="flex gap-3">
+              <span class="w-16 shrink-0" style="color: var(--fg-muted);">算法</span>
+              <span class="font-mono" style="color: var(--fg-secondary);">{{ hostKeyPrompt.algorithm }}</span>
+            </div>
+            <div class="flex gap-3 items-start">
+              <span class="w-16 shrink-0" style="color: var(--fg-muted);">SHA256</span>
+              <code class="font-mono break-all select-text" style="color: var(--fg-primary);">{{ hostKeyPrompt.fingerprint }}</code>
+            </div>
+          </div>
+          <div class="mt-4 text-xs" style="color: var(--warning);">
+            无法确认指纹时不要继续。确认后该主机密钥会写入 ~/.ssh/known_hosts。
+          </div>
+          <div class="mt-5 flex justify-end gap-2">
+            <button @click="cancelHostKeyTrust" class="px-3 py-1.5 text-xs rounded" style="background: var(--bg-hover); color: var(--fg-secondary);">取消</button>
+            <button @click="confirmHostKeyTrust" class="px-3 py-1.5 text-xs rounded" style="background: var(--accent); color: white;">信任并连接</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Quick Actions -->
     <div v-if="active" class="absolute bottom-8 right-2 flex gap-1 z-10">
-      <button @click="toggleSearch" class="w-7 h-7 rounded text-xs flex items-center justify-center" style="background: var(--bg-elevated); color: var(--fg-secondary); hover:background: var(--bg-hover);" title="搜索 (Ctrl+Shift+F)">🔍</button>
-      <button @click="toggleSplit" class="w-7 h-7 rounded text-xs flex items-center justify-center" :style="splitMode ? 'background: var(--accent); color: white;' : 'background: var(--bg-elevated); color: var(--fg-secondary); hover:background: var(--bg-hover);'" title="分屏">⊞</button>
+      <button @click="toggleSearch" class="w-7 h-7 rounded text-xs flex items-center justify-center hover:bg-white/5" style="background: var(--bg-elevated); color: var(--fg-secondary);" title="搜索 (Ctrl+Shift+F)">🔍</button>
+      <button @click="toggleSplit" class="w-7 h-7 rounded text-xs flex items-center justify-center hover:bg-white/5" :style="splitMode ? 'background: var(--accent); color: white;' : 'background: var(--bg-elevated); color: var(--fg-secondary);'" title="分屏">⊞</button>
     </div>
 
     <!-- Toast -->
@@ -38,13 +66,15 @@
 </template>
 
 <script setup>
-import { STORAGE_KEYS } from "@/utils/storage-keys.js"
+import { STORAGE_KEYS } from '@/utils/storage-keys.js'
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { invoke, listen, isTauri } from '../utils/tauri.js'
+import { loadCredential } from '../utils/credentials.js'
+import { hostKeyTarget, parseHostKeyError } from '../utils/ssh-host-key.js'
 import { parseShortcut, getShortcut } from '../utils/shortcuts.js'
 import { useSplitResize } from '../composables/useSplitResize.js'
 import { themes } from '@/utils/themes.js'
@@ -61,8 +91,11 @@ const searchInput = ref(null)
 const showSearch = ref(false)
 const searchTerm = ref('')
 const splitMode = ref(false)
-const splitLeftWidth = ref(50) // percentage for resizable split
+const splitLeftWidth = ref(50)
 const connecting = ref(false)
+const connectFailed = ref(false)
+const hostKeyPrompt = ref(null)
+const pendingHostKeyReconnect = ref(false)
 
 // Toast
 const toast = ref({ show: false, message: '', type: 'info' })
@@ -84,16 +117,16 @@ let splitFitAddon = null
 let searchAddon = null
 let resizeObserver = null
 let shellId = null
+let sessionKind = null
 let isConnected = false
-let connectFailed = ref(false)
 let unlisten = null
+let inputDisposable = null
 let reconnectAttempts = 0
 const MAX_RECONNECT = 3
 let idleTimer = null
 let lastActivity = Date.now()
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000
 
-// 获取当前主题
 function getTheme() {
   const themeName = localStorage.getItem(STORAGE_KEYS.THEME) || 'dark'
   return themes[themeName] || themes.dark
@@ -107,9 +140,11 @@ function createTerminal(container) {
   const fontSize = parseInt(localStorage.getItem(STORAGE_KEYS.FONT_SIZE)) || 14
   const scrollback = parseInt(localStorage.getItem(STORAGE_KEYS.SCROLLBACK)) || 10000
   const t = new Terminal({
-    cursorBlink: true, fontSize,
+    cursorBlink: true,
+    fontSize,
     fontFamily: "'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-    theme: theme.value, scrollback,
+    theme: theme.value,
+    scrollback,
   })
   const fit = new FitAddon()
   const search = new SearchAddon()
@@ -134,21 +169,19 @@ async function initTerminal() {
   if (isLocal) {
     connectFailed.value = false
     if (isTauri) {
-      // Real local shell via portable-pty
       await startLocalShell(term)
     } else {
-      // Browser fallback
       connecting.value = false
+      sessionKind = 'browser'
       showWelcome(term, '浏览器模式')
       term.write('\r\n\x1b[1;32m$ \x1b[0m')
       isConnected = true
-      term.onData((data) => handleLocalInput(term, data))
+      inputDisposable = term.onData((data) => handleLocalInput(term, data))
     }
   } else {
     await startPtyShell(term, conn)
   }
 
-  // Auto-copy on selection
   term.onSelectionChange(() => {
     const selected = term.getSelection()
     if (selected) {
@@ -158,22 +191,16 @@ async function initTerminal() {
     }
   })
 
-  // Right-click paste
   containerRef.value.addEventListener('contextmenu', handleContextmenu)
 
-  //获取快捷键
   const searchKey = parseShortcut(getShortcut('搜索'))
-  const clearKey = parseShortcut(getShortcut('清屏'))
-  
-  // Keyboard shortcuts
   term.attachCustomKeyEventHandler((e) => {
     if (searchKey(e)) { toggleSearch(); return false }
     if (e.ctrlKey && e.key === 'c' && term.hasSelection()) {
-      // Ctrl+C with selection → copy, not interrupt
       navigator.clipboard.writeText(term.getSelection()).catch(() => {})
       return false
     }
-    if (e.ctrlKey && e.key === 'v') return false // Let paste handler deal with it
+    if (e.ctrlKey && e.key === 'v') return false
     return true
   })
 
@@ -183,7 +210,8 @@ async function initTerminal() {
       if (shellId) {
         const dims = fitAddon.proposeDimensions()
         if (dims) {
-          invoke('ssh_shell_resize', { sessionId: shellId, cols: dims.cols, rows: dims.rows }).catch(() => {})
+          const command = sessionKind === 'local' ? 'local_resize' : 'ssh_shell_resize'
+          invoke(command, { sessionId: shellId, cols: dims.cols, rows: dims.rows }).catch(() => {})
         }
       }
     }
@@ -202,7 +230,7 @@ function showWelcome(t, mode) {
   t.writeln('')
 }
 
-// ─── Local Shell (real local PTY via portable-pty) ───
+// ─── Local Shell ───
 
 async function startLocalShell(t) {
   t.writeln('\x1b[1;33m启动本地 Shell...\x1b[0m')
@@ -210,30 +238,29 @@ async function startLocalShell(t) {
   try {
     const dims = fitAddon?.proposeDimensions() || { cols: 80, rows: 24 }
     shellId = await invoke('local_start_shell', { cols: dims.cols, rows: dims.rows })
+    sessionKind = 'local'
     isConnected = true
     reconnectAttempts = 0
     connecting.value = false
+    connectFailed.value = false
     t.writeln('\x1b[1;32m✓ 本地 Shell 已启动\x1b[0m')
     showToast('本地终端已启动', 'success')
     emit('connected', shellId)
 
-    // Listen for output
+    unlisten?.()
     unlisten = await listen(`local-output:${shellId}`, (event) => {
-      if (term && !term.disposed) {
-        term.write(event.payload)
-      }
-      if (event.payload.includes('[Shell 已退出]')) {
+      if (term && !term.disposed) term.write(event.payload)
+      if (String(event.payload).includes('[Shell 已退出]')) {
         isConnected = false
         emit('disconnected')
       }
     })
 
-    // Send input
-    t.onData(async (data) => {
+    inputDisposable?.dispose()
+    inputDisposable = t.onData(async (data) => {
       lastActivity = Date.now()
       if (shellId && isConnected) {
-        try { await invoke('local_shell_input', { sessionId: shellId, data }) }
-        catch { /* input failed silently */ }
+        try { await invoke('local_input', { sessionId: shellId, data }) } catch {}
       }
     })
   } catch (err) {
@@ -242,90 +269,117 @@ async function startLocalShell(t) {
     showToast('本地终端启动失败', 'error')
     connectFailed.value = true
     isConnected = false
+    sessionKind = null
   }
 }
 
-// ─── PTY Shell (real interactive terminal) ───
+// ─── PTY Shell ───
 
-async function startPtyShell(t, conn, isReconnect = false) {
-  if (!isReconnect) {
+async function startPtyShell(t, conn, isReconnect = false, trustNewHostKey = false) {
+  if (!isReconnect && !trustNewHostKey) {
     t.writeln(`\x1b[1;33m正在连接 ${conn.username}@${conn.host}:${conn.port || 22}...\x1b[0m`)
   }
   connecting.value = true
+  hostKeyPrompt.value = null
 
   try {
-    // Get terminal dimensions
     const dims = fitAddon?.proposeDimensions() || { cols: 80, rows: 24 }
+    const secret = conn.id ? await loadCredential(conn.id) : ''
 
-    // Start PTY shell
     shellId = await invoke('ssh_start_shell', {
       host: conn.host,
       port: conn.port || 22,
       username: conn.username,
-      password: conn.password || '',
+      password: conn.authType === 'password' ? secret : '',
       keyPath: conn.keyPath || null,
-      passphrase: conn.passphrase || null,
+      passphrase: conn.authType === 'key' ? secret : null,
+      trustNewHostKey,
       cols: dims.cols,
       rows: dims.rows,
     })
 
+    sessionKind = 'ssh'
     isConnected = true
     reconnectAttempts = 0
     connecting.value = false
+    connectFailed.value = false
     t.writeln(`\x1b[1;32m✓ 已连接到 ${conn.host}\x1b[0m`)
     showToast('连接成功', 'success')
     emit('connected', shellId)
 
-    // Listen for shell output events
+    unlisten?.()
     unlisten = await listen(`ssh-output:${shellId}`, (event) => {
       if (term && !term.disposed) {
-        term.write(event.payload)
-        // Check for disconnect message
-        if (event.payload.includes('[Shell 已退出]') || event.payload.includes('[连接断开]')) {
+        const payload = String(event.payload)
+        term.write(payload)
+        if (payload.includes('[Shell 已退出]') || payload.includes('[连接断开]')) {
           isConnected = false
           emit('disconnected')
-          // Auto-reconnect
           if (reconnectAttempts < MAX_RECONNECT) {
             reconnectAttempts++
             term.writeln(`\r\n\x1b[1;33m正在重连 (${reconnectAttempts}/${MAX_RECONNECT})...\x1b[0m`)
-            setTimeout(() => startPtyShell(term, conn, true), 2000 * reconnectAttempts)
+            setTimeout(() => startPtyShell(term, conn, true, false), 2000 * reconnectAttempts)
           } else {
             term.writeln('\r\n\x1b[1;31m重连失败，请手动重新连接\x1b[0m')
+            connectFailed.value = true
           }
         }
       }
-      // Reset idle timer on any output
       lastActivity = Date.now()
     })
 
-    // Send user input to PTY shell
-    t.onData(async (data) => {
-      lastActivity = Date.now() // Reset idle timer
-      console.log('[TerminalPanel] onData fired, shellId=', shellId, 'isConnected=', isConnected, 'dataLen=', data?.length)
+    inputDisposable?.dispose()
+    inputDisposable = t.onData(async (data) => {
+      lastActivity = Date.now()
       if (shellId && isConnected) {
-        try {
-          console.log('[TerminalPanel] invoke ssh_shell_input...')
-          await invoke('ssh_shell_input', { sessionId: shellId, data })
-          console.log('[TerminalPanel] invoke ssh_shell_input OK')
-        } catch (e) {
-          console.error('[TerminalPanel] ssh_shell_input FAILED:', e)
-        }
-      } else {
-        console.log('[TerminalPanel] onData skipped: no shellId or not connected')
+        try { await invoke('ssh_shell_input', { sessionId: shellId, data }) } catch {}
       }
     })
-
   } catch (err) {
     connecting.value = false
+    isConnected = false
+    sessionKind = null
+
+    const hostKeyError = parseHostKeyError(err)
+    if (hostKeyError?.code === 'HOST_KEY_UNKNOWN') {
+      hostKeyPrompt.value = hostKeyError
+      pendingHostKeyReconnect.value = isReconnect
+      connectFailed.value = false
+      return
+    }
+
+    if (hostKeyError?.code === 'HOST_KEY_MISMATCH') {
+      t.writeln(`\x1b[1;31m✗ 主机密钥已变化，已拒绝连接：${hostKeyTarget(hostKeyError)}\x1b[0m`)
+      t.writeln(`\x1b[1;31m  当前指纹：${hostKeyError.fingerprint}\x1b[0m`)
+      showToast('主机密钥已变化，连接已拒绝', 'error', 4000)
+      connectFailed.value = true
+      return
+    }
+
     t.writeln(`\x1b[1;31m✗ 连接失败: ${err}\x1b[0m`)
     showToast('连接失败', 'error')
     connectFailed.value = true
-    // Fallback to local mode
-    isConnected = false
   }
 }
 
-// ─── Local/Fallback Input Handler ───
+async function confirmHostKeyTrust() {
+  const conn = props.tab?.connection
+  if (!conn || !term) return
+  const isReconnect = pendingHostKeyReconnect.value
+  hostKeyPrompt.value = null
+  await startPtyShell(term, conn, isReconnect, true)
+}
+
+function cancelHostKeyTrust() {
+  if (hostKeyPrompt.value && term) {
+    term.writeln(`\x1b[1;33m未信任 ${hostKeyTarget(hostKeyPrompt.value)}，连接已取消。\x1b[0m`)
+  }
+  hostKeyPrompt.value = null
+  pendingHostKeyReconnect.value = false
+  connectFailed.value = true
+}
+
+// ─── Browser fallback input ───
 
 let localBuffer = ''
 let commandHistory = []
@@ -351,7 +405,6 @@ function handleLocalInput(t, data) {
     t.clear(); localBuffer = ''
     if (isConnected) t.write('\x1b[1;32m$ \x1b[0m')
   } else if (data === '\x1b[A') {
-    // Up arrow - history
     if (commandHistory.length > 0 && historyIndex > 0) {
       historyIndex--
       while (localBuffer.length > 0) { t.write('\b \b'); localBuffer = localBuffer.slice(0, -1) }
@@ -359,7 +412,6 @@ function handleLocalInput(t, data) {
       t.write(localBuffer)
     }
   } else if (data === '\x1b[B') {
-    // Down arrow - history
     if (historyIndex < commandHistory.length - 1) {
       historyIndex++
       while (localBuffer.length > 0) { t.write('\b \b'); localBuffer = localBuffer.slice(0, -1) }
@@ -370,7 +422,8 @@ function handleLocalInput(t, data) {
       while (localBuffer.length > 0) { t.write('\b \b'); localBuffer = localBuffer.slice(0, -1) }
     }
   } else if (data >= ' ') {
-    localBuffer += data; t.write(data)
+    localBuffer += data
+    t.write(data)
   }
 }
 
@@ -408,7 +461,8 @@ function toggleSplit() {
     nextTick(() => {
       if (splitContainerRef.value && !splitTerm) {
         const { term: st, fit: sf } = createTerminal(splitContainerRef.value)
-        splitTerm = st; splitFitAddon = sf
+        splitTerm = st
+        splitFitAddon = sf
         showWelcome(splitTerm, '分屏')
         splitTerm.write('\x1b[1;32m$ \x1b[0m')
         splitTerm.onData((data) => handleLocalInput(splitTerm, data))
@@ -416,16 +470,18 @@ function toggleSplit() {
       setTimeout(() => { safeFit(); splitFitAddon?.fit() }, 50)
     })
   } else {
-    splitTerm?.dispose(); splitTerm = null; splitFitAddon = null
+    splitTerm?.dispose()
+    splitTerm = null
+    splitFitAddon = null
     nextTick(() => safeFit())
   }
 }
 
-// ─── Split Resize ───
 function startSplitResize(e) {
   const container = e.target.parentElement
   startResize(e, container, splitLeftWidth, () => {
-    safeFit(); splitFitAddon?.fit()
+    safeFit()
+    splitFitAddon?.fit()
   })
 }
 
@@ -437,23 +493,25 @@ watch(() => props.active, (active) => {
 
 function retryConnection() {
   connectFailed.value = false
-  term?.reset()
-  initTerminal()
+  hostKeyPrompt.value = null
+  const conn = props.tab?.connection
+  if (!term || !conn) return
+  if (conn.host === 'localhost') startLocalShell(term)
+  else startPtyShell(term, conn)
 }
 
-// ─── Named event handlers (for cleanup) ───
 async function handleContextmenu(e) {
   e.preventDefault()
   try {
     const text = await navigator.clipboard.readText()
-    if (text && shellId) {
-      invoke('ssh_shell_input', { sessionId: shellId, data: text })
-    }
+    if (!text || !shellId) return
+    const command = sessionKind === 'local' ? 'local_input' : 'ssh_shell_input'
+    await invoke(command, { sessionId: shellId, data: text })
   } catch {}
 }
 
 function handleStorage(e) {
-  if (e.key === 'xterminal-theme') {
+  if (e.key === STORAGE_KEYS.THEME) {
     theme.value = getTheme()
     if (term) term.options.theme = theme.value
     if (splitTerm) splitTerm.options.theme = theme.value
@@ -462,18 +520,18 @@ function handleStorage(e) {
 
 onMounted(() => {
   initTerminal()
-  // Idle timeout check every minute
   idleTimer = setInterval(() => {
     if (isConnected && shellId && Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
       term?.writeln('\r\n\x1b[1;33m[空闲超时 30 分钟，自动断开]\x1b[0m')
-      invoke('ssh_close_shell', { sessionId: shellId }).catch(() => {})
+      const command = sessionKind === 'local' ? 'local_close_shell' : 'ssh_close_shell'
+      invoke(command, { sessionId: shellId }).catch(() => {})
       isConnected = false
       shellId = null
+      sessionKind = null
       emit('disconnected')
     }
   }, 60000)
 
-  // 监听主题变化
   window.addEventListener('storage', handleStorage)
 })
 
@@ -481,13 +539,14 @@ onUnmounted(async () => {
   clearInterval(idleTimer)
   resizeObserver?.disconnect()
   unlisten?.()
+  inputDisposable?.dispose()
   containerRef.value?.removeEventListener('contextmenu', handleContextmenu)
   window.removeEventListener('storage', handleStorage)
   if (shellId) {
-    // Try both SSH and local close
-    await invoke('ssh_close_shell', { sessionId: shellId }).catch(() => {})
-    await invoke('local_close_shell', { sessionId: shellId }).catch(() => {})
+    const command = sessionKind === 'local' ? 'local_close_shell' : 'ssh_close_shell'
+    await invoke(command, { sessionId: shellId }).catch(() => {})
   }
-  splitTerm?.dispose(); term?.dispose()
+  splitTerm?.dispose()
+  term?.dispose()
 })
 </script>
