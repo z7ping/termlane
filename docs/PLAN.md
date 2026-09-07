@@ -43,23 +43,33 @@
 - [x] 评估 Split Resize：当前需求简单，保留本地实现
 - [x] 评估 xterm addons：无真实性能/兼容问题前不额外引入
 - [x] 评估 VueUse：当前不引入
-- [ ] 正式 updater 与签名发布链一起完成
-- [ ] Host Key 非 22 端口处理修正
-- [ ] Host Key 首次信任指纹确认交互
-- [ ] 清理本阶段剩余死代码 / 假完成能力
+- [x] Host Key 非 22 端口使用 `check_port` + `[host]:port`
+- [x] Host Key 首次未知主机改为算法 + SHA256 指纹显式确认
+- [x] Host Key mismatch 保持硬拒绝，不允许静默覆盖
+- [x] 删除假 ProxyJump 后端 command 与连接 UI，不再把它作为 1.0 已完成能力
+- [x] 清理 Tab / localStorage 中的明文 password / passphrase 持久化
+- [x] 历史 `xterminal-pwd_*` 明文凭证迁移到安全后端后删除
+- [x] 桌面凭证边界统一为 OS Keyring；浏览器仅保留 AES-GCM 开发 fallback
+- [x] 关闭 `withGlobalTauri`，改用官方 `@tauri-apps/api` ESM
+- [x] 建立 GitHub Actions 前端 + Rust 质量门禁
+- [ ] 删除确认无使用的遗留依赖 / 注释并同步 lockfile
+- [ ] 当前 CI 全部通过
 
-### 已确认的重要问题
+### 转移到发布基线（#3）
 
-#### 跳板机不是实际 ProxyJump
+以下工作依赖正式发布流水线或真实桌面/安装环境，不在 #1 里做半成品：
 
-当前 `ssh_connect_jump` 只验证跳板机可以连到目标机，随后客户端仍直接连接目标机。
+- [ ] Tauri 正式签名 updater（artifact、签名、公钥、endpoint、安装/回滚）
+- [ ] npm / Rust 依赖安全公告逐项清零或形成明确接受记录
+- [ ] 真实桌面 SSH / SFTP / PTY / 安装包验证
 
-因此：
+### ProxyJump 决策
 
-- [ ] 1.0 前真正实现 ProxyJump；或
-- [ ] 从 1.0 正式支持能力中移除。
+历史实现并没有通过跳板通道建立目标 SSH Session，因此已经从当前分支删除，不再保留“看似可用”的入口。
 
-禁止继续把现有实现标记为“跳板机已完成”。
+1.0 当前决策：**不宣称支持 ProxyJump。**
+
+后续若重新实现，需要选择真正支持 session-over-channel 的 SSH 技术路线，并单独完成安全、兼容性和资源生命周期设计；不为一个功能同时维护两套半成熟 SSH 栈。
 
 ---
 
@@ -87,8 +97,9 @@
 
 - [ ] 密码认证真实验证
 - [ ] 密钥认证真实验证
-- [ ] Host Key 信任模型发布级收口
-- [ ] 跳板机能力按真实实现重新验收
+- [ ] 首次 Host Key 指纹确认真实桌面验证
+- [ ] Host Key mismatch / 非 22 端口真实验证
+- [x] 1.0 能力边界不再包含假 ProxyJump
 - [ ] PTY 创建 / 输入 / resize / 关闭 / 异常退出验证
 - [ ] 自动重连验证
 - [ ] 多标签与资源释放验证
@@ -105,6 +116,7 @@
 
 ### 测试
 
+- [x] GitHub Actions CI 已建立
 - [ ] `npm test`
 - [ ] `npm run test:smoke`
 - [ ] `npx vue-tsc --noEmit`
@@ -112,6 +124,8 @@
 - [ ] `cargo check`
 - [ ] `cargo test`
 - [ ] 建立关键桌面流程集成 / E2E 验证
+
+> CI 中某命令只有最新目标分支 run 通过后才在这里标记完成；不按历史成功片段提前勾选。
 
 ### 性能
 
@@ -147,6 +161,7 @@
 - 无真实字符宽度问题就增加 Unicode addon
 - 新增更多一级功能入口
 - 扩展 AI、插件市场或其他大型功能面
+- 在没有明确技术路线时恢复 ProxyJump 入口
 
 ---
 
