@@ -300,7 +300,12 @@ import { useFileSelection } from '../composables/useFileSelection.js'
 import { useSplitResize } from '../composables/useSplitResize.js'
 import VirtualList from './VirtualList.vue'
 
-const props = defineProps({ connection: Object, sessionId: String, active: Boolean })
+const props = defineProps({
+  connection: Object,
+  sessionId: String,
+  active: Boolean,
+  navigationTarget: Object,
+})
 const { startResize } = useSplitResize()
 
 const toastState = ref({ show: false, message: '', type: 'info' })
@@ -362,6 +367,7 @@ const editFile = ref({ path: '', content: '', dirty: false })
 const showInlineEditor = ref(false)
 const savingEdit = ref(false)
 const ctxMenu = ref({ show: false, x: 0, y: 0, file: null })
+let appliedNavigationRequestId = null
 
 const { onClick: onLocalClick, onDragStart: onLocalDragStart } = useFileSelection(selectedLocalSet, localFiles, {
   dragSource: 'local',
@@ -484,6 +490,19 @@ async function loadRemote() {
   } finally {
     remoteLoading.value = false
   }
+}
+
+async function applyNavigationTarget() {
+  const target = props.navigationTarget
+  if (!props.sessionId || !target?.path) return false
+  if (target.requestId && target.requestId === appliedNavigationRequestId) return true
+
+  showInlineEditor.value = false
+  editFile.value = { path: '', content: '', dirty: false }
+  remotePath.value = target.path
+  await loadRemote()
+  appliedNavigationRequestId = target.requestId || null
+  return true
 }
 
 function onLocalDblClick(file) {
@@ -814,6 +833,11 @@ onMounted(async () => {
   localPath.value = await resolveInitialLocalPath()
   await loadLocal()
   window.addEventListener('keydown', handleGlobalKeydown)
+
+  if (props.sessionId) {
+    const navigated = await applyNavigationTarget()
+    if (!navigated) await loadRemote()
+  }
 })
 
 onUnmounted(() => {
@@ -823,12 +847,21 @@ onUnmounted(() => {
   confirmResolveFn?.(false)
 })
 
+watch(() => props.navigationTarget, async () => {
+  await applyNavigationTarget()
+})
+
 watch(() => props.sessionId, async sessionId => {
-  remotePath.value = '/'
   showInlineEditor.value = false
   editFile.value = { path: '', content: '', dirty: false }
-  if (sessionId) await loadRemote()
-  else {
+  if (sessionId) {
+    const navigated = await applyNavigationTarget()
+    if (!navigated) {
+      remotePath.value = '/'
+      await loadRemote()
+    }
+  } else {
+    remotePath.value = '/'
     remoteFiles.value = []
     remoteError.value = ''
     clearRemoteSelection()
