@@ -1,53 +1,21 @@
 use crate::utils::*;
 // ssh.rs - SSH connection management with PTY shell support
 
-use serde::{Deserialize, Serialize};
 use ssh2::{CheckResult, ErrorCode, HashType, HostKeyType, KnownHostFileKind, KnownHostKeyFormat, Session};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 
-use crate::utils;
-
-// ─── Types ───
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SshSession {
-    pub id: String,
-    pub host: String,
-    pub port: u16,
-    pub username: String,
-    pub connected: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MonitorData {
-    pub cpu_usage: f64,
-    pub memory_total: u64,
-    pub memory_used: u64,
-    pub memory_percent: f64,
-    pub disk_total: u64,
-    pub disk_used: u64,
-    pub disk_percent: f64,
-    pub load_1: f64,
-    pub load_5: f64,
-    pub load_15: f64,
-    pub uptime_seconds: u64,
-}
-
 // ─── State ───
 
-/// Exec-based sessions (legacy, one-shot commands)
+/// Short-lived authenticated sessions used by the connection-test flow.
 static SESSIONS: std::sync::LazyLock<Mutex<HashMap<String, Session>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
-static SESSION_INFO: std::sync::LazyLock<Mutex<HashMap<String, SshSession>>> =
-    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
-
-/// PTY shell sessions: session_id → PtyShell handle
+/// PTY shell sessions: session_id → PtyShell handle.
 struct PtyShell {
     input_tx: crossbeam_channel::Sender<String>,
     resize_tx: crossbeam_channel::Sender<(u16, u16)>,
@@ -58,11 +26,22 @@ static PTY_SHELLS: std::sync::LazyLock<Mutex<HashMap<String, PtyShell>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Authenticated SSH Session objects backing interactive PTY shells.
-/// Additional exec/SFTP channels reuse the same SSH transport and credentials.
+/// SFTP channels reuse the same transport and credentials.
 static PTY_SESSIONS: std::sync::LazyLock<Mutex<HashMap<String, Session>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
+static SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
 // ─── Helpers ───
+
+fn new_session_id(kind: &str) -> String {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let sequence = SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!("ssh-{}-{:x}-{:x}", kind, timestamp, sequence)
+}
 
 fn known_host_entry(host: &str, port: u16) -> String {
     if port == 22 {
@@ -151,57 +130,32 @@ fn session_handle(session_id: &str) -> Option<Session> {
     lock!(PTY_SESSIONS).get(session_id).cloned()
 }
 
-fn execute_blocking_session(session: &Session, command: &str) -> Result<String, String> {
-    let mut channel = session.channel_session().map_err(|e| e.to_string())?;
-    channel.exec(command).map_err(|e| e.to_string())?;
-    let mut output = String::new();
-    channel
-        .read_to_string(&mut output)
-        .map_err(|e| format!("读取远程命令输出失败: {}", e))?;
-    channel.wait_close().map_err(|e| e.to_string())?;
-    let exit = channel.exit_status().unwrap_or(-1);
-    Ok(format!("{}\n[exit: {}]", output, exit))
-}
-
-fn execute_nonblocking_session(session: &Session, command: &str) -> Result<String, String> {
-    let mut channel = retry_nonblocking_ssh("创建远程命令通道", || session.channel_session())?;
-    retry_nonblocking_ssh("启动远程命令", || channel.exec(command))?;
-
+fn write_channel_all(channel: &mut ssh2::Channel, data: &[u8]) -> Result<(), String> {
     let started = std::time::Instant::now();
-    let mut output = Vec::new();
-    let mut buffer = [0u8; PTY_BUF_SIZE];
+    let mut written = 0usize;
 
-    loop {
-        match channel.read(&mut buffer) {
-            Ok(0) if channel.eof() => break,
-            Ok(0) => {
-                if started.elapsed() >= std::time::Duration::from_secs(READ_TIMEOUT_SECS) {
-                    return Err("读取远程命令输出超时".to_string());
-                }
+    while written < data.len() {
+        match channel.write(&data[written..]) {
+            Ok(0) => return Err("SSH 输入通道未写入任何数据".to_string()),
+            Ok(count) => written += count,
+            Err(error)
+                if (error.kind() == std::io::ErrorKind::WouldBlock
+                    || error.kind() == std::io::ErrorKind::TimedOut)
+                    && started.elapsed() < std::time::Duration::from_secs(READ_TIMEOUT_SECS) =>
+            {
                 std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_FAST_MS));
             }
-            Ok(read) => output.extend_from_slice(&buffer[..read]),
             Err(error)
                 if error.kind() == std::io::ErrorKind::WouldBlock
                     || error.kind() == std::io::ErrorKind::TimedOut =>
             {
-                if channel.eof() {
-                    break;
-                }
-                if started.elapsed() >= std::time::Duration::from_secs(READ_TIMEOUT_SECS) {
-                    return Err("读取远程命令输出超时".to_string());
-                }
-                std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_FAST_MS));
+                return Err("SSH 输入写入超时".to_string());
             }
-            Err(error) => return Err(format!("读取远程命令输出失败: {}", error)),
+            Err(error) => return Err(format!("SSH 输入写入失败: {}", error)),
         }
     }
 
-    retry_nonblocking_ssh("关闭远程命令通道", || channel.wait_close())?;
-    let exit = retry_nonblocking_ssh("读取远程命令退出状态", || channel.exit_status())
-        .unwrap_or(-1);
-    let output = String::from_utf8_lossy(&output).into_owned();
-    Ok(format!("{}\n[exit: {}]", output, exit))
+    Ok(())
 }
 
 /// Create an SSH session from a TCP stream and verify the remote host key
@@ -287,7 +241,7 @@ fn create_session(
     Ok(session)
 }
 
-// ─── Exec-based API (legacy, one-shot commands) ───
+// ─── Connection test API ───
 
 pub async fn connect(
     host: &str,
@@ -296,15 +250,7 @@ pub async fn connect(
     password: &str,
     trust_new_host_key: bool,
 ) -> Result<String, String> {
-    let addr: std::net::SocketAddr = format!("{}:{}", host, port)
-        .parse()
-        .map_err(|e| format!("地址无效: {}", e))?;
-    let tcp = TcpStream::connect_timeout(
-        &addr,
-        std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS),
-    )
-    .map_err(|e| format!("连接失败: {}", e))?;
-
+    let tcp = connect_tcp(host, port, CONNECT_TIMEOUT_SECS)?;
     let session = create_session(tcp, host, port, trust_new_host_key)?;
 
     let mut auth_err = String::new();
@@ -335,17 +281,7 @@ pub async fn connect(
         return Err(detail);
     }
 
-    let id = format!("ssh-exec-{}-{}", host.replace('.', "_"), utils::unix_now());
-    lock!(SESSION_INFO).insert(
-        id.clone(),
-        SshSession {
-            id: id.clone(),
-            host: host.into(),
-            port,
-            username: username.into(),
-            connected: true,
-        },
-    );
+    let id = new_session_id("test");
     lock!(SESSIONS).insert(id.clone(), session);
     Ok(id)
 }
@@ -358,14 +294,7 @@ pub async fn connect_with_key(
     passphrase: &str,
     trust_new_host_key: bool,
 ) -> Result<String, String> {
-    let addr: std::net::SocketAddr = format!("{}:{}", host, port)
-        .parse()
-        .map_err(|e| format!("地址无效: {}", e))?;
-    let tcp = TcpStream::connect_timeout(
-        &addr,
-        std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS),
-    )
-    .map_err(|e| format!("连接失败: {}", e))?;
+    let tcp = connect_tcp(host, port, CONNECT_TIMEOUT_SECS)?;
     let session = create_session(tcp, host, port, trust_new_host_key)?;
     if passphrase.is_empty() {
         session
@@ -389,28 +318,10 @@ pub async fn connect_with_key(
     if !session.authenticated() {
         return Err("密钥认证失败".into());
     }
-    let id = format!("ssh-exec-{}-{}", host.replace('.', "_"), utils::unix_now());
-    lock!(SESSION_INFO).insert(
-        id.clone(),
-        SshSession {
-            id: id.clone(),
-            host: host.into(),
-            port,
-            username: username.into(),
-            connected: true,
-        },
-    );
+
+    let id = new_session_id("test");
     lock!(SESSIONS).insert(id.clone(), session);
     Ok(id)
-}
-
-pub async fn execute(session_id: &str, command: &str) -> Result<String, String> {
-    let session = session_handle(session_id).ok_or_else(|| "会话不存在".to_string())?;
-    if session.is_blocking() {
-        execute_blocking_session(&session, command)
-    } else {
-        execute_nonblocking_session(&session, command)
-    }
 }
 
 pub fn open_sftp(session_id: &str) -> Result<ssh2::Sftp, String> {
@@ -424,15 +335,10 @@ pub fn open_sftp(session_id: &str) -> Result<ssh2::Sftp, String> {
 
 pub fn disconnect(session_id: &str) -> Result<(), String> {
     lock!(SESSIONS).remove(session_id);
-    lock!(SESSION_INFO).remove(session_id);
     Ok(())
 }
 
-pub fn list_sessions() -> Vec<SshSession> {
-    lock!(SESSION_INFO).values().cloned().collect()
-}
-
-// ─── PTY Shell API (real interactive shell) ───
+// ─── PTY Shell API ───
 
 pub fn start_shell(
     app: AppHandle,
@@ -446,15 +352,7 @@ pub fn start_shell(
     cols: u16,
     rows: u16,
 ) -> Result<String, String> {
-    let addr: std::net::SocketAddr = format!("{}:{}", host, port)
-        .parse()
-        .map_err(|e| format!("地址无效: {}", e))?;
-    let tcp = TcpStream::connect_timeout(
-        &addr,
-        std::time::Duration::from_secs(CONNECT_TIMEOUT_SECS),
-    )
-    .map_err(|e| format!("连接失败: {}", e))?;
-
+    let tcp = connect_tcp(host, port, CONNECT_TIMEOUT_SECS)?;
     let session = create_session(tcp, host, port, trust_new_host_key)?;
 
     let mut auth_err = String::new();
@@ -535,7 +433,7 @@ pub fn start_shell(
 
     session.set_blocking(false);
 
-    let session_id = format!("ssh-shell-{}-{}", host.replace('.', "_"), utils::unix_now());
+    let session_id = new_session_id("shell");
     let sid = session_id.clone();
 
     let (input_tx, input_rx) = crossbeam_channel::unbounded::<String>();
@@ -574,10 +472,10 @@ pub fn start_shell(
                     }
                     consecutive_empty += 1;
                 }
-                Err(_) => {
+                Err(error) => {
                     let _ = app_handle.emit(
                         &format!("ssh-output:{}", reader_sid),
-                        "\r\n\x1b[1;31m[连接断开]\x1b[0m\r\n",
+                        format!("\r\n\x1b[1;31m[连接断开] {}\x1b[0m\r\n", error),
                     );
                     break;
                 }
@@ -585,7 +483,7 @@ pub fn start_shell(
 
             while let Ok(input) = input_rx.try_recv() {
                 if input == "\x04" {
-                    channel.send_eof().ok();
+                    let _ = channel.send_eof();
                     let _ = app_handle.emit(
                         &format!("ssh-output:{}", reader_sid),
                         "\r\n\x1b[1;33m[Shell 已退出]\x1b[0m\r\n",
@@ -593,28 +491,17 @@ pub fn start_shell(
                     break 'shell;
                 }
 
-                let data = input.as_bytes();
-                let mut written = 0;
-                for _ in 0..10 {
-                    match channel.write(&data[written..]) {
-                        Ok(n) => {
-                            written += n;
-                            if written >= data.len() {
-                                break;
-                            }
-                        }
-                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_FAST_MS));
-                        }
-                        Err(_) => break,
-                    }
+                if let Err(error) = write_channel_all(&mut channel, input.as_bytes()) {
+                    let _ = app_handle.emit(
+                        &format!("ssh-output:{}", reader_sid),
+                        format!("\r\n\x1b[1;31m[连接断开] {}\x1b[0m\r\n", error),
+                    );
+                    break 'shell;
                 }
             }
 
             while let Ok((cols, rows)) = resize_rx.try_recv() {
-                channel
-                    .request_pty_size(cols as u32, rows as u32, None, None)
-                    .ok();
+                let _ = channel.request_pty_size(cols as u32, rows as u32, None, None);
             }
 
             if consecutive_empty > PTY_IDLE_THRESHOLD {
@@ -679,129 +566,6 @@ pub fn list_shells() -> Vec<String> {
     lock!(PTY_SHELLS).keys().cloned().collect()
 }
 
-// ─── Remote Command Execution (for monitoring) ───
-
-pub async fn get_monitor_data(session_id: &str) -> Result<MonitorData, String> {
-    let output = execute(
-        session_id,
-        "cat /proc/stat /proc/meminfo /proc/loadavg /proc/uptime && df -B1 / | tail -1",
-    )
-    .await?;
-    parse_monitor_data(&output)
-}
-
-fn parse_monitor_data(output: &str) -> Result<MonitorData, String> {
-    let mut cpu_total = 0u64;
-    let mut cpu_idle = 0u64;
-    let mut mem_total = 0u64;
-    let mut mem_available = 0u64;
-    let mut load_1 = 0.0f64;
-    let mut load_5 = 0.0f64;
-    let mut load_15 = 0.0f64;
-    let mut uptime_seconds = 0u64;
-    let mut disk_total = 0u64;
-    let mut disk_used = 0u64;
-
-    for line in output.lines() {
-        let line = line.trim();
-
-        if line.starts_with("cpu ") && cpu_total == 0 {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 6 {
-                let user: u64 = parts[1].parse().unwrap_or(0);
-                let nice: u64 = parts[2].parse().unwrap_or(0);
-                let system: u64 = parts[3].parse().unwrap_or(0);
-                cpu_idle = parts[4].parse().unwrap_or(0);
-                let iowait: u64 = parts[5].parse().unwrap_or(0);
-                cpu_total = user + nice + system + cpu_idle + iowait;
-            }
-        }
-
-        if line.starts_with("MemTotal:") {
-            mem_total = line
-                .split_whitespace()
-                .nth(1)
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(0)
-                * 1024;
-        }
-        if line.starts_with("MemAvailable:") {
-            mem_available = line
-                .split_whitespace()
-                .nth(1)
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(0)
-                * 1024;
-        }
-
-        if line.contains('.') && line.split_whitespace().count() >= 3 {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if let (Ok(l1), Ok(l5), Ok(l15)) = (
-                parts[0].parse::<f64>(),
-                parts[1].parse::<f64>(),
-                parts[2].parse::<f64>(),
-            ) {
-                if load_1 == 0.0 && l1 > 0.0 {
-                    load_1 = l1;
-                    load_5 = l5;
-                    load_15 = l15;
-                }
-            }
-        }
-
-        if line.contains('.') && line.split_whitespace().count() == 2 {
-            if let Some(first) = line.split_whitespace().next() {
-                if let Ok(uptime) = first.parse::<f64>() {
-                    if uptime > 1.0 && uptime_seconds == 0 {
-                        uptime_seconds = uptime as u64;
-                    }
-                }
-            }
-        }
-
-        if line.starts_with('/') {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 3 {
-                disk_total = parts[1].parse().unwrap_or(0);
-                disk_used = parts[2].parse().unwrap_or(0);
-            }
-        }
-    }
-
-    let cpu_usage = if cpu_total > 0 {
-        ((cpu_total - cpu_idle) as f64 / cpu_total as f64) * 100.0
-    } else {
-        0.0
-    };
-
-    let memory_used = mem_total.saturating_sub(mem_available);
-    let memory_percent = if mem_total > 0 {
-        (memory_used as f64 / mem_total as f64) * 100.0
-    } else {
-        0.0
-    };
-
-    let disk_percent = if disk_total > 0 {
-        (disk_used as f64 / disk_total as f64) * 100.0
-    } else {
-        0.0
-    };
-
-    Ok(MonitorData {
-        cpu_usage,
-        memory_total: mem_total,
-        memory_used,
-        memory_percent,
-        disk_total,
-        disk_used,
-        disk_percent,
-        load_1,
-        load_5,
-        load_15,
-        uptime_seconds,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -814,6 +578,11 @@ mod tests {
     #[test]
     fn test_known_host_entry_custom_port() {
         assert_eq!(known_host_entry("example.com", 2222), "[example.com]:2222");
+    }
+
+    #[test]
+    fn test_known_host_entry_ipv6_custom_port() {
+        assert_eq!(known_host_entry("2001:db8::1", 2222), "[2001:db8::1]:2222");
     }
 
     #[test]
@@ -849,80 +618,9 @@ mod tests {
     }
 
     #[test]
-    fn test_unix_now_returns_positive() {
-        let t = utils::unix_now();
-        assert!(t > 0, "utils::unix_now() should return a value > 0");
-        assert!(t > 1_577_836_800, "utils::unix_now() should be after 2020");
-    }
-
-    #[test]
-    fn test_ssh_session_serialize_deserialize() {
-        let session = SshSession {
-            id: "ssh_192_168_1_1_12345".into(),
-            host: "192.168.1.1".into(),
-            port: 22,
-            username: "root".into(),
-            connected: true,
-        };
-        let json = serde_json::to_string(&session).expect("serialize SshSession");
-        assert!(json.contains("192.168.1.1"));
-        assert!(json.contains("root"));
-
-        let back: SshSession = serde_json::from_str(&json).expect("deserialize SshSession");
-        assert_eq!(back.id, "ssh_192_168_1_1_12345");
-        assert_eq!(back.host, "192.168.1.1");
-        assert_eq!(back.port, 22);
-        assert_eq!(back.username, "root");
-        assert!(back.connected);
-    }
-
-    #[test]
-    fn test_monitor_data_deserialize() {
-        let json = r#"{
-            "cpuUsage": 25.5,
-            "memoryTotal": 8589934592,
-            "memoryUsed": 4294967296,
-            "memoryPercent": 50.0,
-            "diskTotal": 107374182400,
-            "diskUsed": 53687091200,
-            "diskPercent": 50.0,
-            "load1": 1.5,
-            "load5": 1.2,
-            "load15": 0.8,
-            "uptimeSeconds": 86400
-        }"#;
-        let data: MonitorData = serde_json::from_str(json).expect("deserialize MonitorData");
-        assert!((data.cpu_usage - 25.5).abs() < 0.01);
-        assert_eq!(data.memory_total, 8_589_934_592);
-        assert_eq!(data.uptime_seconds, 86400);
-    }
-
-    #[test]
-    fn test_parse_monitor_data() {
-        let output = r#"cpu  1000 100 500 3000 200 0 0 0 0 0
-cpu0 500 50 250 1500 100 0 0 0 0 0
-MemTotal:       16384000 kB
-MemAvailable:    8192000 kB
-0.50 0.30 0.20 1/500 12345
-123456.78 234567.89
-/dev/sda1 107374182400 53687091200 53687091200 50% /"#;
-        let data = parse_monitor_data(output).expect("parse_monitor_data");
-        assert!(data.cpu_usage > 0.0);
-        assert!(data.cpu_usage < 100.0);
-        assert_eq!(data.memory_total, 16_384_000 * 1024);
-        assert_eq!(data.memory_used, (16_384_000 - 8_192_000) * 1024);
-        assert!((data.load_1 - 0.50).abs() < 0.01);
-        assert!((data.load_5 - 0.30).abs() < 0.01);
-        assert!((data.load_15 - 0.20).abs() < 0.01);
-        assert!(data.uptime_seconds > 0);
-        assert_eq!(data.disk_total, 107_374_182_400);
-    }
-
-    #[test]
-    fn test_parse_monitor_data_empty() {
-        let data = parse_monitor_data("").expect("empty input should still return valid data");
-        assert_eq!(data.cpu_usage, 0.0);
-        assert_eq!(data.memory_total, 0);
-        assert_eq!(data.load_1, 0.0);
+    fn session_ids_do_not_collide() {
+        let first = new_session_id("shell");
+        let second = new_session_id("shell");
+        assert_ne!(first, second);
     }
 }
