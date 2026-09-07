@@ -1,48 +1,31 @@
 <template>
-  <div :key="errorKey">
+  <div :key="errorKey" class="h-full">
     <slot v-if="!hasError" />
-    <div v-else class="h-full flex items-center justify-center" style="background: var(--bg-base)">
-      <div class="text-center p-8">
-        <div class="text-5xl mb-4">😵</div>
-        <div class="text-lg mb-2" style="color: var(--fg-primary)">组件出错了</div>
-        <div class="text-sm mb-4" style="color: var(--fg-muted)">{{ errorMessage }}</div>
-        <button @click="reset" class="px-4 py-2 rounded text-sm" style="background: var(--accent); color: white">重试</button>
-      </div>
+    <div v-else class="error-state">
+      <CircleAlert :size="34" :stroke-width="1.5" />
+      <div class="error-title">当前视图加载失败</div>
+      <div class="error-message">{{ errorMessage }}</div>
+      <button type="button" @click="reset">
+        <RotateCcw :size="13" :stroke-width="1.8" />
+        <span>重试当前视图</span>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, onErrorCaptured } from 'vue'
+import { onErrorCaptured, ref } from 'vue'
+import { CircleAlert, RotateCcw } from 'lucide-vue-next'
 
 const hasError = ref(false)
 const errorMessage = ref('')
 const errorKey = ref(0)
 
-onErrorCaptured((err) => {
+onErrorCaptured(error => {
   hasError.value = true
-  errorMessage.value = err.message || '未知错误'
-  return false // Prevent propagation
-})
-
-function onGlobalError(e) {
-  hasError.value = true
-  errorMessage.value = e.message || '未捕获的错误'
-}
-
-function onUnhandledRejection(e) {
-  hasError.value = true
-  errorMessage.value = e.reason?.message || '未处理的 Promise 拒绝'
-}
-
-onMounted(() => {
-  window.addEventListener('error', onGlobalError)
-  window.addEventListener('unhandledrejection', onUnhandledRejection)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('error', onGlobalError)
-  window.removeEventListener('unhandledrejection', onUnhandledRejection)
+  errorMessage.value = error?.message || '未知组件错误'
+  console.error('[XTerminal] View render error:', error)
+  return false
 })
 
 function reset() {
@@ -51,3 +34,11 @@ function reset() {
   errorKey.value++
 }
 </script>
+
+<style scoped>
+.error-state { height: 100%; min-height: 240px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; background: var(--bg-base); color: var(--danger); text-align: center; }
+.error-title { color: var(--fg-primary); font-size: 14px; font-weight: 600; }
+.error-message { max-width: 520px; color: var(--fg-muted); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.error-state button { height: 30px; display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; padding: 0 10px; border: 0; border-radius: 6px; background: var(--bg-hover); color: var(--fg-secondary); font-size: 11px; }
+.error-state button:hover { color: var(--fg-primary); }
+</style>
