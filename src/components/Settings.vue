@@ -141,6 +141,7 @@
 
 <script setup>
 import { STORAGE_KEYS } from '@/utils/storage-keys.js'
+import { applyTheme, getStoredTheme } from '@/utils/theme-state'
 import { invoke } from '@/utils/tauri.js'
 import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
@@ -162,7 +163,7 @@ const themes = [
   { value: 'nord', label: 'Nord', icon: Snowflake },
 ]
 
-const currentTheme = ref(localStorage.getItem(STORAGE_KEYS.THEME) || 'dark')
+const currentTheme = ref(getStoredTheme())
 const appVersion = ref('')
 
 const settings = reactive({
@@ -179,7 +180,6 @@ const defaultShortcuts = [
   { name: '中断', key: 'Ctrl+C' },
   { name: '新建标签', key: 'Ctrl+T' },
   { name: '关闭标签', key: 'Ctrl+W' },
-  { name: '分屏', key: 'Ctrl+Shift+D' },
   { name: '全屏', key: 'F11' },
 ]
 
@@ -202,8 +202,7 @@ onMounted(async () => {
 
 function setTheme(value) {
   currentTheme.value = value
-  document.documentElement.setAttribute('data-theme', value)
-  localStorage.setItem(STORAGE_KEYS.THEME, value)
+  applyTheme(value)
 }
 
 function editShortcut(shortcut) {
