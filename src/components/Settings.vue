@@ -83,25 +83,13 @@
         </section>
 
         <section class="settings-section">
-          <h3 class="section-title">网络</h3>
-          <button type="button" class="action-row" @click="$emit('open-proxy-settings')">
-            <Globe :size="16" :stroke-width="1.8" />
-            <div class="flex-1 text-left">
-              <div class="setting-label">代理设置</div>
-              <div class="setting-description">配置应用网络代理</div>
-            </div>
-            <ChevronRight :size="15" :stroke-width="1.8" />
-          </button>
-        </section>
-
-        <section class="settings-section">
           <h3 class="section-title">关于</h3>
           <div class="about-card">
             <div class="flex items-center gap-2">
               <Info :size="16" :stroke-width="1.8" />
               <span class="setting-label">XTerminal Pro{{ appVersion ? ` v${appVersion}` : '' }}</span>
             </div>
-            <p>轻量级 SSH 终端 + SFTP + 多服务器管理工具。</p>
+            <p>轻量级 SSH 终端与远程文件管理工具。</p>
             <p>基于 Tauri v2、Vue 3 和 xterm.js。</p>
           </div>
         </section>
@@ -145,8 +133,6 @@ import { applyTheme, getStoredTheme } from '@/utils/theme-state'
 import { invoke } from '@/utils/tauri.js'
 import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
-  ChevronRight,
-  Globe,
   Info,
   Moon,
   Pencil,
@@ -154,8 +140,6 @@ import {
   Snowflake,
   Sun,
 } from 'lucide-vue-next'
-
-defineEmits(['open-proxy-settings'])
 
 const themes = [
   { value: 'dark', label: '暗色', icon: Moon },
@@ -285,8 +269,7 @@ function saveShortcut() {
 .setting-block,
 .setting-row,
 .shortcut-list,
-.about-card,
-.action-row {
+.about-card {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   background: var(--bg-surface);
@@ -441,23 +424,6 @@ function saveShortcut() {
 }
 
 .icon-button:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
-}
-
-.action-row {
-  width: 100%;
-  min-height: 54px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  color: var(--fg-muted);
-  text-align: left;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
-}
-
-.action-row:hover {
   background: var(--bg-hover);
   color: var(--fg-primary);
 }
