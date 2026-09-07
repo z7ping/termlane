@@ -8,8 +8,6 @@ export const STORAGE_KEYS = {
   THEME: 'xterminal-theme',
   FONT_SIZE: 'xterminal-fontSize',
   SCROLLBACK: 'xterminal-scrollback',
-  CURSOR_BLINK: 'xterminal-cursorBlink',
-  SSH_TIMEOUT: 'xterminal-sshTimeout',
   // 代理
   PROXY: 'xterminal_proxy',
   // 快捷键前缀
