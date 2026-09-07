@@ -8,17 +8,16 @@ export const STORAGE_KEYS = {
   THEME: 'termlane-theme',
   FONT_SIZE: 'termlane-fontSize',
   SCROLLBACK: 'termlane-scrollback',
-  CURSOR_BLINK: 'termlane-cursorBlink',
-  SSH_TIMEOUT: 'termlane-sshTimeout',
-  // 代理
+  // 代理（历史配置保留，1.0 当前不暴露代理入口）
   PROXY: 'termlane_proxy',
   // 快捷键前缀（历史上未带产品名，保持兼容）
   SHORTCUT_PREFIX: 'shortcut_',
   // 工具模块
-  WINDOW_STATE: 'termlane_window_state',
   SCHEDULED_TASKS: 'termlane_scheduled_tasks',
   CONNECTION_TAGS: 'termlane_connection_tags',
   MACROS: 'termlane_macros',
+  BOOKMARKS: 'termlane_bookmarks',
+  QUICK_COMMANDS: 'termlane_quick_commands',
   NOTES_PREFIX: 'termlane_notes_',
   // 其他
   ONBOARDED: 'termlane_onboarded',
@@ -34,13 +33,12 @@ const LEGACY_STORAGE_KEYS = {
   THEME: 'xterminal-theme',
   FONT_SIZE: 'xterminal-fontSize',
   SCROLLBACK: 'xterminal-scrollback',
-  CURSOR_BLINK: 'xterminal-cursorBlink',
-  SSH_TIMEOUT: 'xterminal-sshTimeout',
   PROXY: 'xterminal_proxy',
-  WINDOW_STATE: 'xterminal_window_state',
   SCHEDULED_TASKS: 'xterminal_scheduled_tasks',
   CONNECTION_TAGS: 'xterminal_connection_tags',
   MACROS: 'xterminal_macros',
+  BOOKMARKS: 'xterminal_bookmarks',
+  QUICK_COMMANDS: 'xterminal_quick_commands',
   ONBOARDED: 'xterminal_onboarded',
   LOCALE: 'xterminal_locale',
   RECORDING_DIR: 'xterminal_recordingDir',

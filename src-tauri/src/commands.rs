@@ -6,10 +6,9 @@ use tauri::AppHandle;
 
 // ─── Input Validation Helpers ───
 
-/// Maximum allowed length for any string IPC parameter.
+/// 通用短字符串参数上限：主机、路径、用户名、命令等。
 const MAX_STRING_LEN: usize = 10_000;
 
-/// Validate that a host is non-empty and a port is in the valid TCP/UDP range.
 fn validate_host_port(host: &str, port: u16) -> Result<(), String> {
     if host.trim().is_empty() {
         return Err("host must not be empty".into());
@@ -20,10 +19,46 @@ fn validate_host_port(host: &str, port: u16) -> Result<(), String> {
     Ok(())
 }
 
-/// Reject any string parameter that exceeds the safety limit.
 fn validate_string_len(name: &str, value: &str) -> Result<(), String> {
     if value.len() > MAX_STRING_LEN {
-        return Err(format!("{} exceeds maximum length of {} chars", name, MAX_STRING_LEN));
+        return Err(format!("{} exceeds maximum length of {} bytes", name, MAX_STRING_LEN));
+    }
+    Ok(())
+}
+
+fn validate_file_content_len(content: &str) -> Result<(), String> {
+    if content.len() > MAX_INLINE_EDIT_BYTES {
+        return Err(format!(
+            "文件内容过大：{} bytes，在线编辑最大允许 {} bytes",
+            content.len(), MAX_INLINE_EDIT_BYTES
+        ));
+    }
+    Ok(())
+}
+
+fn validate_remote_delete_path(path: &str) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("远程删除路径不能为空".into());
+    }
+
+    let absolute = trimmed.starts_with('/');
+    let mut depth = 0i32;
+    for component in trimmed.split('/') {
+        match component {
+            "" | "." => {}
+            ".." => {
+                depth -= 1;
+                if depth < 0 {
+                    return Err("拒绝删除包含越界父目录的路径".into());
+                }
+            }
+            _ => depth += 1,
+        }
+    }
+
+    if depth <= 0 || (absolute && trimmed.trim_matches('/').is_empty()) {
+        return Err("拒绝删除根目录或等价路径".into());
     }
     Ok(())
 }
@@ -78,6 +113,7 @@ pub async fn ssh_connect_key(
 
 #[tauri::command]
 pub async fn ssh_execute(session_id: String, command: String) -> Result<String, String> {
+    validate_string_len("command", &command)?;
     crate::ssh::execute(&session_id, &command).await
 }
 
@@ -140,13 +176,7 @@ pub fn ssh_start_shell(
 
 #[tauri::command]
 pub fn ssh_shell_input(session_id: String, data: String) -> Result<(), String> {
-    eprintln!("[DEBUG cmd] ssh_shell_input: sid={} dataLen={}", session_id, data.len());
-    let r = crate::ssh::shell_input(&session_id, &data);
-    match &r {
-        Ok(()) => eprintln!("[DEBUG cmd] ssh_shell_input OK"),
-        Err(e) => eprintln!("[DEBUG cmd] ssh_shell_input FAIL: {}", e),
-    }
-    r
+    crate::ssh::shell_input(&session_id, &data)
 }
 
 #[tauri::command]
@@ -164,10 +194,11 @@ pub fn ssh_list_shells() -> Vec<String> {
     crate::ssh::list_shells()
 }
 
-// ─── SFTP ───
+// ─── SFTP / Local Files ───
 
 #[tauri::command]
 pub fn sftp_list_local(path: String) -> Result<Vec<crate::sftp::FileEntry>, String> {
+    validate_string_len("path", &path)?;
     crate::sftp::list_local(&path)
 }
 
@@ -201,13 +232,7 @@ pub fn sftp_rename(session_id: String, old_path: String, new_path: String) -> Re
 #[tauri::command]
 pub fn sftp_delete(session_id: String, path: String, is_dir: bool) -> Result<String, String> {
     validate_string_len("path", &path)?;
-    if path.trim().is_empty() {
-        return Err("path must not be empty".into());
-    }
-    let trimmed = path.trim_end_matches('/');
-    if trimmed.starts_with('/') && trimmed[1..].chars().all(|c| c == '.') {
-        return Err("refusing to delete root-like path".into());
-    }
+    validate_remote_delete_path(&path)?;
     crate::sftp::delete_file(&session_id, &path, is_dir)
 }
 
@@ -220,6 +245,7 @@ pub fn sftp_mkdir(session_id: String, path: String) -> Result<String, String> {
 #[tauri::command]
 pub fn sftp_chmod(session_id: String, path: String, mode: String) -> Result<String, String> {
     validate_string_len("path", &path)?;
+    validate_string_len("mode", &mode)?;
     crate::sftp::chmod(&session_id, &path, &mode)
 }
 
@@ -232,7 +258,7 @@ pub fn sftp_read_file(session_id: String, path: String) -> Result<String, String
 #[tauri::command]
 pub fn sftp_write_file(session_id: String, path: String, content: String) -> Result<String, String> {
     validate_string_len("path", &path)?;
-    validate_string_len("content", &content)?;
+    validate_file_content_len(&content)?;
     crate::sftp::write_file(&session_id, &path, &content)
 }
 
@@ -338,4 +364,30 @@ pub fn tcp_ping(host: String, port: u16) -> Result<u64, String> {
 #[tauri::command]
 pub fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_string_limit_remains_strict() {
+        assert!(validate_string_len("path", &"x".repeat(MAX_STRING_LEN)).is_ok());
+        assert!(validate_string_len("path", &"x".repeat(MAX_STRING_LEN + 1)).is_err());
+    }
+
+    #[test]
+    fn file_content_has_independent_limit() {
+        assert!(validate_file_content_len(&"x".repeat(MAX_STRING_LEN + 1)).is_ok());
+        assert!(validate_file_content_len(&"x".repeat(MAX_INLINE_EDIT_BYTES + 1)).is_err());
+    }
+
+    #[test]
+    fn remote_delete_rejects_root_equivalents() {
+        for path in ["", "/", "///", ".", "..", "/a/..", "a/.."] {
+            assert!(validate_remote_delete_path(path).is_err(), "should reject {path:?}");
+        }
+        assert!(validate_remote_delete_path("/home/user/file").is_ok());
+        assert!(validate_remote_delete_path("/home/user/../other").is_ok());
+    }
 }

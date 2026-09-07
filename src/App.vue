@@ -1,6 +1,10 @@
 <template>
   <div class="h-screen flex flex-col">
-    <TitleBar @toggle-sidebar="sidebarOpen = !sidebarOpen" @toggle-fullscreen="toggleFullscreen" />
+    <TitleBar
+      @toggle-sidebar="sidebarOpen = !sidebarOpen"
+      @toggle-fullscreen="toggleFullscreen"
+      @open-settings="viewMode = 'settings'"
+    />
 
     <div class="flex flex-1 overflow-hidden">
       <Sidebar
@@ -19,46 +23,64 @@
       />
 
       <div class="flex-1 flex flex-col overflow-hidden" style="background: var(--bg-base);">
-        <div class="h-9 flex items-center px-2" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);">
+        <div class="workspace-bar h-9 flex items-center px-2">
           <TabBar
             :tabs="tabs"
             :active-id="activeTabId"
+            class="flex-1 min-w-0"
             @select="activeTabId = $event"
             @close="closeTab"
             @close-others="closeOtherTabs"
             @close-all="closeAllTabs"
             @new="openLocalTerminal"
-            class="flex-1"
           />
-          <div v-if="activeTab" class="flex gap-1 ml-2">
-            <button v-for="vm in viewModes" :key="vm.value" @click="viewMode = vm.value" class="px-2 py-0.5 text-xs rounded-md transition-colors" :style="viewMode === vm.value ? 'background: var(--accent); color: white;' : 'color: var(--fg-muted); hover: background: var(--bg-hover);'" :class="viewMode === vm.value ? '' : 'hover:bg-white/5'">{{ vm.label }}</button>
-          </div>
+          <ViewSwitcher v-model="viewMode" />
         </div>
 
         <div class="flex-1 relative overflow-hidden">
           <ErrorBoundary>
             <template v-if="viewMode === 'terminal'">
               <keep-alive>
-                <TerminalPanel v-if="activeTab" :key="activeTabId" :tab="activeTab" :active="true" @connected="onSessionConnected(activeTabId, $event)" @disconnected="onSessionDisconnected(activeTabId)" />
+                <TerminalPanel
+                  v-if="activeTab"
+                  :key="activeTabId"
+                  :tab="activeTab"
+                  :active="true"
+                  @connected="onSessionConnected(activeTabId, $event)"
+                  @disconnected="onSessionDisconnected(activeTabId)"
+                />
               </keep-alive>
             </template>
-            <SftpPanel v-if="viewMode === 'sftp'" :connection="activeConnection" :session-id="activeSessionId" :active="true" />
-            <BatchCommand v-if="viewMode === 'batch'" />
-            <ConnectionMonitor v-if="viewMode === 'monitor'" :connections="connections" :active-session-id="activeSessionId" />
+            <SftpPanel
+              v-if="viewMode === 'sftp'"
+              :connection="activeConnection"
+              :session-id="activeSessionId"
+              :active="true"
+              :navigation-target="bookmarkTarget"
+            />
             <SpeedTest v-if="viewMode === 'speed'" />
-            <SessionRecorder v-if="viewMode === 'recorder'" :session-id="activeSessionId" :connection-name="activeConnection?.name" />
+            <SessionRecorder
+              v-if="viewMode === 'recorder'"
+              :session-id="activeSessionId"
+              :connection-name="activeConnection?.name"
+              :is-local="isActiveLocal"
+            />
             <Notes v-if="viewMode === 'notes'" :connection-name="activeConnection?.name" />
             <Bookmarks v-if="viewMode === 'bookmarks'" @navigate="onBookmarkNav" />
-            <ProxyConfig v-if="viewMode === 'proxy'" />
             <QuickCommands v-if="viewMode === 'commands'" @run="onQuickCommand" />
-            <PortForward v-if="viewMode === 'forward'" />
-            <ScheduledTasks v-if="viewMode === 'tasks'" />
-            <MacroRecorder v-if="viewMode === 'macro'" :session-id="activeSessionId" />
+            <MacroRecorder
+              v-if="viewMode === 'macro'"
+              :session-id="activeSessionId"
+              :is-local="isActiveLocal"
+              @status="showToast($event, 'info')"
+            />
+            <Settings v-if="viewMode === 'settings'" />
           </ErrorBoundary>
-          <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center text-gray-500">
+
+          <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center" style="color: var(--fg-muted);">
             <div class="text-center">
-              <div class="text-6xl mb-4">⌨️</div>
-              <div class="text-lg">Termlane</div>
+              <TerminalIcon :size="52" :stroke-width="1.2" class="mx-auto mb-4" />
+              <div class="text-lg" style="color: var(--fg-secondary);">Termlane</div>
               <div class="text-sm mt-2">从左侧选择一个连接，或按 + 打开本地终端</div>
             </div>
           </div>
@@ -70,50 +92,50 @@
     <Toast ref="toastRef" />
     <UpdateNotifier />
 
-    <ConnectionDialog v-if="showAddConnection" :editing="editingConnection" @save="(conn) => onSaveConnection(conn, editingConnection)" @close="showAddConnection = false; editingConnection = null" />
+    <ConnectionDialog
+      v-if="showAddConnection"
+      :editing="editingConnection"
+      @save="conn => onSaveConnection(conn, editingConnection)"
+      @close="showAddConnection = false; editingConnection = null"
+    />
     <ShortcutHelp :visible="showShortcuts" @close="showShortcuts = false" />
     <Onboarding />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, defineAsyncComponent, defineComponent } from 'vue'
-import { parseShortcut, getShortcut } from './utils/shortcuts.js'
-import { STORAGE_KEYS } from './utils/storage-keys.js'
-import { useAppState, setToast } from './composables/useAppState.js'
+import { computed, defineAsyncComponent, defineComponent, onMounted, onUnmounted, ref } from 'vue'
+import { Terminal as TerminalIcon } from 'lucide-vue-next'
+import { getShortcut, parseShortcut } from './utils/shortcuts.js'
+import { applyTheme, getStoredTheme } from './utils/theme-state'
+import { setToast, useAppState } from './composables/useAppState.js'
 
-// Critical - 首屏必需（同步加载）
 import TitleBar from './components/TitleBar.vue'
 import Sidebar from './components/Sidebar.vue'
 import TabBar from './components/TabBar.vue'
+import ViewSwitcher from './components/ViewSwitcher.vue'
 import TerminalPanel from './components/TerminalPanel.vue'
 import StatusBar from './components/StatusBar.vue'
 import Toast from './components/Toast.vue'
 
-// Lazy - 按需加载（异步分包）
 const asyncLoadingComponent = defineComponent({ template: '<div class="flex items-center justify-center p-4" style="color: var(--fg-muted);">加载中...</div>' })
 const asyncOpts = { loadingComponent: asyncLoadingComponent }
 const SftpPanel = defineAsyncComponent(() => import('./components/SftpPanel.vue'), asyncOpts)
-const BatchCommand = defineAsyncComponent(() => import('./components/BatchCommand.vue'), asyncOpts)
-const ConnectionMonitor = defineAsyncComponent(() => import('./components/ConnectionMonitor.vue'), asyncOpts)
 const SpeedTest = defineAsyncComponent(() => import('./components/SpeedTest.vue'), asyncOpts)
 const SessionRecorder = defineAsyncComponent(() => import('./components/SessionRecorder.vue'), asyncOpts)
 const Notes = defineAsyncComponent(() => import('./components/Notes.vue'), asyncOpts)
 const Bookmarks = defineAsyncComponent(() => import('./components/Bookmarks.vue'), asyncOpts)
-const ProxyConfig = defineAsyncComponent(() => import('./components/ProxyConfig.vue'), asyncOpts)
 const QuickCommands = defineAsyncComponent(() => import('./components/QuickCommands.vue'), asyncOpts)
-const PortForward = defineAsyncComponent(() => import('./components/PortForward.vue'), asyncOpts)
-const ScheduledTasks = defineAsyncComponent(() => import('./components/ScheduledTasks.vue'), asyncOpts)
 const MacroRecorder = defineAsyncComponent(() => import('./components/MacroRecorder.vue'), asyncOpts)
+const Settings = defineAsyncComponent(() => import('./components/Settings.vue'), asyncOpts)
 const ConnectionDialog = defineAsyncComponent(() => import('./components/ConnectionDialog.vue'), asyncOpts)
 const UpdateNotifier = defineAsyncComponent(() => import('./components/UpdateNotifier.vue'), asyncOpts)
 const ShortcutHelp = defineAsyncComponent(() => import('./components/ShortcutHelp.vue'), asyncOpts)
 const ErrorBoundary = defineAsyncComponent(() => import('./components/ErrorBoundary.vue'), asyncOpts)
 const Onboarding = defineAsyncComponent(() => import('./components/Onboarding.vue'), asyncOpts)
 
-// ── Shared state from composable ──
 const {
-  connections, latencyMap, tabs, activeTabId, sessionMap,
+  connections, latencyMap, tabs, activeTabId,
   activeConnectionId, activeTab, activeConnection, activeSessionId,
   loadConnections, loadTabsState, saveTabsState,
   startPingPolling, stopPingPolling,
@@ -122,37 +144,50 @@ const {
   onSessionConnected, onSessionDisconnected, onQuickCommand,
 } = useAppState()
 
-// ── View-only state (stays in App.vue) ──
 const sidebarOpen = ref(true)
 const showAddConnection = ref(false)
 const showShortcuts = ref(false)
 const editingConnection = ref(null)
 const viewMode = ref('terminal')
 const toastRef = ref(null)
+const bookmarkTarget = ref(null)
 
-const viewModes = [
-  { value: 'terminal', label: '⌨️ 终端' },
-  { value: 'sftp', label: '📁 文件' },
-  { value: 'batch', label: '⚡ 批量' },
-  { value: 'monitor', label: '📊 监控' },
-  { value: 'speed', label: '🚀 测速' },
-  { value: 'recorder', label: '⏺ 录制' },
-  { value: 'notes', label: '📝 笔记' },
-  { value: 'bookmarks', label: '🔖 书签' },
-  { value: 'proxy', label: '🌐 代理' },
-  { value: 'commands', label: '⚡ 命令' },
-  { value: 'forward', label: '🔗 转发' },
-  { value: 'tasks', label: '⏰ 定时' },
-  { value: 'macro', label: '🎯 宏' },
-]
+const isActiveLocal = computed(() => {
+  const connection = activeConnection.value
+  return !connection || connection.host === 'localhost' || connection.host === '127.0.0.1'
+})
 
-function showToast(msg, type = 'info') { toastRef.value?.show(msg, type) }
+function showToast(message, type = 'info') {
+  toastRef.value?.show(message, type)
+}
 
-function onEditConnection(conn) { editingConnection.value = conn; showAddConnection.value = true }
+function onEditConnection(connection) {
+  editingConnection.value = connection
+  showAddConnection.value = true
+}
 
-function onBookmarkNav(bm) {
+function onBookmarkNav(bookmark) {
+  if (!bookmark?.path) return
+
+  const targetHost = bookmark.host?.trim()
+  if (targetHost) {
+    const targetConnection = connections.value.find(connection =>
+      connection.name === targetHost || connection.host === targetHost,
+    )
+    if (!targetConnection) {
+      showToast(`未找到书签对应连接：${targetHost}`, 'error')
+      return
+    }
+    if (activeConnectionId.value !== targetConnection.id) {
+      onSelectConnection(targetConnection)
+    }
+  }
+
+  bookmarkTarget.value = {
+    path: bookmark.path,
+    requestId: `${Date.now()}-${Math.random()}`,
+  }
   viewMode.value = 'sftp'
-  showToast(`跳转到: ${bm.path}`, 'info')
 }
 
 function toggleFullscreen() {
@@ -160,83 +195,101 @@ function toggleFullscreen() {
   else document.exitFullscreen()
 }
 
-// ── Lifecycle ──
-let _cleanupKeydown = null
-let _cleanupShortcutChanged = null
-let _cleanupBeforeUnload = null
+let cleanupKeydown = null
+let cleanupShortcutChanged = null
+let cleanupBeforeUnload = null
 
 onMounted(async () => {
-  // Wire up toast callback so the composable can show notifications
   setToast(showToast)
-
-  // Mark app as ready to show (prevent FOUC)
   document.getElementById('app')?.classList.add('ready')
+  applyTheme(getStoredTheme())
 
-  // Restore theme from localStorage
-  const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || 'dark'
-  document.documentElement.setAttribute('data-theme', savedTheme)
-
-  // Restore persisted application state. Window geometry is handled by the
-  // official Tauri window-state plugin in the desktop runtime.
   await loadConnections()
   loadTabsState()
 
   const handleBeforeUnload = () => saveTabsState()
   window.addEventListener('beforeunload', handleBeforeUnload)
-  _cleanupBeforeUnload = handleBeforeUnload
+  cleanupBeforeUnload = handleBeforeUnload
 
-  // Global keyboard shortcuts (支持自定义快捷键)
   const setupGlobalShortcuts = () => {
     const handlers = []
 
-    // 新建标签
     const newTabKey = parseShortcut(getShortcut('新建标签'))
-    handlers.push((e) => { if (newTabKey(e)) { openLocalTerminal(); e.preventDefault() } })
+    handlers.push(event => {
+      if (!newTabKey(event)) return
+      openLocalTerminal()
+      event.preventDefault()
+    })
 
-    // 关闭标签
     const closeTabKey = parseShortcut(getShortcut('关闭标签'))
-    handlers.push((e) => { if (closeTabKey(e) && activeTabId.value) { closeTab(activeTabId.value); e.preventDefault() } })
+    handlers.push(event => {
+      if (!closeTabKey(event) || !activeTabId.value) return
+      closeTab(activeTabId.value)
+      event.preventDefault()
+    })
 
-    // 切换侧边栏
     const toggleSidebarKey = parseShortcut(getShortcut('切换侧边栏') || 'Ctrl+B')
-    handlers.push((e) => { if (toggleSidebarKey(e)) { sidebarOpen.value = !sidebarOpen.value; e.preventDefault() } })
+    handlers.push(event => {
+      if (!toggleSidebarKey(event)) return
+      sidebarOpen.value = !sidebarOpen.value
+      event.preventDefault()
+    })
 
-    // 全屏
+    const settingsKey = parseShortcut(getShortcut('设置'))
+    handlers.push(event => {
+      if (!settingsKey(event)) return
+      viewMode.value = 'settings'
+      event.preventDefault()
+    })
+
     const fullscreenKey = parseShortcut(getShortcut('全屏'))
-    handlers.push((e) => { if (fullscreenKey(e)) { toggleFullscreen(); e.preventDefault() } })
+    handlers.push(event => {
+      if (!fullscreenKey(event)) return
+      toggleFullscreen()
+      event.preventDefault()
+    })
 
-    // 帮助
     const helpKey = parseShortcut(getShortcut('帮助') || '?')
-    handlers.push((e) => { if (helpKey(e) && !e.ctrlKey && !e.altKey && !['INPUT','TEXTAREA'].includes(e.target.tagName)) { showShortcuts.value = !showShortcuts.value } })
+    handlers.push(event => {
+      const tagName = event.target?.tagName
+      if (helpKey(event) && !event.ctrlKey && !event.altKey && !['INPUT', 'TEXTAREA'].includes(tagName)) {
+        showShortcuts.value = !showShortcuts.value
+      }
+    })
 
     return handlers
   }
 
   let shortcutHandlers = setupGlobalShortcuts()
 
-  const handleKeydown = (e) => {
-    shortcutHandlers.forEach(handler => handler(e))
+  const handleKeydown = event => {
+    shortcutHandlers.forEach(handler => handler(event))
   }
   document.addEventListener('keydown', handleKeydown)
 
-  // 监听快捷键变化
   const handleShortcutChanged = () => {
     shortcutHandlers = setupGlobalShortcuts()
   }
   window.addEventListener('shortcut-changed', handleShortcutChanged)
 
-  // Save references for cleanup
-  _cleanupKeydown = handleKeydown
-  _cleanupShortcutChanged = handleShortcutChanged
+  cleanupKeydown = handleKeydown
+  cleanupShortcutChanged = handleShortcutChanged
 
-  // Start latency polling
   startPingPolling()
 })
 
 onUnmounted(() => {
   stopPingPolling()
-  if (_cleanupKeydown) document.removeEventListener('keydown', _cleanupKeydown)
-  if (_cleanupShortcutChanged) window.removeEventListener('shortcut-changed', _cleanupShortcutChanged)
-  if (_cleanupBeforeUnload) window.removeEventListener('beforeunload', _cleanupBeforeUnload)
+  if (cleanupKeydown) document.removeEventListener('keydown', cleanupKeydown)
+  if (cleanupShortcutChanged) window.removeEventListener('shortcut-changed', cleanupShortcutChanged)
+  if (cleanupBeforeUnload) window.removeEventListener('beforeunload', cleanupBeforeUnload)
 })
 </script>
+
+<style scoped>
+.workspace-bar {
+  min-width: 0;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+</style>

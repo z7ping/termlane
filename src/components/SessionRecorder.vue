@@ -1,74 +1,119 @@
 <template>
-  <div class="h-full flex flex-col" style="background: var(--bg-base)">
-    <div class="h-9 border-b flex items-center px-3 gap-2" style="background: var(--bg-surface); border-color: var(--border)">
-      <span class="text-sm font-medium" style="color: var(--fg-secondary)">⏺ 会话录制</span>
+  <div class="recorder-view h-full flex flex-col">
+    <div class="view-header">
+      <CircleDot :size="15" :stroke-width="1.8" />
+      <span>会话录制</span>
       <div class="flex-1" />
-      <span v-if="recording" class="flex items-center gap-1 text-xs" style="color: var(--danger)">
-        <span class="w-2 h-2 rounded-full animate-pulse" style="background: var(--danger)" />
+      <span v-if="recording" class="recording-state">
+        <span class="recording-dot" />
         {{ formatDuration(recDuration) }}
       </span>
-      <button @click="toggleRecording" :disabled="!sessionId && !recording" class="text-xs px-2 py-0.5 rounded"
-        :style="recording ? { background: 'var(--danger)', color: 'white' } : { background: 'var(--accent)', color: 'white' }">
-        {{ recording ? '⏹ 停止' : '⏺ 录制' }}
+      <button
+        type="button"
+        class="record-button"
+        :class="{ active: recording }"
+        :disabled="!sessionId && !recording"
+        @click="toggleRecording"
+      >
+        <Square v-if="recording" :size="12" fill="currentColor" />
+        <Circle v-else :size="12" fill="currentColor" />
+        <span>{{ recording ? '停止' : '录制' }}</span>
       </button>
     </div>
 
     <div class="flex-1 overflow-y-auto p-3">
-      <div v-for="rec in recordings" :key="rec.id" class="rounded-lg mb-2 p-3" style="background: var(--bg-surface)">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-sm" style="color: var(--fg-primary)">{{ rec.name }}</div>
-            <div class="text-xs mt-0.5" style="color: var(--fg-muted)">
-              {{ rec.connectionName }} · {{ rec.startedAt }} · {{ formatDuration(rec.durationSecs) }}
-            </div>
-          </div>
-          <div class="flex gap-1">
-            <button @click="playRecording(rec)" class="text-xs px-2 py-0.5 rounded" style="background: color-mix(in srgb, var(--success) 30%, transparent); color: var(--success)">▶</button>
-            <button @click="exportRecording(rec)" class="text-xs px-2 py-0.5 rounded" style="background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--accent)">📤</button>
-            <button @click="delRecording(rec.id)" class="text-xs px-2 py-0.5 rounded" style="background: var(--bg-elevated); color: var(--fg-muted)">🗑</button>
-          </div>
-        </div>
-        <div v-if="rec.tags?.length" class="flex gap-1 mt-2">
-          <span v-for="tag in rec.tags" :key="tag" class="text-xs px-1.5 py-0.5 rounded" style="background: var(--bg-elevated); color: var(--fg-muted)">{{ tag }}</span>
-        </div>
+      <div v-if="recordings.length === 0" class="empty-state">
+        <CircleDot :size="28" :stroke-width="1.4" />
+        <div>暂无录制</div>
+        <span>{{ sessionId ? '点击右上角开始记录当前终端输出。' : '先打开并连接一个终端会话。' }}</span>
       </div>
-      <div v-if="recordings.length === 0" class="text-center text-sm mt-10" style="color: var(--fg-muted)">
-        暂无录制<br/><span class="text-xs">连接服务器后点击 ⏺ 开始录制</span>
+
+      <div v-for="recordingItem in recordings" v-else :key="recordingItem.id" class="recording-card">
+        <div class="min-w-0 flex-1">
+          <div class="recording-title">{{ recordingItem.name }}</div>
+          <div class="recording-meta">
+            {{ recordingItem.connectionName || '本地' }} · {{ formatDate(recordingItem.startedAt) }} · {{ formatDuration(recordingItem.durationSecs) }}
+          </div>
+        </div>
+        <div class="recording-actions">
+          <button type="button" title="回放" aria-label="回放" @click="playRecording(recordingItem)">
+            <Play :size="14" :stroke-width="1.8" />
+          </button>
+          <button type="button" title="导出" aria-label="导出" @click="exportRecording(recordingItem)">
+            <Download :size="14" :stroke-width="1.8" />
+          </button>
+          <button type="button" class="danger" title="删除" aria-label="删除" @click="deleteRecording(recordingItem.id)">
+            <Trash2 :size="14" :stroke-width="1.8" />
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Playback Modal -->
-    <div v-if="playing" class="fixed inset-0 flex items-center justify-center z-50" style="background: color-mix(in srgb, #000 80%, transparent)" @click.self="playing = null">
-      <div class="rounded-lg w-[720px] flex flex-col max-h-[80vh]" style="background: var(--bg-surface); border-color: var(--border-subtle)">
-        <div class="p-3 border-b flex items-center justify-between" style="border-color: var(--border)">
-          <span class="text-sm" style="color: var(--fg-primary)">▶ {{ playing.name }}</span>
-          <button @click="playing = null" class="" style="color: var(--fg-muted)">✕</button>
-        </div>
-        <div ref="playbackRef" class="h-80 bg-black overflow-auto font-mono text-sm p-3" style="color: #d4d4d4;">
-          <div v-for="(line, i) in playbackLines" :key="i" class="whitespace-pre-wrap break-all" v-html="ansiToHtml(line)" @click.prevent @keydown.prevent />
-        </div>
-        <div class="p-3 border-t flex items-center gap-3" style="border-color: var(--border)">
-          <button @click="togglePlayback" class="text-sm px-3 py-1 rounded text-white" :style="playbackActive ? { background: 'var(--danger)' } : { background: 'var(--accent)' }">
-            {{ playbackActive ? '⏸ 暂停' : '▶ 播放' }}
+    <div v-if="playing" class="playback-backdrop" @click.self="closePlayback">
+      <div class="playback-dialog" role="dialog" aria-modal="true" :aria-label="`回放 ${playing.name}`">
+        <div class="playback-header">
+          <Play :size="14" :stroke-width="1.8" />
+          <span class="truncate">{{ playing.name }}</span>
+          <div class="flex-1" />
+          <button type="button" class="icon-button" aria-label="关闭回放" @click="closePlayback">
+            <X :size="14" :stroke-width="1.8" />
           </button>
-          <input type="range" class="flex-1" min="0" :max="playbackData.length" v-model.number="playbackIdx" @input="renderPlayback" />
-          <span class="text-xs" style="color: var(--fg-muted)">{{ playbackIdx }}/{{ playbackData.length }}</span>
+        </div>
+
+        <div ref="playbackRef" class="playback-output">
+          <div
+            v-for="(line, index) in playbackLines"
+            :key="index"
+            class="whitespace-pre-wrap break-all"
+            v-html="ansiToHtml(line)"
+          />
+        </div>
+
+        <div class="playback-controls">
+          <button type="button" class="playback-button" @click="togglePlayback">
+            <Pause v-if="playbackActive" :size="13" fill="currentColor" />
+            <Play v-else :size="13" fill="currentColor" />
+            <span>{{ playbackActive ? '暂停' : '播放' }}</span>
+          </button>
+          <input
+            v-model.number="playbackIdx"
+            type="range"
+            class="flex-1"
+            min="0"
+            :max="playbackData.length"
+            @input="renderPlayback"
+          />
+          <span class="playback-count">{{ playbackIdx }}/{{ playbackData.length }}</span>
         </div>
       </div>
     </div>
+
+    <div v-if="toastState.show" class="recorder-toast" :class="toastState.type">{{ toastState.message }}</div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import {
+  Circle,
+  CircleDot,
+  Download,
+  Pause,
+  Play,
+  Square,
+  Trash2,
+  X,
+} from 'lucide-vue-next'
 import { invoke, listen } from '../utils/tauri.js'
-import DOMPurify from 'dompurify'
 
-const props = defineProps({ sessionId: String, connectionName: String })
+const props = defineProps({
+  sessionId: String,
+  connectionName: String,
+  isLocal: Boolean,
+})
 
 const recording = ref(false)
 const recDuration = ref(0)
-const recData = []
 const recordings = ref([])
 const playing = ref(null)
 const playbackRef = ref(null)
@@ -76,152 +121,513 @@ const playbackLines = ref([])
 const playbackData = ref([])
 const playbackIdx = ref(0)
 const playbackActive = ref(false)
+const toastState = ref({ show: false, message: '', type: 'info' })
+
+const recData = []
 let recTimer = null
 let unlistenOutput = null
+let recordingStartedAt = null
+let playbackTimer = null
+let toastTimer = null
 
-function formatDuration(s) {
-  if (!s && s !== 0) return '-'
-  const m = Math.floor(s / 60)
-  return `${m}:${(s % 60).toString().padStart(2, '0')}`
+function toast(message, type = 'info', duration = 2800) {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastState.value = { show: true, message, type }
+  toastTimer = setTimeout(() => { toastState.value.show = false }, duration)
+}
+
+function formatDuration(seconds) {
+  if (seconds == null) return '-'
+  const value = Math.max(0, Math.floor(Number(seconds) || 0))
+  const minutes = Math.floor(value / 60)
+  return `${minutes}:${(value % 60).toString().padStart(2, '0')}`
+}
+
+function formatDate(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 async function loadRecordings() {
-  try { recordings.value = await invoke('list_recordings') || [] }
-  catch { recordings.value = [] }
+  try {
+    recordings.value = await invoke('list_recordings') || []
+  } catch (error) {
+    recordings.value = []
+    toast(`读取录制列表失败：${error}`, 'error')
+  }
+}
+
+async function startRecording() {
+  if (!props.sessionId || recording.value) return
+
+  recData.length = 0
+  recDuration.value = 0
+  recordingStartedAt = new Date()
+  const startTime = recordingStartedAt.getTime()
+  const eventName = `${props.isLocal ? 'local-output' : 'ssh-output'}:${props.sessionId}`
+
+  try {
+    unlistenOutput = await listen(eventName, event => {
+      if (!recording.value) return
+      const elapsed = (Date.now() - startTime) / 1000
+      recData.push([Number(elapsed.toFixed(3)), 'o', String(event.payload ?? '')])
+    })
+  } catch (error) {
+    recordingStartedAt = null
+    toast(`无法监听当前会话输出：${error}`, 'error')
+    return
+  }
+
+  recording.value = true
+  recTimer = setInterval(() => {
+    recDuration.value = Math.floor((Date.now() - startTime) / 1000)
+  }, 500)
+}
+
+async function stopRecording({ save = true } = {}) {
+  if (!recording.value) return
+
+  clearInterval(recTimer)
+  recTimer = null
+  unlistenOutput?.()
+  unlistenOutput = null
+  recording.value = false
+
+  if (!save || !recordingStartedAt) {
+    recData.length = 0
+    recDuration.value = 0
+    recordingStartedAt = null
+    return
+  }
+
+  const id = `rec_${Date.now()}`
+  const filename = `${id}.cast`
+  const duration = recDuration.value
+  const startedAt = recordingStartedAt.toISOString()
+  const displayTime = recordingStartedAt.toLocaleString('zh-CN')
+  const header = JSON.stringify({
+    version: 2,
+    width: 80,
+    height: 24,
+    timestamp: Math.floor(recordingStartedAt.getTime() / 1000),
+    duration,
+    title: `录制 ${displayTime}`,
+    env: { TERM: 'xterm-256color' },
+  })
+  const content = `${header}\n${recData.map(entry => JSON.stringify(entry)).join('\n')}\n`
+  const meta = {
+    id,
+    name: `录制 ${displayTime}`,
+    connectionName: props.connectionName || (props.isLocal ? '本地' : '未知'),
+    startedAt,
+    durationSecs: duration,
+    filePath: filename,
+    tags: [],
+  }
+
+  try {
+    await invoke('save_recording', { filename, content, meta })
+    toast('录制已保存', 'success')
+    await loadRecordings()
+  } catch (error) {
+    toast(`保存录制失败：${error}`, 'error', 4500)
+  } finally {
+    recData.length = 0
+    recDuration.value = 0
+    recordingStartedAt = null
+  }
 }
 
 async function toggleRecording() {
-  if (recording.value) {
-    // Stop recording
-    clearInterval(recTimer)
-    unlistenOutput?.()
-    unlistenOutput = null
-    recording.value = false
-
-    // Save as asciinema v2
-    const id = `rec_${Date.now()}`
-    const filename = `${id}.cast`
-    const header = JSON.stringify({
-      version: 2, width: 80, height: 24,
-      timestamp: Math.floor(Date.now() / 1000),
-      duration: recDuration.value,
-      title: `录制 ${new Date().toLocaleString('zh-CN')}`,
-      env: { SHELL: '/bin/bash', TERM: 'xterm-256color' }
-    })
-    const body = recData.map(e => JSON.stringify(e)).join('\n')
-    const content = header + '\n' + body + '\n'
-
-    try {
-      await invoke('save_recording_file', { filename, content })
-      await invoke('save_recording_meta', {
-        meta: {
-          id, name: `录制 ${new Date().toLocaleString('zh-CN')}`,
-          connectionName: props.connectionName || '未知',
-          startedAt: new Date().toISOString(),
-          durationSecs: recDuration.value,
-          filePath: filename,
-          tags: [],
-        }
-      })
-    } catch { /* save failed silently */ }
-
-    recData.length = 0
-    recDuration.value = 0
-    await loadRecordings()
-  } else {
-    // Start recording
-    if (!props.sessionId) return
-    recData.length = 0
-    recDuration.value = 0
-    recording.value = true
-
-    const startTime = Date.now()
-
-    // Listen for terminal output
-    unlistenOutput = await listen(`ssh-output:${props.sessionId}`, (event) => {
-      if (recording.value) {
-        const elapsed = ((Date.now() - startTime) / 1000).toFixed(3)
-        recData.push([parseFloat(elapsed), 'o', event.payload])
-      }
-    })
-
-    recTimer = setInterval(() => { recDuration.value++ }, 1000)
-  }
+  if (recording.value) await stopRecording()
+  else await startRecording()
 }
 
-async function playRecording(rec) {
+async function playRecording(recordingItem) {
+  stopPlaybackTimer()
   try {
-    const content = await invoke('read_recording_file', { filename: rec.filePath })
+    const content = await invoke('read_recording_file', { filename: recordingItem.filePath })
     const lines = content.split('\n').filter(Boolean)
-    // Skip header line
-    const dataLines = lines.slice(1)
-    playbackData.value = dataLines.map(l => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean)
+    playbackData.value = lines
+      .slice(1)
+      .map(line => {
+        try { return JSON.parse(line) } catch { return null }
+      })
+      .filter(Boolean)
     playbackIdx.value = 0
     playbackLines.value = []
-    playing.value = rec
-  } catch (e) { alert('读取录制失败: ' + e) }
+    playbackActive.value = false
+    playing.value = recordingItem
+  } catch (error) {
+    toast(`读取录制失败：${error}`, 'error')
+  }
 }
 
-let playbackTimer = null
+function stopPlaybackTimer() {
+  if (playbackTimer) clearTimeout(playbackTimer)
+  playbackTimer = null
+  playbackActive.value = false
+}
+
+function closePlayback() {
+  stopPlaybackTimer()
+  playing.value = null
+  playbackData.value = []
+  playbackLines.value = []
+  playbackIdx.value = 0
+}
+
+function appendPlaybackEntry(entry) {
+  if (entry?.[1] !== 'o') return
+  playbackLines.value.push(String(entry[2] ?? ''))
+  nextTick(() => {
+    if (playbackRef.value) playbackRef.value.scrollTop = playbackRef.value.scrollHeight
+  })
+}
+
+function scheduleNextPlaybackEntry() {
+  if (!playbackActive.value) return
+  if (playbackIdx.value >= playbackData.value.length) {
+    stopPlaybackTimer()
+    return
+  }
+
+  const currentIndex = playbackIdx.value
+  const current = playbackData.value[currentIndex]
+  appendPlaybackEntry(current)
+  playbackIdx.value = currentIndex + 1
+
+  if (playbackIdx.value >= playbackData.value.length) {
+    stopPlaybackTimer()
+    return
+  }
+
+  const next = playbackData.value[playbackIdx.value]
+  const currentTime = Number(current?.[0]) || 0
+  const nextTime = Number(next?.[0]) || currentTime
+  const delay = Math.max(10, Math.min(5000, Math.round((nextTime - currentTime) * 1000)))
+  playbackTimer = setTimeout(scheduleNextPlaybackEntry, delay)
+}
+
 function togglePlayback() {
   if (playbackActive.value) {
-    clearInterval(playbackTimer)
-    playbackActive.value = false
-  } else {
-    playbackActive.value = true
-    playbackTimer = setInterval(() => {
-      if (playbackIdx.value >= playbackData.value.length) {
-        clearInterval(playbackTimer)
-        playbackActive.value = false
-        return
-      }
-      const entry = playbackData.value[playbackIdx.value]
-      if (entry && entry[1] === 'o') {
-        playbackLines.value.push(entry[2])
-        nextTick(() => { if (playbackRef.value) playbackRef.value.scrollTop = playbackRef.value.scrollHeight })
-      }
-      playbackIdx.value++
-    }, 50)
+    stopPlaybackTimer()
+    return
   }
+  if (playbackIdx.value >= playbackData.value.length) {
+    playbackIdx.value = 0
+    playbackLines.value = []
+  }
+  playbackActive.value = true
+  scheduleNextPlaybackEntry()
 }
 
 function renderPlayback() {
+  stopPlaybackTimer()
   playbackLines.value = []
-  for (let i = 0; i < playbackIdx.value && i < playbackData.value.length; i++) {
-    const entry = playbackData.value[i]
-    if (entry && entry[1] === 'o') playbackLines.value.push(entry[2])
+  for (let index = 0; index < playbackIdx.value && index < playbackData.value.length; index++) {
+    const entry = playbackData.value[index]
+    if (entry?.[1] === 'o') playbackLines.value.push(String(entry[2] ?? ''))
   }
 }
 
-async function exportRecording(rec) {
+async function exportRecording(recordingItem) {
   try {
-    const content = await invoke('read_recording_file', { filename: rec.filePath })
+    const content = await invoke('read_recording_file', { filename: recordingItem.filePath })
     const blob = new Blob([content], { type: 'application/x-asciicast' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `${rec.name}.cast`; a.click()
-    URL.revokeObjectURL(url)
-  } catch (e) { alert('导出失败: ' + e) }
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${recordingItem.name}.cast`
+    anchor.click()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+  } catch (error) {
+    toast(`导出失败：${error}`, 'error')
+  }
 }
 
-async function delRecording(id) {
-  if (!confirm('确认删除此录制？')) return
-  try { await invoke('delete_recording', { id }); await loadRecordings() }
-  catch (e) { alert('删除失败: ' + e) }
+async function deleteRecording(id) {
+  if (!window.confirm('确认删除此录制？')) return
+  try {
+    await invoke('delete_recording', { id })
+    await loadRecordings()
+  } catch (error) {
+    toast(`删除失败：${error}`, 'error')
+  }
 }
 
 function ansiToHtml(text) {
   if (!text) return ''
-  return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
     .replace(/\x1b\[1;32m/g, '<span style="color:#0dbc79">')
     .replace(/\x1b\[1;31m/g, '<span style="color:#cd3131">')
     .replace(/\x1b\[1;33m/g, '<span style="color:#e5e510">')
     .replace(/\x1b\[1;36m/g, '<span style="color:#11a8cd">')
     .replace(/\x1b\[0m/g, '</span>')
-    .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
 }
 
+watch(() => props.sessionId, async (sessionId, previousSessionId) => {
+  if (recording.value && sessionId !== previousSessionId) {
+    await stopRecording({ save: true })
+    toast('会话已切换，上一段录制已自动保存', 'info')
+  }
+})
+
 onMounted(loadRecordings)
-onUnmounted(() => { clearInterval(recTimer); unlistenOutput?.(); clearInterval(playbackTimer) })
+
+onUnmounted(() => {
+  clearInterval(recTimer)
+  unlistenOutput?.()
+  stopPlaybackTimer()
+  if (toastTimer) clearTimeout(toastTimer)
+})
 </script>
+
+<style scoped>
+.recorder-view {
+  position: relative;
+  background: var(--bg-base);
+  color: var(--fg-secondary);
+}
+
+.view-header {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.recording-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--danger);
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.recording-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--danger);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.record-button,
+.playback-button {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+}
+
+.record-button.active {
+  background: var(--danger);
+}
+
+.record-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.empty-state {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.empty-state span {
+  font-size: 11px;
+}
+
+.recording-card {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  padding: 9px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+.recording-title {
+  overflow: hidden;
+  color: var(--fg-primary);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recording-meta {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recording-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.recording-actions button,
+.icon-button {
+  width: 27px;
+  height: 27px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.recording-actions button:hover,
+.icon-button:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.recording-actions button.danger:hover {
+  color: var(--danger);
+}
+
+.playback-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.playback-dialog {
+  width: min(760px, 100%);
+  max-height: min(620px, 86vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.playback-header {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--fg-primary);
+  font-size: 12px;
+}
+
+.playback-output {
+  height: 380px;
+  overflow: auto;
+  padding: 12px;
+  background: #0b0d10;
+  color: #d4d4d4;
+  font-family: 'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.playback-controls {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.playback-button {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.playback-count {
+  min-width: 54px;
+  color: var(--fg-muted);
+  font-family: monospace;
+  font-size: 10px;
+  text-align: right;
+}
+
+.recorder-toast {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 70;
+  max-width: min(420px, calc(100% - 16px));
+  padding: 7px 9px;
+  border-radius: 6px;
+  box-shadow: var(--shadow-sm);
+  font-size: 11px;
+}
+
+.recorder-toast.success {
+  background: color-mix(in srgb, var(--success) 18%, var(--bg-elevated));
+  color: var(--success);
+}
+
+.recorder-toast.error {
+  background: color-mix(in srgb, var(--danger) 18%, var(--bg-elevated));
+  color: var(--danger);
+}
+
+.recorder-toast.info {
+  background: var(--bg-elevated);
+  color: var(--fg-secondary);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+</style>
