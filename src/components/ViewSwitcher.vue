@@ -81,8 +81,7 @@ const primaryViews = [
 ]
 
 // 1.0 只暴露已经接入真实运行链路的工具。
-// 批量、监控、代理、端口转发、定时任务保留源码用于后续真实实现，
-// 在完成 Native / Session 链路前不进入产品导航。
+// 批量、监控、代理、端口转发、定时任务等未完成能力不进入 1.0 产品导航。
 const toolViews = [
   { value: 'speed', label: '测速', icon: Gauge },
   { value: 'recorder', label: '录制', icon: Circle },
