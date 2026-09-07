@@ -121,6 +121,7 @@ pub fn ssh_disconnect(session_id: String) -> Result<(), String> {
 #[tauri::command(async)]
 pub fn ssh_start_shell(
     app: AppHandle,
+    session_id: String,
     host: String,
     port: u16,
     username: String,
@@ -132,6 +133,7 @@ pub fn ssh_start_shell(
     rows: u16,
 ) -> Result<String, String> {
     validate_host_port(&host, port)?;
+    validate_string_len("session_id", &session_id)?;
     validate_string_len("host", &host)?;
     validate_string_len("username", &username)?;
     validate_string_len("password", &password)?;
@@ -146,6 +148,7 @@ pub fn ssh_start_shell(
     }
     crate::ssh::start_shell(
         app,
+        &session_id,
         &host,
         port,
         &username,
