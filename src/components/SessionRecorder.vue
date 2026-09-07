@@ -88,21 +88,15 @@
       </div>
     </div>
 
-    <BaseModal
+    <ConfirmDialog
       :show="deleteRecordingId != null"
-      width="360px"
       title="删除录制"
+      message="此操作会删除录制文件和对应元数据，无法撤销。"
+      confirm-label="删除"
+      danger
       @close="deleteRecordingId = null"
-    >
-      <div class="confirm-dialog">
-        <div class="dialog-title">删除录制</div>
-        <p>此操作会删除录制文件和对应元数据，无法撤销。</p>
-        <div class="confirm-actions">
-          <button type="button" class="secondary-button" @click="deleteRecordingId = null">取消</button>
-          <button type="button" class="danger-button" @click="confirmDeleteRecording">删除</button>
-        </div>
-      </div>
-    </BaseModal>
+      @confirm="confirmDeleteRecording"
+    />
 
     <div v-if="toastState.show" class="recorder-toast" :class="toastState.type">{{ toastState.message }}</div>
   </div>
@@ -121,7 +115,7 @@ import {
   X,
 } from 'lucide-vue-next'
 import { invoke, listen } from '../utils/tauri.js'
-import BaseModal from './BaseModal.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 
 const props = defineProps({
   sessionId: String,
@@ -448,7 +442,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 5px;
   color: var(--danger);
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 
@@ -617,45 +611,6 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   font-size: 10px;
   text-align: right;
-}
-
-.confirm-dialog p {
-  margin: 8px 0 0;
-  color: var(--fg-secondary);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.dialog-title {
-  color: var(--fg-primary);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.secondary-button,
-.danger-button {
-  height: 30px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-}
-
-.secondary-button {
-  background: var(--bg-hover);
-  color: var(--fg-secondary);
-}
-
-.danger-button {
-  background: var(--danger);
-  color: white;
 }
 
 .recorder-toast {

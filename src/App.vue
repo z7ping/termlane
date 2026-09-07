@@ -14,7 +14,7 @@
         :latency-map="latencyMap"
         @select="onSelectConnection"
         @add="showAddConnection = true"
-        @delete="onDeleteConnection"
+        @delete="requestDeleteConnection"
         @edit="onEditConnection"
         @duplicate="onDuplicateConnection"
         @test="onTestConnection"
@@ -22,7 +22,7 @@
         @favorite="onToggleFavorite"
       />
 
-      <div class="flex-1 flex flex-col overflow-hidden" style="background: var(--bg-base);">
+      <div class="workspace-surface flex-1 flex flex-col overflow-hidden">
         <div class="workspace-bar h-9 flex items-center px-2">
           <TabBar
             :tabs="tabs"
@@ -77,10 +77,10 @@
             <Settings v-if="viewMode === 'settings'" />
           </ErrorBoundary>
 
-          <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center" style="color: var(--fg-muted);">
+          <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="terminal-empty h-full flex items-center justify-center">
             <div class="text-center">
               <TerminalIcon :size="52" :stroke-width="1.2" class="mx-auto mb-4" />
-              <div class="text-lg" style="color: var(--fg-secondary);">Termlane</div>
+              <div class="terminal-empty-title text-lg">Termlane</div>
               <div class="text-sm mt-2">从左侧选择一个连接，或按 + 打开本地终端</div>
             </div>
           </div>
@@ -97,6 +97,15 @@
       :editing="editingConnection"
       @save="conn => onSaveConnection(conn, editingConnection)"
       @close="showAddConnection = false; editingConnection = null"
+    />
+    <ConfirmDialog
+      :show="pendingDeleteConnectionId != null"
+      title="删除连接"
+      :message="pendingDeleteConnectionName ? `确认删除连接“${pendingDeleteConnectionName}”？保存的凭证也会一并删除。` : '确认删除此连接？保存的凭证也会一并删除。'"
+      confirm-label="删除"
+      danger
+      @close="pendingDeleteConnectionId = null"
+      @confirm="confirmDeleteConnection"
     />
     <ShortcutHelp :visible="showShortcuts" @close="showShortcuts = false" />
     <Onboarding />
@@ -117,8 +126,9 @@ import ViewSwitcher from './components/ViewSwitcher.vue'
 import TerminalPanel from './components/TerminalPanel.vue'
 import StatusBar from './components/StatusBar.vue'
 import Toast from './components/Toast.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 
-const asyncLoadingComponent = defineComponent({ template: '<div class="flex items-center justify-center p-4" style="color: var(--fg-muted);">加载中...</div>' })
+const asyncLoadingComponent = defineComponent({ template: '<div class="async-loading flex items-center justify-center p-4">加载中...</div>' })
 const asyncOpts = { loadingComponent: asyncLoadingComponent }
 const SftpPanel = defineAsyncComponent(() => import('./components/SftpPanel.vue'), asyncOpts)
 const SpeedTest = defineAsyncComponent(() => import('./components/SpeedTest.vue'), asyncOpts)
@@ -151,6 +161,11 @@ const editingConnection = ref(null)
 const viewMode = ref('terminal')
 const toastRef = ref(null)
 const bookmarkTarget = ref(null)
+const pendingDeleteConnectionId = ref(null)
+
+const pendingDeleteConnectionName = computed(() =>
+  connections.value.find(connection => connection.id === pendingDeleteConnectionId.value)?.name || '',
+)
 
 const isActiveLocal = computed(() => {
   const connection = activeConnection.value
@@ -164,6 +179,21 @@ function showToast(message, type = 'info') {
 function onEditConnection(connection) {
   editingConnection.value = connection
   showAddConnection.value = true
+}
+
+function requestDeleteConnection(id) {
+  if (id === 'local') {
+    showToast('本地终端不能删除', 'info')
+    return
+  }
+  pendingDeleteConnectionId.value = id
+}
+
+async function confirmDeleteConnection() {
+  const id = pendingDeleteConnectionId.value
+  if (!id) return
+  pendingDeleteConnectionId.value = null
+  await onDeleteConnection(id)
 }
 
 function onBookmarkNav(bookmark) {
@@ -287,9 +317,22 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.workspace-surface {
+  background: var(--bg-base);
+}
+
 .workspace-bar {
   min-width: 0;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.terminal-empty,
+.async-loading {
+  color: var(--fg-muted);
+}
+
+.terminal-empty-title {
+  color: var(--fg-secondary);
 }
 </style>
