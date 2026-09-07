@@ -1,5 +1,5 @@
 use crate::utils::*;
-// sftp.rs - SFTP file operations via SSH exec with base64 encoding
+// sftp.rs - Remote file operations via SSH exec with base64 encoding
 // All remote file operations use SSH exec commands with base64 encoding
 // to safely handle binary files across different shell environments.
 
@@ -23,6 +23,34 @@ use crate::utils;
 static RUNTIME: std::sync::LazyLock<tokio::runtime::Runtime> =
     std::sync::LazyLock::new(|| tokio::runtime::Runtime::new().expect("Failed to create tokio runtime"));
 
+fn split_exec_output(output: &str) -> Result<(String, i32), String> {
+    let marker = output
+        .rfind("\n[exit:")
+        .ok_or_else(|| "远程命令返回格式异常：缺少退出状态".to_string())?;
+    let status_text = output[marker + 1..]
+        .strip_prefix("[exit: ")
+        .and_then(|value| value.strip_suffix(']'))
+        .ok_or_else(|| "远程命令返回格式异常：退出状态无效".to_string())?;
+    let status = status_text
+        .parse::<i32>()
+        .map_err(|_| "远程命令返回格式异常：退出状态不是数字".to_string())?;
+    Ok((output[..marker].trim_end_matches('\n').to_string(), status))
+}
+
+fn execute_remote_checked(session_id: &str, command: &str) -> Result<String, String> {
+    let output = RUNTIME.block_on(ssh::execute(session_id, command))?;
+    let (body, exit_status) = split_exec_output(&output)?;
+    if exit_status != 0 {
+        let detail = body.trim();
+        return Err(if detail.is_empty() {
+            format!("远程命令执行失败 (exit {})", exit_status)
+        } else {
+            format!("远程命令执行失败 (exit {}): {}", exit_status, detail)
+        });
+    }
+    Ok(body)
+}
+
 // ─── Local file operations ───
 
 /// Validate a local filesystem path, rejecting sensitive directories and traversal.
@@ -35,11 +63,6 @@ fn validate_local_path(path: &str) -> Result<(), String> {
     let canonical = std::fs::canonicalize(path)
         .map_err(|e| format!("无法解析路径: {}", e))?;
     let canonical_str = canonical.to_string_lossy();
-
-    // Reject directory traversal (canonicalize already resolved `..`, but double-check)
-    if path.contains("..") {
-        return Err("路径包含非法的目录遍历 (..)".to_string());
-    }
 
     // Reject access to sensitive system directories
     let forbidden_prefixes = ["/etc", "/proc", "/sys", "/dev", "/boot", "/root"];
@@ -157,17 +180,17 @@ fn escape_path(path: &str) -> String {
     format!("'{}'", path.replace('\'', "'\\''"))
 }
 
-// ─── Remote SFTP operations (via SSH exec + base64) ───
+// ─── Remote file operations (via SSH exec + base64) ───
 
 pub fn list_remote(session_id: &str, path: &str) -> Result<Vec<FileEntry>, String> {
-    let output = RUNTIME.block_on(ssh::execute(
+    let output = execute_remote_checked(
         session_id,
         &format!(
             "ls -la --time-style='+%Y-%m-%d %H:%M' {} 2>/dev/null || ls -la {}",
             escape_path(path),
             escape_path(path)
         ),
-    ))?;
+    )?;
     parse_ls_output(&output, path)
 }
 
@@ -236,10 +259,6 @@ fn parse_ls_output(output: &str, base_path: &str) -> Result<Vec<FileEntry>, Stri
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
 
-    if entries.is_empty() {
-        return Err("无法解析目录列表".to_string());
-    }
-
     Ok(entries)
 }
 
@@ -261,11 +280,11 @@ pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, Str
 
     if let Some(first) = chunks.first() {
         let cmd = format!("printf '%s' {} > {}", escape_path(first), escape_path(&remote_tmp));
-        RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+        execute_remote_checked(session_id, &cmd)?;
     }
     for chunk in chunks.iter().skip(1) {
         let cmd = format!("printf '%s' {} >> {}", escape_path(chunk), escape_path(&remote_tmp));
-        RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+        execute_remote_checked(session_id, &cmd)?;
     }
 
     // Decode base64 temp file to final destination and clean up
@@ -273,7 +292,7 @@ pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, Str
         "base64 -d {} > {} && rm -f {}",
         escape_path(&remote_tmp), escape_path(remote), escape_path(&remote_tmp)
     );
-    RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+    execute_remote_checked(session_id, &cmd)?;
 
     Ok(format!("已上传: {} → {} ({} bytes)", local, remote, local_content.len()))
 }
@@ -281,14 +300,7 @@ pub fn upload(session_id: &str, local: &str, remote: &str) -> Result<String, Str
 /// Download a remote file via base64 encoding (safe for binary files).
 pub fn download(session_id: &str, remote: &str, local: &str) -> Result<String, String> {
     let cmd = format!("base64 -w 0 {}", escape_path(remote));
-    let output = RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
-
-    // Remove the "[exit: X]" suffix that execute() adds
-    let encoded = if let Some(pos) = output.rfind("\n[exit:") {
-        output[..pos].trim().to_string()
-    } else {
-        output.trim().to_string()
-    };
+    let encoded = execute_remote_checked(session_id, &cmd)?;
     let encoded: String = encoded.chars().filter(|c| !c.is_whitespace()).collect();
 
     let decoded = base64_decode(&encoded)?;
@@ -298,10 +310,10 @@ pub fn download(session_id: &str, remote: &str, local: &str) -> Result<String, S
 }
 
 pub fn rename_file(session_id: &str, old_path: &str, new_path: &str) -> Result<String, String> {
-    RUNTIME.block_on(ssh::execute(
+    execute_remote_checked(
         session_id,
         &format!("mv {} {}", escape_path(old_path), escape_path(new_path)),
-    ))?;
+    )?;
     Ok(format!("已重命名: {} → {}", old_path, new_path))
 }
 
@@ -311,15 +323,15 @@ pub fn delete_file(session_id: &str, path: &str, is_dir: bool) -> Result<String,
     } else {
         format!("rm {}", escape_path(path))
     };
-    RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+    execute_remote_checked(session_id, &cmd)?;
     Ok(format!("已删除: {}", path))
 }
 
 pub fn create_dir(session_id: &str, path: &str) -> Result<String, String> {
-    RUNTIME.block_on(ssh::execute(
+    execute_remote_checked(
         session_id,
         &format!("mkdir -p {}", escape_path(path)),
-    ))?;
+    )?;
     Ok(format!("已创建目录: {}", path))
 }
 
@@ -333,23 +345,17 @@ pub fn chmod(session_id: &str, path: &str, mode: &str) -> Result<String, String>
         return Err(format!("无效的权限模式: {}", mode));
     }
 
-    RUNTIME.block_on(ssh::execute(
+    execute_remote_checked(
         session_id,
         &format!("chmod {} {}", mode, escape_path(path)),
-    ))?;
+    )?;
     Ok(format!("已修改权限: {} → {}", path, mode))
 }
 
 /// Read a remote file as UTF-8 text via base64 (safe for any encoding).
 pub fn read_file(session_id: &str, path: &str) -> Result<String, String> {
     let cmd = format!("base64 -w 0 {}", escape_path(path));
-    let output = RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
-
-    let encoded = if let Some(pos) = output.rfind("\n[exit:") {
-        output[..pos].trim().to_string()
-    } else {
-        output.trim().to_string()
-    };
+    let encoded = execute_remote_checked(session_id, &cmd)?;
     let encoded: String = encoded.chars().filter(|c| !c.is_whitespace()).collect();
 
     let decoded = base64_decode(&encoded)?;
@@ -369,18 +375,18 @@ pub fn write_file(session_id: &str, path: &str, content: &str) -> Result<String,
 
     if let Some(first) = chunks.first() {
         let cmd = format!("printf '%s' {} > {}", escape_path(first), escape_path(&remote_tmp));
-        RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+        execute_remote_checked(session_id, &cmd)?;
     }
     for chunk in chunks.iter().skip(1) {
         let cmd = format!("printf '%s' {} >> {}", escape_path(chunk), escape_path(&remote_tmp));
-        RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+        execute_remote_checked(session_id, &cmd)?;
     }
 
     let cmd = format!(
         "base64 -d {} > {} && rm -f {}",
         escape_path(&remote_tmp), escape_path(path), escape_path(&remote_tmp)
     );
-    RUNTIME.block_on(ssh::execute(session_id, &cmd))?;
+    execute_remote_checked(session_id, &cmd)?;
     Ok(format!("已保存: {} ({} bytes)", path, content.len()))
 }
 
@@ -453,6 +459,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_split_exec_output_success() {
+        let (body, exit) = split_exec_output("hello\n[exit: 0]").expect("valid exec output");
+        assert_eq!(body, "hello");
+        assert_eq!(exit, 0);
+    }
+
+    #[test]
+    fn test_split_exec_output_failure_status() {
+        let (_, exit) = split_exec_output("\n[exit: 23]").expect("valid exec output");
+        assert_eq!(exit, 23);
+    }
+
+    #[test]
     fn test_escape_path_simple() {
         assert_eq!(escape_path("/home/user"), "'/home/user'");
     }
@@ -492,6 +511,12 @@ lrwxrwxrwx 1 user group     5 2024-01-15 08:00 link -> target\n";
         let entries = parse_ls_output(output, "/").expect("parse root dir");
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].name, "etc");
+    }
+
+    #[test]
+    fn test_parse_ls_output_empty_root_dir() {
+        let entries = parse_ls_output("total 0\n", "/").expect("empty root should be valid");
+        assert!(entries.is_empty());
     }
 
     #[test]
