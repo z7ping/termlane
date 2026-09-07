@@ -10,7 +10,7 @@
       <PanelLeft :size="16" :stroke-width="1.8" />
     </button>
 
-    <span class="ml-1 text-sm font-medium" style="color: var(--fg-primary);">Termlane</span>
+    <span class="product-name">Termlane</span>
     <div class="flex-1" />
 
     <div class="flex items-center gap-0.5 no-drag">
@@ -77,6 +77,14 @@ onUnmounted(() => window.removeEventListener('termlane-theme-changed', handleThe
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.product-name {
+  margin-left: 4px;
+  color: var(--fg-primary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .titlebar-button {
   width: 28px;
   height: 28px;
@@ -84,10 +92,9 @@ onUnmounted(() => window.removeEventListener('termlane-theme-changed', handleThe
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--fg-muted);
-  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .titlebar-button:hover {
