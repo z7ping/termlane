@@ -80,7 +80,7 @@
           <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center" style="color: var(--fg-muted);">
             <div class="text-center">
               <TerminalIcon :size="52" :stroke-width="1.2" class="mx-auto mb-4" />
-              <div class="text-lg" style="color: var(--fg-secondary);">XTerminal Pro</div>
+              <div class="text-lg" style="color: var(--fg-secondary);">Termlane</div>
               <div class="text-sm mt-2">从左侧选择一个连接，或按 + 打开本地终端</div>
             </div>
           </div>

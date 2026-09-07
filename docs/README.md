@@ -1,6 +1,6 @@
-# XTerminal Pro - 文档中心
+# Termlane - 文档中心
 
-欢迎访问 XTerminal Pro 文档中心！这里包含了项目的完整文档。
+欢迎访问 Termlane 文档中心！这里包含了项目的完整文档。
 
 ## 📋 文档目录
 
@@ -8,9 +8,9 @@
 
 | 文档 | 描述 | 适用对象 |
 |------|------|----------|
-| [安装指南](../README.md#安装) | 如何安装和运行 XTerminal Pro | 所有用户 |
+| [安装指南](../README.md#安装) | 如何安装和运行 Termlane | 所有用户 |
 | [快速上手](../README.md#快速开始) | 10 分钟快速体验核心功能 | 新用户 |
-| [基本概念](../README.md#功能状态) | 了解 XTerminal Pro 的功能架构 | 所有用户 |
+| [基本概念](../README.md#功能状态) | 了解 Termlane 的功能架构 | 所有用户 |
 
 ### 📚 开发文档
 
@@ -160,14 +160,12 @@ docs/
 
 如果您在阅读文档时有任何问题：
 
-- 📧 **技术问题**：在 [Issues](https://github.com/7ping/XTerminal-Pro/issues) 中提问
-- 💬 **讨论交流**：在 [Discussions](https://github.com/7ping/XTerminal-Pro/discussions) 中讨论
+- 📧 **技术问题**：在 [Issues](https://github.com/z7ping/termlane/issues) 中提问
+- 💬 **讨论交流**：在 [Discussions](https://github.com/z7ping/termlane/discussions) 中讨论
 - 📝 **文档反馈**：直接提交 PR 或 Issue
-- 🐛 **文档错误**：[报告文档错误](https://github.com/7ping/XTerminal-Pro/issues/new?labels=documentation)
+- 🐛 **文档错误**：[报告文档错误](https://github.com/z7ping/termlane/issues/new?labels=documentation)
 
 ---
 
-**文档维护者**：XTerminal Pro 团队  
-**最后更新**：2026-04-16  
-
-高质量的文档是我们项目的核心价值之一。感谢每一位参与者对文档建设的贡献！🙏
+**文档维护者**：Termlane  
+**最后更新**：2026-09-07

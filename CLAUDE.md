@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-XTerminal Pro is a lightweight desktop SSH terminal + SFTP + multi-server manager built on Tauri v2, Vue 3 and Rust.
+Termlane is a lightweight desktop SSH terminal + SFTP + multi-server manager built on Tauri v2, Vue 3 and Rust.
 
 Product direction: keep SSH / terminal / SFTP daily workflows fast, low-resource, direct and low-configuration. Do not turn the project into a feature-heavy terminal suite by default.
 
@@ -34,7 +34,7 @@ cargo test
 npm run tauri:build
 ```
 
-GitHub Actions runs the frontend and Rust quality gates on pull requests. Do not mark a change validated when the latest relevant CI run is failing or still incomplete.
+GitHub Actions runs the frontend and Rust quality gates on release. Do not mark a change validated when the latest relevant CI run is failing or still incomplete.
 
 ## Architecture
 
@@ -73,6 +73,7 @@ Rules:
 - Never persist `password` or `passphrase` in `connections.json`, Tab snapshots, localStorage, logs or ordinary frontend state snapshots.
 - `src/utils/credentials.ts` removes transient secrets before ordinary persistence and resolves credentials at connection time.
 - Historical `xterminal-pwd_<id>` plaintext localStorage values are migration input only; migrate them to the secure backend and delete the plaintext key.
+- Historical `xterminal-*` localStorage keys and the `xterminal-pro` config/Keyring namespaces are migration input only after the Termlane rename; new data must use the Termlane namespace.
 - Duplicating a connection must not duplicate its credentials.
 - Browser mode uses `secure-store-browser.ts` AES-GCM fallback only because no OS Keyring exists there. Its sessionStorage-held key is XSS-extractable and must not be described as desktop-equivalent security.
 

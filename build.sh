@@ -1,5 +1,5 @@
 #!/bin/bash
-# XTerminal Pro 构建脚本
+# Termlane 构建脚本
 # 用法: ./build.sh [dev|build]
 
 set -e
@@ -8,7 +8,7 @@ source "$HOME/.cargo/env"
 
 MODE="${1:-build}"
 
-echo "=== XTerminal Pro 构建 ==="
+echo "=== Termlane 构建 ==="
 echo "模式: $MODE"
 echo ""
 

@@ -1,4 +1,4 @@
-# XTerminal Pro - 更新日志
+# Termlane - 更新日志
 
 所有重要变更都将记录在此文件中。
 
@@ -152,14 +152,14 @@
 
 ## 反馈与贡献
 
-- 🐛 报告 Bug：[Issues](https://github.com/7ping/XTerminal-Pro/issues)
-- 💡 功能建议：[Discussions](https://github.com/7ping/XTerminal-Pro/discussions)
-- 📝 文档改进：[Wiki](https://github.com/7ping/XTerminal-Pro/wiki)
+- 🐛 报告 Bug：[Issues](https://github.com/z7ping/termlane/issues)
+- 💡 功能建议：[Discussions](https://github.com/z7ping/termlane/discussions)
+- 📝 文档改进：[Wiki](https://github.com/z7ping/termlane/wiki)
 - 🔧 贡献代码：[CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## 致谢
 
-感谢所有为 XTerminal Pro 做出贡献的开发者，以及以下开源项目：
+感谢所有为 Termlane 做出贡献的开发者，以及以下开源项目：
 - [Tauri](https://tauri.app/) - 跨平台桌面应用框架
 - [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
 - [xterm.js](https://xtermjs.org/) - 前端终端模拟器

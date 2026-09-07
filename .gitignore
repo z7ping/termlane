@@ -31,4 +31,8 @@ coverage/
 
 # OS
 Thumbs.db
+
+# Local development tooling
+.claude/skills/
+.specify/
 .codegraph/

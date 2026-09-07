@@ -91,7 +91,7 @@
           <div class="about-card">
             <div class="flex items-center gap-2">
               <Info :size="16" :stroke-width="1.8" />
-              <span class="setting-label">XTerminal Pro{{ appVersion ? ` v${appVersion}` : '' }}</span>
+              <span class="setting-label">Termlane{{ appVersion ? ` v${appVersion}` : '' }}</span>
             </div>
             <p>轻量级 SSH 终端与远程文件管理工具。</p>
             <p>基于 Tauri v2、Vue 3 和 xterm.js。</p>

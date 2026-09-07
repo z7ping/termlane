@@ -164,7 +164,7 @@ describe('冒烟测试', () => {
     test("t('app.name') 返回正确值", async () => {
       const i18n = await import('../utils/i18n.ts');
       const appKey = i18n.t('app.name');
-      expect(appKey).toBe('XTerminal Pro');
+      expect(appKey).toBe('Termlane');
     });
   });
 

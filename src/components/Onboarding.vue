@@ -1,7 +1,7 @@
 <template>
   <Transition name="onboarding-fade">
     <div v-if="show" class="onboarding-backdrop" @click.self="skip">
-      <div class="onboarding-dialog" role="dialog" aria-modal="true" aria-label="XTerminal Pro 首次使用引导" @keydown.esc="skip">
+      <div class="onboarding-dialog" role="dialog" aria-modal="true" aria-label="Termlane 首次使用引导" @keydown.esc="skip">
         <button type="button" class="close-button" aria-label="跳过引导" title="跳过引导" @click="skip">
           <X :size="15" :stroke-width="1.8" />
         </button>
@@ -9,7 +9,7 @@
         <div class="onboarding-content">
           <section v-if="current === 0" class="step-content">
             <div class="hero-icon"><Terminal :size="42" :stroke-width="1.35" /></div>
-            <h2>欢迎使用 XTerminal Pro</h2>
+            <h2>欢迎使用 Termlane</h2>
             <p>一个专注日常 SSH 终端与远程文件管理的轻量桌面工具。</p>
             <div class="feature-grid">
               <div><TerminalSquare :size="17" /><span>真实 PTY 终端</span></div>

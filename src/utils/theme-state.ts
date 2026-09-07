@@ -11,7 +11,7 @@ export function getStoredTheme(): ThemeValue {
 export function applyTheme(theme: ThemeValue): void {
   document.documentElement.setAttribute('data-theme', theme)
   localStorage.setItem(STORAGE_KEYS.THEME, theme)
-  window.dispatchEvent(new CustomEvent('xterminal-theme-changed', { detail: theme }))
+  window.dispatchEvent(new CustomEvent('termlane-theme-changed', { detail: theme }))
 }
 
 export function nextTheme(theme: ThemeValue): ThemeValue {

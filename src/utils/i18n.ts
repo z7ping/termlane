@@ -1,5 +1,7 @@
 // i18n.ts - 国际化支持
 
+import { STORAGE_KEYS } from './storage-keys.ts'
+
 interface TranslationMessages {
   [key: string]: string | TranslationMessages
 }
@@ -8,7 +10,7 @@ type TranslationValue = string | TranslationMessages
 
 const messages: Record<string, TranslationMessages> = {
   zh: {
-    app: { name: 'XTerminal Pro', welcome: '欢迎使用 XTerminal Pro' },
+    app: { name: 'Termlane', welcome: '欢迎使用 Termlane' },
     sidebar: { connections: '连接', add: '新建连接', search: '搜索连接...', noResults: '没有匹配的连接', empty: '点击 + 添加第一个连接', quickCmd: '快捷命令' },
     tab: { new: '新终端', close: '关闭', closeOthers: '关闭其他', closeAll: '关闭全部' },
     terminal: { searching: '搜索...', help: '输入 help 查看可用命令', connected: '已连接', disconnected: '会话已断开', connecting: '正在连接...', failed: '连接失败', copied: '已复制', local: '本地演示', split: '分屏' },
@@ -18,10 +20,10 @@ const messages: Record<string, TranslationMessages> = {
     settings: { title: '设置', appearance: '外观', darkMode: '暗色主题', darkModeDesc: '切换暗色/亮色主题', fontSize: '字体大小', cursor: '光标样式', cursorDesc: '终端光标闪烁', terminal: '终端', scrollback: '滚动缓冲区', timeout: 'SSH 连接超时', shortcuts: '快捷键', about: '关于' },
     shortcuts: { search: '搜索', clear: '清屏', interrupt: '中断', newTab: '新建标签', closeTab: '关闭标签', split: '分屏', fullscreen: '全屏', help: '快捷键帮助', sidebar: '切换侧边栏', settings: '设置', newConn: '新连接' },
     toast: { saved: '已保存', deleted: '已删除', copied: '已复制', success: '成功', error: '失败', disconnected: '已断开连接', connected: '连接成功' },
-    onboarding: { step1Title: '欢迎使用 XTerminal Pro', step1Desc: '轻量级 SSH 终端工具，基于 Tauri 构建。', step2Title: '连接你的服务器', step2Desc: '点击左侧 + 添加 SSH 连接，支持密码和密钥认证。', next: '下一步', prev: '上一步', start: '开始使用 🚀' },
+    onboarding: { step1Title: '欢迎使用 Termlane', step1Desc: '轻量级 SSH 终端工具，基于 Tauri 构建。', step2Title: '连接你的服务器', step2Desc: '点击左侧 + 添加 SSH 连接，支持密码和密钥认证。', next: '下一步', prev: '上一步', start: '开始使用 🚀' },
   },
   en: {
-    app: { name: 'XTerminal Pro', welcome: 'Welcome to XTerminal Pro' },
+    app: { name: 'Termlane', welcome: 'Welcome to Termlane' },
     sidebar: { connections: 'Connections', add: 'New Connection', search: 'Search connections...', noResults: 'No matching connections', empty: 'Click + to add your first connection', quickCmd: 'Quick Commands' },
     tab: { new: 'New Terminal', close: 'Close', closeOthers: 'Close Others', closeAll: 'Close All' },
     terminal: { searching: 'Searching...', help: 'Type help for available commands', connected: 'Connected', disconnected: 'Session disconnected', connecting: 'Connecting...', failed: 'Connection failed', copied: 'Copied', local: 'Local Demo', split: 'Split' },
@@ -31,11 +33,11 @@ const messages: Record<string, TranslationMessages> = {
     settings: { title: 'Settings', appearance: 'Appearance', darkMode: 'Dark Mode', darkModeDesc: 'Toggle dark/light theme', fontSize: 'Font Size', cursor: 'Cursor', cursorDesc: 'Terminal cursor blink', terminal: 'Terminal', scrollback: 'Scrollback Buffer', timeout: 'SSH Timeout', shortcuts: 'Shortcuts', about: 'About' },
     shortcuts: { search: 'Search', clear: 'Clear', interrupt: 'Interrupt', newTab: 'New Tab', closeTab: 'Close Tab', split: 'Split', fullscreen: 'Fullscreen', help: 'Shortcuts Help', sidebar: 'Toggle Sidebar', settings: 'Settings', newConn: 'New Connection' },
     toast: { saved: 'Saved', deleted: 'Deleted', copied: 'Copied', success: 'Success', error: 'Error', disconnected: 'Disconnected', connected: 'Connected' },
-    onboarding: { step1Title: 'Welcome to XTerminal Pro', step1Desc: 'Lightweight SSH terminal built with Tauri.', step2Title: 'Connect your servers', step2Desc: 'Click + on the left to add SSH connections.', next: 'Next', prev: 'Previous', start: 'Get Started 🚀' },
+    onboarding: { step1Title: 'Welcome to Termlane', step1Desc: 'Lightweight SSH terminal built with Tauri.', step2Title: 'Connect your servers', step2Desc: 'Click + on the left to add SSH connections.', next: 'Next', prev: 'Previous', start: 'Get Started 🚀' },
   },
 }
 
-let currentLocale: string = localStorage.getItem('xterminal_locale') || 'zh'
+let currentLocale: string = localStorage.getItem(STORAGE_KEYS.LOCALE) || 'zh'
 
 export function t(key: string): string {
   const keys = key.split('.')
@@ -52,7 +54,7 @@ export function t(key: string): string {
 
 export function setLocale(locale: string): void {
   currentLocale = locale
-  localStorage.setItem('xterminal_locale', locale)
+  localStorage.setItem(STORAGE_KEYS.LOCALE, locale)
 }
 
 export function getLocale(): string {

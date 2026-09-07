@@ -10,7 +10,7 @@
       <PanelLeft :size="16" :stroke-width="1.8" />
     </button>
 
-    <span class="ml-1 text-sm font-medium" style="color: var(--fg-primary);">XTerminal Pro</span>
+    <span class="ml-1 text-sm font-medium" style="color: var(--fg-primary);">Termlane</span>
     <div class="flex-1" />
 
     <div class="flex items-center gap-0.5 no-drag">
@@ -67,8 +67,8 @@ function handleThemeChanged(event) {
   currentTheme.value = event.detail || getStoredTheme()
 }
 
-onMounted(() => window.addEventListener('xterminal-theme-changed', handleThemeChanged))
-onUnmounted(() => window.removeEventListener('xterminal-theme-changed', handleThemeChanged))
+onMounted(() => window.addEventListener('termlane-theme-changed', handleThemeChanged))
+onUnmounted(() => window.removeEventListener('termlane-theme-changed', handleThemeChanged))
 </script>
 
 <style scoped>

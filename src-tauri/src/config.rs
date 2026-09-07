@@ -2,7 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+const CONFIG_DIR_NAME: &str = "termlane";
+const LEGACY_CONFIG_DIR_NAME: &str = "xterminal-pro";
+const KEYRING_SERVICE: &str = "termlane";
+const LEGACY_KEYRING_SERVICE: &str = "xterminal-pro";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,10 +31,34 @@ pub struct ConnectionConfig {
     pub favorite: Option<bool>,
 }
 
+fn copy_dir_recursive(source: &Path, target: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(target)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        let target_path = target.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_recursive(&source_path, &target_path)?;
+        } else {
+            fs::copy(&source_path, &target_path)?;
+        }
+    }
+    Ok(())
+}
+
 fn config_dir() -> PathBuf {
-    let dir = dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("xterminal-pro");
+    let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+    let dir = base.join(CONFIG_DIR_NAME);
+
+    if !dir.exists() {
+        let legacy_dir = base.join(LEGACY_CONFIG_DIR_NAME);
+        if legacy_dir.exists() && fs::rename(&legacy_dir, &dir).is_err() {
+            // Rename is normally enough because both directories share a parent.
+            // Keep the legacy directory as a backup if a copy fallback is required.
+            copy_dir_recursive(&legacy_dir, &dir).ok();
+        }
+    }
+
     fs::create_dir_all(&dir).ok();
     dir
 }
@@ -79,28 +108,55 @@ pub fn delete_connection(id: &str) -> Result<(), String> {
 
 // ─── Keyring password storage ───
 
+fn keyring_entry(service: &str, conn_id: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(service, conn_id)
+        .map_err(|e| format!("Keyring 初始化失败: {}", e))
+}
+
 pub fn save_password(conn_id: &str, password: &str) -> Result<(), String> {
-    let entry = keyring::Entry::new("xterminal-pro", conn_id)
-        .map_err(|e| format!("Keyring 初始化失败: {}", e))?;
-    entry
+    keyring_entry(KEYRING_SERVICE, conn_id)?
         .set_password(password)
         .map_err(|e| format!("保存密码失败: {}", e))
 }
 
 pub fn load_password(conn_id: &str) -> Result<String, String> {
-    let entry = keyring::Entry::new("xterminal-pro", conn_id)
-        .map_err(|e| format!("Keyring 初始化失败: {}", e))?;
-    entry
-        .get_password()
-        .map_err(|e| format!("读取密码失败: {}", e))
+    let entry = keyring_entry(KEYRING_SERVICE, conn_id)?;
+    match entry.get_password() {
+        Ok(password) => Ok(password),
+        Err(current_error) => {
+            let legacy_entry = keyring_entry(LEGACY_KEYRING_SERVICE, conn_id)?;
+            match legacy_entry.get_password() {
+                Ok(password) => {
+                    // Best-effort one-time migration. The legacy item is removed only
+                    // after the new Termlane service has accepted the password.
+                    if entry.set_password(&password).is_ok() {
+                        legacy_entry.delete_credential().ok();
+                    }
+                    Ok(password)
+                }
+                Err(_) => Err(format!("读取密码失败: {}", current_error)),
+            }
+        }
+    }
 }
 
 pub fn delete_password(conn_id: &str) -> Result<(), String> {
-    let entry = keyring::Entry::new("xterminal-pro", conn_id)
-        .map_err(|e| format!("Keyring 初始化失败: {}", e))?;
-    entry
-        .delete_credential()
-        .map_err(|e| format!("删除密码失败: {}", e))
+    let current_entry = keyring_entry(KEYRING_SERVICE, conn_id)?;
+    let legacy_entry = keyring_entry(LEGACY_KEYRING_SERVICE, conn_id)?;
+    let current_result = current_entry.delete_credential();
+    let legacy_result = legacy_entry.delete_credential();
+
+    if current_result.is_ok() || legacy_result.is_ok() {
+        Ok(())
+    } else {
+        Err(format!(
+            "删除密码失败: {}",
+            current_result
+                .err()
+                .map(|e| e.to_string())
+                .unwrap_or_else(|| "unknown error".to_string())
+        ))
+    }
 }
 
 // ─── Session recordings storage ───
@@ -195,7 +251,7 @@ mod tests {
         assert_eq!(back.id, "test-001");
         assert_eq!(back.name, "My Server");
         assert_eq!(back.port, 22);
-        assert_eq!(back.auth_type, "password");
+        assert_eq!(back.auth_type.as_str(), "password");
         assert_eq!(back.color.as_deref(), Some("red"));
         assert_eq!(back.tags.as_ref().unwrap().len(), 2);
         assert_eq!(back.proxy_port, Some(1080));

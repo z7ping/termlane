@@ -240,7 +240,7 @@ async function initTerminal() {
 function showWelcome(terminal, mode) {
   const version = appVersion.value ? ` v${appVersion.value}` : ''
   terminal.writeln('\x1b[1;36m╔══════════════════════════════════════════╗\x1b[0m')
-  terminal.writeln(`\x1b[1;36m║              XTerminal Pro${version.padEnd(12)}║\x1b[0m`)
+  terminal.writeln(`\x1b[1;36m║                 Termlane${version.padEnd(16)}║\x1b[0m`)
   terminal.writeln('\x1b[1;36m╚══════════════════════════════════════════╝\x1b[0m')
   terminal.writeln('')
   terminal.writeln(`  模式: \x1b[1;33m${mode}\x1b[0m`)
@@ -457,7 +457,7 @@ function executeLocalCommand(terminal, command) {
     terminal.writeln('  可用命令: help, clear, exit, version')
     terminal.writeln('  提示: 连接远程服务器以使用完整终端功能')
   } else if (command === 'version') {
-    terminal.writeln(`XTerminal Pro${appVersion.value ? ` v${appVersion.value}` : ''}`)
+    terminal.writeln(`Termlane${appVersion.value ? ` v${appVersion.value}` : ''}`)
   } else if (command === 'clear') {
     terminal.clear()
   } else if (command === 'exit' || command === 'quit') {
@@ -545,7 +545,7 @@ onMounted(async () => {
   }, 60_000)
 
   window.addEventListener('storage', handleStorage)
-  window.addEventListener('xterminal-theme-changed', handleThemeChanged)
+  window.addEventListener('termlane-theme-changed', handleThemeChanged)
   window.addEventListener('shortcut-changed', handleShortcutChanged)
 })
 
@@ -556,7 +556,7 @@ onUnmounted(async () => {
   inputDisposable?.dispose()
   containerRef.value?.removeEventListener('contextmenu', handleContextmenu)
   window.removeEventListener('storage', handleStorage)
-  window.removeEventListener('xterminal-theme-changed', handleThemeChanged)
+  window.removeEventListener('termlane-theme-changed', handleThemeChanged)
   window.removeEventListener('shortcut-changed', handleShortcutChanged)
 
   if (shellId) {
