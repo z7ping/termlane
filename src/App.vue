@@ -39,18 +39,15 @@
 
         <div class="flex-1 relative overflow-hidden">
           <ErrorBoundary>
-            <template v-if="viewMode === 'terminal'">
-              <keep-alive>
-                <TerminalPanel
-                  v-if="activeTab"
-                  :key="activeTabId"
-                  :tab="activeTab"
-                  :active="true"
-                  @connected="onSessionConnected(activeTabId, $event)"
-                  @disconnected="onSessionDisconnected(activeTabId)"
-                />
-              </keep-alive>
-            </template>
+            <TerminalPanel
+              v-for="tab in tabs"
+              v-show="viewMode === 'terminal' && tab.id === activeTabId"
+              :key="tab.id"
+              :tab="tab"
+              :active="tab.id === activeTabId"
+              @connected="onSessionConnected(tab.id, $event)"
+              @disconnected="onSessionDisconnected(tab.id)"
+            />
             <SftpPanel
               v-if="viewMode === 'sftp'"
               :connection="activeConnection"
@@ -146,7 +143,7 @@ const Onboarding = defineAsyncComponent(() => import('./components/Onboarding.vu
 
 const {
   connections, latencyMap, tabs, activeTabId,
-  activeConnectionId, activeTab, activeConnection, activeSessionId,
+  activeConnectionId, activeConnection, activeSessionId,
   loadConnections, loadTabsState, saveTabsState,
   startPingPolling, stopPingPolling,
   onSelectConnection, closeTab, closeOtherTabs, closeAllTabs, openLocalTerminal,
