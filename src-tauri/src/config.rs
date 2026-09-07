@@ -103,49 +103,6 @@ pub fn delete_password(conn_id: &str) -> Result<(), String> {
         .map_err(|e| format!("删除密码失败: {}", e))
 }
 
-// ─── Window state persistence ───
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WindowState {
-    pub x: Option<i32>,
-    pub y: Option<i32>,
-    pub width: Option<u32>,
-    pub height: Option<u32>,
-    pub maximized: Option<bool>,
-    pub display_id: Option<String>, // Monitor name/identifier
-}
-
-impl Default for WindowState {
-    fn default() -> Self {
-        Self {
-            x: None,
-            y: None,
-            width: Some(1200),
-            height: Some(800),
-            maximized: Some(false),
-            display_id: None,
-        }
-    }
-}
-
-pub fn save_window_state(state: WindowState) -> Result<(), String> {
-    let path = config_dir().join("window_state.json");
-    let content = serde_json::to_string_pretty(&state).map_err(|e| e.to_string())?;
-    fs::write(path, content).map_err(|e| e.to_string())
-}
-
-pub fn load_window_state() -> Result<WindowState, String> {
-    let path = config_dir().join("window_state.json");
-    if !path.exists() {
-        return Ok(WindowState::default());
-    }
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    // Use default for missing fields (backward compat with old config)
-    let raw: serde_json::Value = serde_json::from_str(&content).map_err(|e| e.to_string())?;
-    let state: WindowState = serde_json::from_value(raw.clone()).unwrap_or_default();
-    Ok(state)
-}
-
 // ─── Session recordings storage ───
 
 fn recordings_dir() -> PathBuf {
@@ -298,42 +255,6 @@ mod tests {
         assert_eq!(back.len(), 2);
         assert_eq!(back[0].id, "a");
         assert_eq!(back[1].port, 2222);
-    }
-
-    #[test]
-    fn test_window_state_serialize() {
-        let state = WindowState {
-            x: Some(100),
-            y: Some(200),
-            width: Some(1200),
-            height: Some(800),
-            maximized: Some(false),
-            display_id: Some("DP-1".into()),
-        };
-        let json = serde_json::to_string(&state).expect("serialize WindowState");
-        let back: WindowState = serde_json::from_str(&json).expect("deserialize WindowState");
-        assert_eq!(back.x, Some(100));
-        assert_eq!(back.width, Some(1200));
-        assert_eq!(back.maximized, Some(false));
-        assert_eq!(back.display_id.as_deref(), Some("DP-1"));
-    }
-
-    #[test]
-    fn test_window_state_defaults() {
-        let state = WindowState::default();
-        assert!(state.x.is_none());
-        assert!(state.maximized == Some(false));
-        assert_eq!(state.width, Some(1200));
-        assert!(state.display_id.is_none());
-    }
-
-    #[test]
-    fn test_window_state_backward_compat() {
-        // Old config without display_id should parse fine
-        let json = r#"{"x":100,"y":200,"width":1200,"height":800,"maximized":false}"#;
-        let state: WindowState = serde_json::from_str(json).expect("deserialize old format");
-        assert_eq!(state.x, Some(100));
-        assert!(state.display_id.is_none());
     }
 
     #[test]

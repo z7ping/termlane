@@ -1,29 +1,21 @@
 /**
  * XTerminal Pro 浏览器版本安全存储模块
- * 纯浏览器环境，使用AES-GCM加密 + localStorage
- * 不依赖任何Tauri相关API
+ * 纯浏览器环境，使用 AES-GCM 加密 + localStorage。
+ * 不依赖任何 Tauri 相关 API；桌面凭证不经过本模块。
  */
 
-// 加密密钥管理
 const ENCRYPTION_KEY_NAME = 'xt_secure_key'
 
 /**
- * 生成或获取加密密钥
- * 使用 Web Crypto API 生成随机密钥
+ * 生成或获取浏览器回退模式的加密密钥。
  *
- * SECURITY NOTE: The AES key is stored as JWK in sessionStorage, which is
- * accessible to any same-origin script. This is the browser-only fallback —
- * in the Tauri desktop app, the Rust backend uses the OS keyring via the
- * tauri-plugin-stronghold secure-store backend, so the key never touches
- * the browser storage layer. For the browser build, sessionStorage is
- * acceptable since there is no cross-origin data to exfiltrate, but an XSS
- * vulnerability could extract the key. This is an inherent trade-off of
- * pure browser storage; if stronger guarantees are needed, use the desktop
- * build or integrate a server-side secret manager.
+ * SECURITY NOTE: AES key 以可导出的 JWK 放在 sessionStorage，任何同源脚本
+ * 都可能在发生 XSS 时读取它。因此这里只能作为 browser mock/fallback，不能
+ * 与桌面安全等级等同。Tauri 桌面模式通过 Rust `keyring` 使用 OS Keyring，
+ * password / passphrase 不应进入此浏览器存储层。
  */
 async function getEncryptionKey(): Promise<CryptoKey> {
   try {
-    // 尝试从sessionStorage获取已存在的密钥
     const storedKey = sessionStorage.getItem(ENCRYPTION_KEY_NAME)
     if (storedKey) {
       const keyData = JSON.parse(storedKey)
@@ -36,7 +28,6 @@ async function getEncryptionKey(): Promise<CryptoKey> {
       )
     }
 
-    // 生成新密钥
     const key = await crypto.subtle.generateKey(
       {
         name: 'AES-GCM',
@@ -46,7 +37,6 @@ async function getEncryptionKey(): Promise<CryptoKey> {
       ['encrypt', 'decrypt']
     )
 
-    // 导出并存储密钥到sessionStorage（会话结束时清除）
     const exportedKey = await crypto.subtle.exportKey('jwk', key)
     sessionStorage.setItem(ENCRYPTION_KEY_NAME, JSON.stringify(exportedKey))
 
@@ -62,16 +52,11 @@ interface EncryptedData {
   iv: string
 }
 
-/**
- * AES-GCM 加密
- */
 async function encryptData(data: string): Promise<EncryptedData> {
   try {
     const key = await getEncryptionKey()
     const encoder = new TextEncoder()
     const encoded = encoder.encode(data)
-
-    // 生成随机IV
     const iv = crypto.getRandomValues(new Uint8Array(12))
 
     const ciphertext = await crypto.subtle.encrypt(
@@ -93,9 +78,6 @@ async function encryptData(data: string): Promise<EncryptedData> {
   }
 }
 
-/**
- * AES-GCM 解密
- */
 async function decryptData(ciphertext: string, iv: string): Promise<string | null> {
   try {
     const key = await getEncryptionKey()
@@ -119,10 +101,6 @@ async function decryptData(ciphertext: string, iv: string): Promise<string | nul
   }
 }
 
-/**
- * 浏览器环境安全存储实现
- * 使用AES-GCM加密 + localStorage
- */
 class BrowserSecureStorage {
   readonly PREFIX = 'xt_secure_'
 
@@ -162,7 +140,6 @@ class BrowserSecureStorage {
   }
 
   async clear(): Promise<void> {
-    // 清除所有以 PREFIX 开头的键
     const keys: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
@@ -173,9 +150,6 @@ class BrowserSecureStorage {
     keys.forEach(key => localStorage.removeItem(key))
   }
 
-  /**
-   * 列出所有存储的键（不包含前缀）
-   */
   async keys(): Promise<string[]> {
     const result: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
@@ -187,29 +161,17 @@ class BrowserSecureStorage {
     return result
   }
 
-  /**
-   * 检查键是否存在
-   */
   async has(key: string): Promise<boolean> {
     return localStorage.getItem(this.PREFIX + key) !== null
   }
 }
 
-/**
- * 创建安全存储实例
- */
 function createSecureStorage(): BrowserSecureStorage {
   return new BrowserSecureStorage()
 }
 
-// 默认实例
 export const secureStore = createSecureStorage()
 
-// ============ 辅助函数 ============
-
-/**
- * 密码存储辅助函数
- */
 export async function storePassword(connectionId: string, password: string): Promise<boolean> {
   return secureStore.set(`pwd_${connectionId}`, password)
 }
@@ -222,9 +184,6 @@ export async function removePassword(connectionId: string): Promise<void> {
   return secureStore.remove(`pwd_${connectionId}`)
 }
 
-/**
- * 书签存储辅助函数
- */
 export async function storeBookmarks(bookmarks: unknown): Promise<boolean> {
   return secureStore.set('bookmarks', bookmarks)
 }
@@ -233,9 +192,6 @@ export async function getBookmarks<T = unknown>(): Promise<T | null> {
   return secureStore.get<T>('bookmarks')
 }
 
-/**
- * 收藏夹存储辅助函数
- */
 export async function storeFavorites(favorites: unknown): Promise<boolean> {
   return secureStore.set('favorites', favorites)
 }
@@ -244,9 +200,6 @@ export async function getFavorites<T = unknown>(): Promise<T | null> {
   return secureStore.get<T>('favorites')
 }
 
-/**
- * 定时任务存储辅助函数
- */
 export async function storeSchedulerTasks(tasks: unknown): Promise<boolean> {
   return secureStore.set('scheduler_tasks', tasks)
 }
@@ -255,9 +208,6 @@ export async function getSchedulerTasks<T = unknown>(): Promise<T | null> {
   return secureStore.get<T>('scheduler_tasks')
 }
 
-/**
- * 浏览器兼容性检查
- */
 export function checkBrowserSupport(): boolean {
   const features = {
     crypto: 'crypto' in window && 'subtle' in window.crypto,
@@ -285,9 +235,6 @@ interface StorageInfo {
   availableSpace: number
 }
 
-/**
- * 导出存储统计信息
- */
 export async function getStorageInfo(): Promise<StorageInfo> {
   const store = createSecureStorage()
   const keys = await store.keys()
@@ -306,6 +253,6 @@ export async function getStorageInfo(): Promise<StorageInfo> {
     keyCount: keys.length,
     totalSize,
     details,
-    availableSpace: localStorage.length, // 粗略估计
+    availableSpace: localStorage.length,
   }
 }

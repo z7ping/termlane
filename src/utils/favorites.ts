@@ -10,17 +10,22 @@ export interface Connection {
 
 export async function getFavorites(): Promise<string[]> {
   try {
-    return await secureStore.get(STORAGE_KEY) || []
-  } catch { return [] }
+    const stored = await secureStore.get<string[]>(STORAGE_KEY)
+    return stored ? [...stored] : []
+  } catch {
+    return []
+  }
 }
 
 export async function toggleFavorite(connectionId: string): Promise<string[]> {
-  const favs = await getFavorites()
-  const idx = favs.indexOf(connectionId)
-  if (idx >= 0) favs.splice(idx, 1)
-  else favs.push(connectionId)
-  await secureStore.set(STORAGE_KEY, favs)
-  return favs
+  const current = await getFavorites()
+  const exists = current.includes(connectionId)
+  const next = exists
+    ? current.filter(id => id !== connectionId)
+    : [...current, connectionId]
+
+  await secureStore.set(STORAGE_KEY, next)
+  return [...next]
 }
 
 export async function isFavorite(connectionId: string): Promise<boolean> {

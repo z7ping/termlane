@@ -4,109 +4,139 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-XTerminal Pro — lightweight SSH terminal + SFTP + multi-server manager built on Tauri v2. Desktop app (~30MB) using Vue 3 + Vite frontend with a Rust backend (ssh2-rs + tokio). Full-featured: PTY shell, file management, connection monitoring, session recording, port forwarding, batch commands, cron scheduler.
+XTerminal Pro is a lightweight desktop SSH terminal + SFTP + multi-server manager built on Tauri v2, Vue 3 and Rust.
+
+Product direction: keep SSH / terminal / SFTP daily workflows fast, low-resource, direct and low-configuration. Do not turn the project into a feature-heavy terminal suite by default.
+
+Current build metadata is `0.1.0`; the project is in 1.0 closure. Historical README/PLAN claims are not authoritative when they conflict with current code.
 
 ## Essential Commands
 
 ```bash
-# Browser dev mode (no Tauri, uses mock backend at localhost:1420)
+# Browser UI development (mock/fallback only)
 npm run dev
 
-# Full Tauri desktop app
+# Full desktop app
 npm run tauri:dev
 
-# Production build
-npm run tauri:build          # Linux (.deb) + Windows (.msi) + macOS (.dmg/.app)
+# Frontend validation
+npm test
+npm run test:smoke
+npx vue-tsc --noEmit
+npm run build
 
-# Testing
-npm test                     # vitest run (all tests)
-npm run test:watch           # vitest watch mode
-npm run test:coverage        # with coverage report
-cargo test                   # Rust tests (from src-tauri/)
+# Rust validation
+cd src-tauri
+cargo check
+cargo test
 
-# Type checking
-npx vue-tsc --noEmit        # type-check all TypeScript + Vue files
-
-# Format / lint
-npx prettier --check src/    # (not configured; add if needed)
+# Production bundle
+npm run tauri:build
 ```
 
-- Node.js >=18, Rust >=1.70, system deps: `libwebkit2gtk-4.1-dev libgtk-3-dev libssl-dev` (Linux)
-- Windows: MSVC Build Tools + Rust; the vendored openssl build needs `perl` on PATH
-- **Note:** `typescript`, `vue-tsc`, and `@vue/tsconfig` are in `devDependencies` but may not be installed -- run `npm install` first
+GitHub Actions runs the frontend and Rust quality gates on pull requests. Do not mark a change validated when the latest relevant CI run is failing or still incomplete.
 
 ## Architecture
 
+```text
+Vue 3 WebView
+  -> @tauri-apps/api ESM invoke/listen
+  -> Tauri command boundary
+  -> Rust ssh2 / portable-pty / keyring / filesystem
 ```
-Frontend (Vue 3 WebView) --Tauri IPC--> Rust Backend --Native--> SSH/SFTP/Keyring
-```
 
-### Frontend (Vue 3 + Vite + TailwindCSS)
-- **Entry:** `src/main.ts` -> `src/App.vue`
-- **State management:** NO Pinia/Vuex. Custom composable `src/composables/useAppState.js` + reactive refs in App.vue. Global state lives on `App.vue` (connections, tabs, viewMode, activeConnectionId, activeTabId) and flows down as props/emits.
-- **IPC:** `src/utils/tauri.ts` wraps Tauri `invoke()` and `listen()`. Auto-detects `!isTauri()` and switches to browser mock mode (mock responses for all commands, no real SSH). All other code imports `invoke`/`listen`/`isTauri` from this one file.
-- **18 async-loaded views** via `defineAsyncComponent()` in App.vue (lazy loading), switched by `viewMode`.
-- **Secure storage fallback:** `src/utils/secure-store-browser.ts` provides AES-256-GCM encryption for browser mode (key in sessionStorage, ciphertext in localStorage). In Tauri desktop, the Rust backend uses OS keyring instead.
+### Frontend
 
-### Rust Backend (src-tauri/src/)
+- Entry: `src/main.ts -> src/App.vue`.
+- No Pinia/Vuex. Shared state is primarily in `src/composables/useAppState.js`.
+- `src/utils/tauri.ts` is the single Tauri IPC/browser-mock boundary.
+- `withGlobalTauri` is disabled. Do not reintroduce `window.__TAURI__`; use the bundled `@tauri-apps/api` ESM APIs.
+- Browser mode is a UI/mock environment. It does not prove SSH, PTY, SFTP, Keyring or packaging correctness.
+- TypeScript migration is gradual: utility modules are mostly `.ts`, many Vue components still use plain `<script setup>`.
 
-| Module | File | Purpose |
-|--------|------|---------|
-| `lib.rs` | Command registration hub | All `#[tauri::command]` handlers registered via `generate_handler![]` |
-| `commands.rs` | Input validation + delegation | Thin layer: validates args, then calls into `ssh`/`sftp`/`config` modules |
-| `ssh.rs` | SSH connections + PTY | `ssh2`-based: `connect()`, `connect_with_key()`, `connect_jump()`, PTY shell with reader thread |
-| `sftp.rs` | File operations | Shell-based remote ops (ls/cat/mkdir/rm/chmod) via `ssh::execute()` + base64-encoded file transfer |
-| `config.rs` | Persistence | JSON file I/O for connections, settings, window state, recordings. Credentials go to OS keyring via `keyring` crate. |
-| `local_pty.rs` | Local terminal | `portable-pty`-based local shell (no SSH needed) |
-| `updater.rs` | App updates | Checks Gitea releases API for new versions |
-| `utils.rs` | Macro helpers | `lock!()` macro for `Mutex` access with poison recovery |
+### Rust backend
 
-**Threading anti-patterns to be aware of:**
-- `ssh.rs` uses synchronous `TcpStream` + `ssh2::Session` inside `async` Tauri commands -- this blocks Tokio threads
-- `sftp.rs` creates a second `tokio::runtime::Runtime` (`static RUNTIME`) and calls `block_on()` inside the existing Tauri runtime -- runtime-in-runtime, can exhaust thread pool
-- PTY reader thread uses busy-polling with `thread::sleep(5ms)` -- 200 wakes/sec even idle
+- `src-tauri/src/lib.rs`: Tauri builder, plugins and command registration.
+- `commands.rs`: IPC validation and delegation.
+- `ssh.rs`: SSH connection, host-key verification and PTY shell.
+- `sftp.rs`: remote file operations.
+- `local_pty.rs`: local shell via `portable-pty`.
+- `config.rs`: non-secret connection config, OS Keyring credentials, recording metadata.
+- `updater.rs`: release version check only; it is not a real installer.
 
-**Data flow pattern (PTY shell):**
-1. Frontend calls `invoke('ssh_start_shell', {host, port, username, password, cols, rows})`
-2. Rust creates SSH session, allocates PTY, spawns reader thread
-3. Reader thread streams output via `app.emit("shell_output", {session_id, data})`
-4. Frontend listens: `listen('shell_output', (e) => terminal.write(e.payload.data))`
-5. User input: `invoke('ssh_shell_input', {session_id, data})` -> Rust writes to PTY channel
+## Credential Boundary
 
-### Key globals (Rust)
-- `SESSIONS: LazyLock<Mutex<HashMap<String, ssh2::Session>>>` -- active SSH connections
-- `PTY_SHELLS: LazyLock<Mutex<HashMap<String, ShellSession>>>` -- active PTY shell channels
-- `MONITOR_SESSIONS`, `SFTP_SESSIONS` -- similar pattern for monitors and SFTP handles
-- All use the `lock!()` macro from `utils.rs`
+Desktop secrets have one authoritative storage path: the Rust OS Keyring backend.
+
+Rules:
+
+- Never persist `password` or `passphrase` in `connections.json`, Tab snapshots, localStorage, logs or ordinary frontend state snapshots.
+- `src/utils/credentials.ts` removes transient secrets before ordinary persistence and resolves credentials at connection time.
+- Historical `xterminal-pwd_<id>` plaintext localStorage values are migration input only; migrate them to the secure backend and delete the plaintext key.
+- Duplicating a connection must not duplicate its credentials.
+- Browser mode uses `secure-store-browser.ts` AES-GCM fallback only because no OS Keyring exists there. Its sessionStorage-held key is XSS-extractable and must not be described as desktop-equivalent security.
+
+## SSH Host-Key Trust Model
+
+Current code uses OpenSSH `~/.ssh/known_hosts` semantics:
+
+- port 22 -> normal `host` entry;
+- non-default port -> `[host]:port` and `check_port`;
+- known + matching -> connect;
+- unknown -> return structured algorithm + SHA256 fingerprint, show it to the user, and require explicit “trust and connect” before writing known_hosts;
+- mismatch -> hard reject; do not provide a silent overwrite path.
+
+Do not weaken this flow to restore automatic TOFU.
+
+## ProxyJump Boundary
+
+1.0 currently does **not** support ProxyJump.
+
+The historical `ssh_connect_jump` implementation only tested a jump-host `direct-tcpip` channel and then connected directly from the client to the target. That implementation and its UI entry are being removed because it was not a real jump connection.
+
+Do not restore a `jump` command or UI until the target SSH session actually runs over the intermediate transport. Do not add a second SSH stack casually just to recover a checkbox feature.
+
+## Window State / Updater
+
+- Window position/size persistence uses official `tauri-plugin-window-state`; do not recreate the deleted custom WindowState IPC/JSON path.
+- Updater currently performs version discovery only.
+- Do not add simulated download/install progress.
+- A real updater belongs to the release pipeline and must use Tauri's signed updater artifacts, public key and endpoint metadata.
+
+## Dependency / Reuse Policy
+
+Prefer mature official/ecosystem implementation for protocol, security and platform infrastructure, but lightweight is a higher-order constraint than “replace every local helper”.
+
+Current decisions:
+
+- Keep the small fixed-height `VirtualList` until requirements actually need a larger virtualization library.
+- Keep the small split-resize composable until nested panes/accessibility/constraint complexity justifies a library.
+- Existing xterm `fit/search/web-links` addons cover current proven needs; do not add WebGL/Unicode/clipboard addons without an actual requirement or measured problem.
+- Do not introduce VueUse/Pinia merely for stylistic consistency.
+- Remove unused dependencies when the lockfile can be updated and CI proves the change.
 
 ## Testing
 
-- **Framework:** Vitest 4.x with `jsdom` environment, `globals: true`
-- **Setup:** `src/__tests__/setup.js` mocks Tauri APIs (`@tauri-apps/api`, `@tauri-apps/plugin-secure-storage`)
-- **Pattern:** Test files are `.js` (not `.ts`), live in `src/__tests__/`, import from `../utils/<module>.ts`
-- **Coverage gap:** 10 out of 23 utils have tests; zero Vue component tests exist. Target what you change.
-- **Smoke test script** `test:smoke` references `src/__tests__/smoke.test.js` which **does not exist** -- the `smoke-vitest.test.js` file uses vitest, not plain node
+- Vitest is the frontend unit-test framework.
+- `npm run test:smoke` is a Vitest suite and must remain executable.
+- Security boundaries added or changed should have focused tests.
+- Browser mocks must use the same command names and argument shapes as native IPC where practical.
+- Component existence or mock success does not count as native capability verification.
+
+## Current Known Release Work
+
+Tracked in:
+
+- #1 foundation consolidation
+- #2 UI/product interaction closure
+- #3 1.0 release baseline
+
+Important remaining release work includes real desktop flow verification, signed updater pipeline, dependency-security review, package/install verification, performance measurement and documentation consistency.
 
 ## Coding Conventions
 
-- **Git:** Conventional Commits (`feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`)
-- **Rust:** Document structs/commands with `///` doc comments (Chinese preferred per CODING-STANDARDS.md)
-- **Frontend imports:** Use `@/` alias -> `./src/`. Despite the TS migration, most `.vue` files still use `<script setup>` (no `lang="ts"`) and import with `.js` extensions (e.g. `import { invoke } from './utils/tauri.js'`). This works at build time via Vite resolution but type-checking will miss these files.
-- **i18n:** `src/utils/i18n.ts` -- Chinese/English, accessed via `t('key')` pattern
-- **Component size:** Several large components: Onboarding.vue (628 lines), TerminalPanel.vue (523), SftpPanel.vue (516), ConnectionDialog.vue (~400). Consider splitting when adding features.
-
-## Security Architecture
-
-- **CSP:** `tauri.conf.json` has `"csp": null` (disabled). The `index.html` has no CSP meta tag. The CHANGELOG and README claim CSP was added, but it's currently null. Any XSS has unrestricted access.
-- **SSH host keys:** NOT verified -- `ssh.rs` never calls `set_known_hosts_check()`. All connections trust any host (MITM-vulnerable).
-- **Credentials:** OS keyring via `keyring` crate (Rust) or AES-256-GCM in sessionStorage (browser fallback). AES key in sessionStorage is documented as XSS-extractable.
-- **Capabilities:** `capabilities/default.json` grants only `core:default`. No filesystem/shell/dialog permissions declared. `withGlobalTauri: true` exposes `window.__TAURI__` globally.
-
-## Key Documentation
-
-- `docs/ARCHITECTURE.md` -- detailed system design with data flow diagrams
-- `docs/API.md` -- full Rust command signatures with frontend call examples
-- `docs/CODING-STANDARDS.md` -- comment conventions (JSDoc + Rust doc)
-- `docs/TESTING.md` -- TDD workflow and test templates
-- `docs/PLAN.md` -- development plan with phase tracking
-- `docs/SPEC.md` -- product specification
+- Conventional Commits.
+- Chinese is preferred for durable project documentation and user-facing product text.
+- Keep frontend IPC through `src/utils/tauri.ts` unless a direct official API is intentionally required.
+- Do not introduce patch-style parallel implementations: when replacing infrastructure, remove the obsolete path.
+- Do not claim a feature complete because a command/component/PLAN checkbox exists; inspect the full user-to-native path.

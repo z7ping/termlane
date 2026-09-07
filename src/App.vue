@@ -15,7 +15,7 @@
         @duplicate="onDuplicateConnection"
         @test="onTestConnection"
         @quick-command="onQuickCommand"
-          @favorite="onToggleFavorite"
+        @favorite="onToggleFavorite"
       />
 
       <div class="flex-1 flex flex-col overflow-hidden" style="background: var(--bg-base);">
@@ -52,8 +52,8 @@
             <ProxyConfig v-if="viewMode === 'proxy'" />
             <QuickCommands v-if="viewMode === 'commands'" @run="onQuickCommand" />
             <PortForward v-if="viewMode === 'forward'" />
-          <ScheduledTasks v-if="viewMode === 'tasks'" />
-          <MacroRecorder v-if="viewMode === 'macro'" :session-id="activeSessionId" />
+            <ScheduledTasks v-if="viewMode === 'tasks'" />
+            <MacroRecorder v-if="viewMode === 'macro'" :session-id="activeSessionId" />
           </ErrorBoundary>
           <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center text-gray-500">
             <div class="text-center">
@@ -78,7 +78,6 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, defineAsyncComponent, defineComponent } from 'vue'
-import { invoke } from './utils/tauri.js'
 import { parseShortcut, getShortcut } from './utils/shortcuts.js'
 import { useAppState, setToast } from './composables/useAppState.js'
 
@@ -163,6 +162,7 @@ function toggleFullscreen() {
 // ── Lifecycle ──
 let _cleanupKeydown = null
 let _cleanupShortcutChanged = null
+let _cleanupBeforeUnload = null
 
 onMounted(async () => {
   // Wire up toast callback so the composable can show notifications
@@ -175,31 +175,14 @@ onMounted(async () => {
   const savedTheme = localStorage.getItem('xterminal-theme') || 'dark'
   document.documentElement.setAttribute('data-theme', savedTheme)
 
-  // Restore persisted state
+  // Restore persisted application state. Window geometry is handled by the
+  // official Tauri window-state plugin in the desktop runtime.
   await loadConnections()
   loadTabsState()
 
-  // Restore window state
-  try {
-    const ws = await invoke('load_window_state')
-    if (ws) {
-      // Window state available
-    }
-  } catch (e) { console.warn("[XTerminal] Load error:", e) }
-
-  // Save window state on close
-  window.addEventListener('beforeunload', () => {
-    saveTabsState()
-    try {
-      invoke('save_window_state', {
-        x: window.screenX,
-        y: window.screenY,
-        width: window.outerWidth,
-        height: window.outerHeight,
-        maximized: false,
-      })
-    } catch (e) { console.warn("[XTerminal] Load error:", e) }
-  })
+  const handleBeforeUnload = () => saveTabsState()
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  _cleanupBeforeUnload = handleBeforeUnload
 
   // Global keyboard shortcuts (支持自定义快捷键)
   const setupGlobalShortcuts = () => {
@@ -253,5 +236,6 @@ onUnmounted(() => {
   stopPingPolling()
   if (_cleanupKeydown) document.removeEventListener('keydown', _cleanupKeydown)
   if (_cleanupShortcutChanged) window.removeEventListener('shortcut-changed', _cleanupShortcutChanged)
+  if (_cleanupBeforeUnload) window.removeEventListener('beforeunload', _cleanupBeforeUnload)
 })
 </script>
