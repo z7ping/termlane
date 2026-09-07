@@ -1,30 +1,16 @@
 // utils/tauri.ts - Tauri IPC wrapper
-// Tauri 环境使用原生 IPC，浏览器使用 mock
+// Tauri 环境使用官方 ESM API，浏览器使用 mock
+
+import { invoke as nativeInvoke, isTauri as detectTauri } from '@tauri-apps/api/core'
+import { listen as nativeListen } from '@tauri-apps/api/event'
 
 type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
 type ListenFn = (event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>
 
-let _invoke: InvokeFn | null
-let _listen: ListenFn | null
-let _isTauri: boolean
+export const isTauri: boolean = typeof window !== 'undefined' && detectTauri()
 
-try {
-  _invoke = typeof window !== 'undefined'
-    && ((window as { __TAURI__?: { core: { invoke: InvokeFn } } }).__TAURI__?.core?.invoke)
-  _listen = typeof window !== 'undefined'
-    && ((window as { __TAURI__?: { event: { listen: ListenFn } } }).__TAURI__?.event?.listen)
-  _isTauri = !!_invoke && !!_listen
-  if (!_isTauri) throw new Error('Not in Tauri')
-} catch {
-  _isTauri = false
-  _invoke = null
-  _listen = null
-}
-
-export const isTauri: boolean = _isTauri
-
-export const invoke: InvokeFn = _isTauri
-  ? _invoke!
+export const invoke: InvokeFn = isTauri
+  ? nativeInvoke
   : async (cmd: string, args: Record<string, unknown> = {}) => {
       switch (cmd) {
         case 'ssh_connect': {
@@ -86,11 +72,9 @@ export const invoke: InvokeFn = _isTauri
       }
     }
 
-export const listen: ListenFn = _isTauri
-  ? _listen!
-  : async (_event: string, _callback: (event: { payload: unknown }) => void) => {
-      return () => {}
-    }
+export const listen: ListenFn = isTauri
+  ? (nativeListen as unknown as ListenFn)
+  : async (_event: string, _callback: (event: { payload: unknown }) => void) => () => {}
 
 function mockExecute(command: string): string {
   const bin = command.trim().split(/\s+/)[0]
