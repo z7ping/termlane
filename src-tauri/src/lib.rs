@@ -47,7 +47,7 @@ pub fn run() {
             commands::save_recording_meta,
             commands::delete_recording,
             commands::get_recording_dir,
-            recordings::save_recording_file,
+            recordings::save_recording,
             recordings::read_recording_file,
             // Local PTY
             commands::local_start_shell,
