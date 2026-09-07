@@ -58,7 +58,13 @@
     </div>
 
     <div v-if="active" class="terminal-actions">
-      <button type="button" class="terminal-action" title="搜索 (Ctrl+Shift+F)" aria-label="搜索终端内容" @click="toggleSearch">
+      <button
+        type="button"
+        class="terminal-action"
+        :title="`搜索 (${searchShortcutLabel})`"
+        aria-label="搜索终端内容"
+        @click="toggleSearch"
+      >
         <SearchIcon :size="14" :stroke-width="1.8" />
       </button>
     </div>
@@ -94,6 +100,7 @@ const connectFailed = ref(false)
 const hostKeyPrompt = ref(null)
 const pendingHostKeyReconnect = ref(false)
 const appVersion = ref('')
+const searchShortcutLabel = ref(getShortcut('搜索'))
 
 const toast = ref({ show: false, message: '', type: 'info' })
 const toastClass = computed(() => ({
@@ -117,6 +124,7 @@ let isConnected = false
 let unlisten = null
 let inputDisposable = null
 let reconnectAttempts = 0
+let searchKeyMatcher = parseShortcut(searchShortcutLabel.value)
 const MAX_RECONNECT = 3
 let idleTimer = null
 let lastActivity = Date.now()
@@ -151,6 +159,16 @@ function createTerminal(container) {
   terminal.open(container)
   fit.fit()
   return { terminal, fit, search }
+}
+
+async function pasteClipboard() {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (!text || !term || term.disposed) return
+    term.paste(text)
+  } catch {
+    showToast('无法读取剪贴板', 'error')
+  }
 }
 
 async function initTerminal() {
@@ -190,17 +208,19 @@ async function initTerminal() {
 
   containerRef.value.addEventListener('contextmenu', handleContextmenu)
 
-  const searchKey = parseShortcut(getShortcut('搜索'))
   term.attachCustomKeyEventHandler(event => {
-    if (searchKey(event)) {
+    if (searchKeyMatcher(event)) {
       toggleSearch()
       return false
     }
-    if (event.ctrlKey && event.key === 'c' && term.hasSelection()) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && term.hasSelection()) {
       navigator.clipboard.writeText(term.getSelection()).catch(() => {})
       return false
     }
-    if (event.ctrlKey && event.key === 'v') return false
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+      pasteClipboard()
+      return false
+    }
     return true
   })
 
@@ -224,7 +244,7 @@ function showWelcome(terminal, mode) {
   terminal.writeln('\x1b[1;36m╚══════════════════════════════════════════╝\x1b[0m')
   terminal.writeln('')
   terminal.writeln(`  模式: \x1b[1;33m${mode}\x1b[0m`)
-  terminal.writeln('  快捷键: Ctrl+Shift+F 搜索 | Ctrl+L 清屏 | Ctrl+C 中断')
+  terminal.writeln(`  快捷键: ${searchShortcutLabel.value} 搜索 | Ctrl+L 清屏 | Ctrl+C 中断`)
   terminal.writeln('')
 }
 
@@ -479,14 +499,9 @@ function retryConnection() {
   else startPtyShell(term, conn)
 }
 
-async function handleContextmenu(event) {
+function handleContextmenu(event) {
   event.preventDefault()
-  try {
-    const text = await navigator.clipboard.readText()
-    if (!text || !shellId) return
-    const command = sessionKind === 'local' ? 'local_input' : 'ssh_shell_input'
-    await invoke(command, { sessionId: shellId, data: text })
-  } catch {}
+  pasteClipboard()
 }
 
 function applyCurrentTheme() {
@@ -500,6 +515,12 @@ function handleStorage(event) {
 
 function handleThemeChanged() {
   applyCurrentTheme()
+}
+
+function handleShortcutChanged(event) {
+  if (event.detail?.name !== '搜索') return
+  searchShortcutLabel.value = getShortcut('搜索')
+  searchKeyMatcher = parseShortcut(searchShortcutLabel.value)
 }
 
 onMounted(async () => {
@@ -525,6 +546,7 @@ onMounted(async () => {
 
   window.addEventListener('storage', handleStorage)
   window.addEventListener('xterminal-theme-changed', handleThemeChanged)
+  window.addEventListener('shortcut-changed', handleShortcutChanged)
 })
 
 onUnmounted(async () => {
@@ -535,6 +557,7 @@ onUnmounted(async () => {
   containerRef.value?.removeEventListener('contextmenu', handleContextmenu)
   window.removeEventListener('storage', handleStorage)
   window.removeEventListener('xterminal-theme-changed', handleThemeChanged)
+  window.removeEventListener('shortcut-changed', handleShortcutChanged)
 
   if (shellId) {
     const command = sessionKind === 'local' ? 'local_close_shell' : 'ssh_close_shell'
