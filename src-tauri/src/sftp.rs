@@ -321,14 +321,14 @@ fn replace_remote_file(sftp: &Sftp, temp: &str, target: &str) -> Result<(), Stri
 }
 
 fn replace_local_file(temp: &Path, target: &Path) -> Result<(), String> {
-    if target.exists() {
-        std::fs::remove_file(target).map_err(|error| format!("替换本地文件失败: {}", error))?;
-    }
+    // std::fs::rename uses replacement semantics for an existing file target.
+    // Do not remove the destination first: if the rename fails, the original
+    // file must remain intact.
     std::fs::rename(temp, target).map_err(|error| format!("提交本地文件失败: {}", error))
 }
 
 fn remote_temp_path(target: &str) -> String {
-    format!("{}.xterminal-{}.tmp", target, unique_suffix())
+    format!("{}.termlane-{}.tmp", target, unique_suffix())
 }
 
 fn local_temp_path(target: &str) -> PathBuf {
@@ -337,7 +337,7 @@ fn local_temp_path(target: &str) -> PathBuf {
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| "download".to_string());
-    let temp_name = format!(".{}.xterminal-{}.tmp", file_name, unique_suffix());
+    let temp_name = format!(".{}.termlane-{}.tmp", file_name, unique_suffix());
     path.parent().unwrap_or_else(|| Path::new(".")).join(temp_name)
 }
 
@@ -572,12 +572,28 @@ mod tests {
     #[test]
     fn temp_paths_stay_near_targets() {
         let remote = remote_temp_path("/var/www/app.txt");
-        assert!(remote.starts_with("/var/www/app.txt.xterminal-"));
+        assert!(remote.starts_with("/var/www/app.txt.termlane-"));
         assert!(remote.ends_with(".tmp"));
 
         let local = local_temp_path("/tmp/app.txt");
         assert_eq!(local.parent(), Some(Path::new("/tmp")));
-        assert!(local.file_name().unwrap().to_string_lossy().starts_with(".app.txt.xterminal-"));
+        assert!(local.file_name().unwrap().to_string_lossy().starts_with(".app.txt.termlane-"));
+    }
+
+    #[test]
+    fn local_replace_overwrites_without_predeleting_target() {
+        let base = std::env::temp_dir().join(format!("termlane-replace-{}", unique_suffix()));
+        std::fs::create_dir_all(&base).unwrap();
+        let target = base.join("target.txt");
+        let temp = base.join("temp.txt");
+        std::fs::write(&target, b"old").unwrap();
+        std::fs::write(&temp, b"new").unwrap();
+
+        replace_local_file(&temp, &target).unwrap();
+
+        assert_eq!(std::fs::read(&target).unwrap(), b"new");
+        assert!(!temp.exists());
+        std::fs::remove_dir_all(base).unwrap();
     }
 
     #[test]
