@@ -1,10 +1,10 @@
 // 快捷键工具函数
 import { STORAGE_KEYS } from './storage-keys'
 
+// 这里只列真正由应用监听、修改后能够生效的快捷键。
+// Ctrl+C / Ctrl+L 属于终端控制键，不伪装成可配置应用快捷键。
 export const SHORTCUT_ACTIONS = [
   { name: '搜索', defaultKey: 'Ctrl+Shift+F', group: '终端' },
-  { name: '清屏', defaultKey: 'Ctrl+L', group: '终端' },
-  { name: '中断', defaultKey: 'Ctrl+C', group: '终端' },
   { name: '新建标签', defaultKey: 'Ctrl+T', group: '工作区' },
   { name: '关闭标签', defaultKey: 'Ctrl+W', group: '工作区' },
   { name: '切换侧边栏', defaultKey: 'Ctrl+B', group: '工作区' },
