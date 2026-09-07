@@ -1,629 +1,146 @@
 <template>
   <Transition name="onboarding-fade">
-    <div v-if="show" class="onboarding-overlay" @click.self="skip">
-      <Transition name="onboarding-scale" appear>
-        <div class="onboarding-card" v-if="show">
-          <!-- Close button -->
-          <button class="onboarding-close" @click="skip" title="跳过引导">✕</button>
+    <div v-if="show" class="onboarding-backdrop" @click.self="skip">
+      <div class="onboarding-dialog" role="dialog" aria-modal="true" aria-label="XTerminal Pro 首次使用引导" @keydown.esc="skip">
+        <button type="button" class="close-button" aria-label="跳过引导" title="跳过引导" @click="skip">
+          <X :size="15" :stroke-width="1.8" />
+        </button>
 
-          <!-- Step Content -->
-          <div class="onboarding-body">
-            <!-- Step 1: Welcome -->
-            <div v-if="current === 0" class="onboarding-step">
-              <div class="onboarding-illustration welcome-illustration">
-                <div class="logo-glow">⌨️</div>
-                <div class="logo-orbit">
-                  <span class="orbit-dot" style="--i:0">🖥️</span>
-                  <span class="orbit-dot" style="--i:1">🔗</span>
-                  <span class="orbit-dot" style="--i:2">📁</span>
-                  <span class="orbit-dot" style="--i:3">⚡</span>
-                </div>
-              </div>
-              <h2 class="onboarding-title">欢迎使用 <span class="text-accent">XTerminal Pro</span></h2>
-              <p class="onboarding-desc">轻量、快速、强大的 SSH 终端工具。基于 Tauri 构建，内存占用仅 30MB，让远程管理从未如此轻松。</p>
-              <div class="feature-chips">
-                <span class="chip">🚀 极速启动</span>
-                <span class="chip">🔒 安全连接</span>
-                <span class="chip">📦 轻量 30MB</span>
-              </div>
+        <div class="onboarding-content">
+          <section v-if="current === 0" class="step-content">
+            <div class="hero-icon"><Terminal :size="42" :stroke-width="1.35" /></div>
+            <h2>欢迎使用 XTerminal Pro</h2>
+            <p>一个专注日常 SSH 终端与远程文件管理的轻量桌面工具。</p>
+            <div class="feature-grid">
+              <div><TerminalSquare :size="17" /><span>真实 PTY 终端</span></div>
+              <div><FolderOpen :size="17" /><span>远程文件管理</span></div>
+              <div><ShieldCheck :size="17" /><span>主机指纹确认</span></div>
             </div>
+          </section>
 
-            <!-- Step 2: SSH Connection -->
-            <div v-if="current === 1" class="onboarding-step">
-              <div class="onboarding-illustration">
-                <div class="ssh-demo">
-                  <div class="ssh-sidebar">
-                    <div class="ssh-add-btn pulsing">＋</div>
-                    <div class="ssh-item active">🖥️ 生产服</div>
-                    <div class="ssh-item">🖥️ 测试服</div>
-                  </div>
-                  <div class="ssh-arrow">→</div>
-                  <div class="ssh-terminal-preview">
-                    <div class="terminal-header">
-                      <span class="dot red"></span>
-                      <span class="dot yellow"></span>
-                      <span class="dot green"></span>
-                    </div>
-                    <div class="terminal-body">
-                      <span class="prompt">$</span> ssh user@server
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <h2 class="onboarding-title">添加 SSH 连接</h2>
-              <p class="onboarding-desc">点击左侧侧边栏的 <kbd class="kbd-inline">＋</kbd> 按钮，添加你的第一个服务器连接。支持密码和密钥两种认证方式。</p>
-              <div class="step-tip">
-                <span class="tip-icon">💡</span>
-                <span>支持 SSH 密钥、密码、跳板机等高级配置</span>
-              </div>
+          <section v-else-if="current === 1" class="step-content">
+            <div class="hero-icon"><Server :size="42" :stroke-width="1.35" /></div>
+            <h2>添加 SSH 连接</h2>
+            <p>点击左侧连接列表的“+”，填写主机、端口和用户名，可选择密码或 SSH 密钥认证。</p>
+            <div class="notice-card">
+              <ShieldCheck :size="18" :stroke-width="1.7" />
+              <span>首次连接未知主机时，应用会显示 SHA256 指纹；确认无误后才写入 known_hosts。</span>
             </div>
+          </section>
 
-            <!-- Step 3: Done -->
-            <div v-if="current === 2" class="onboarding-step">
-              <div class="onboarding-illustration done-illustration">
-                <div class="rocket-burst">🚀</div>
-                <div class="confetti">
-                  <span v-for="n in 8" :key="n" class="confetti-piece" :style="{ '--n': n }">✦</span>
-                </div>
-              </div>
-              <h2 class="onboarding-title">一切就绪！</h2>
-              <p class="onboarding-desc">现在开始使用 XTerminal Pro 管理你的服务器吧。</p>
-              <div class="done-shortcuts">
-                <div class="shortcut-row">
-                  <kbd>Ctrl+T</kbd>
-                  <span>新建终端</span>
-                </div>
-                <div class="shortcut-row">
-                  <kbd>Ctrl+B</kbd>
-                  <span>切换侧栏</span>
-                </div>
-                <div class="shortcut-row">
-                  <kbd>Ctrl+Shift+F</kbd>
-                  <span>搜索</span>
-                </div>
-              </div>
+          <section v-else class="step-content">
+            <div class="hero-icon success"><CheckCircle2 :size="42" :stroke-width="1.35" /></div>
+            <h2>可以开始了</h2>
+            <p>终端和文件是一级工作区；测速、录制、笔记、书签、快捷命令和命令序列在“工具”菜单中。</p>
+            <div class="shortcut-grid">
+              <div><kbd>Ctrl</kbd><kbd>T</kbd><span>新建本地终端</span></div>
+              <div><kbd>Ctrl</kbd><kbd>B</kbd><span>切换侧边栏</span></div>
+              <div><kbd>Ctrl</kbd><kbd>,</kbd><span>打开设置</span></div>
+              <div><kbd>?</kbd><span>快捷键帮助</span></div>
             </div>
-          </div>
-
-          <!-- Progress & Navigation -->
-          <div class="onboarding-footer">
-            <!-- Progress bar -->
-            <div class="progress-track">
-              <div class="progress-fill" :style="{ width: ((current + 1) / steps.length * 100) + '%' }"></div>
-            </div>
-
-            <div class="onboarding-nav">
-              <button v-if="current > 0" class="btn-nav btn-prev" @click="current--">
-                ← 上一步
-              </button>
-              <div v-else class="nav-spacer"></div>
-
-              <!-- Step indicator -->
-              <div class="step-indicator">
-                {{ current + 1 }} / {{ steps.length }}
-              </div>
-
-              <button v-if="current < steps.length - 1" class="btn-nav btn-next" @click="current++">
-                下一步 →
-              </button>
-              <button v-else class="btn-nav btn-finish" @click="finish">
-                开始使用 🚀
-              </button>
-            </div>
-
-            <button class="btn-skip" @click="skip">稍后提醒</button>
-          </div>
+          </section>
         </div>
-      </Transition>
+
+        <div class="onboarding-footer">
+          <div class="progress" aria-label="引导进度">
+            <span v-for="(_, index) in steps" :key="index" :class="{ active: index <= current }" />
+          </div>
+          <div class="nav-row">
+            <button v-if="current > 0" type="button" class="secondary-button" @click="current--">
+              <ChevronLeft :size="14" />
+              <span>上一步</span>
+            </button>
+            <div v-else />
+            <span class="step-count">{{ current + 1 }} / {{ steps.length }}</span>
+            <button v-if="current < steps.length - 1" type="button" class="primary-button" @click="current++">
+              <span>下一步</span>
+              <ChevronRight :size="14" />
+            </button>
+            <button v-else type="button" class="primary-button" @click="finish">
+              <span>开始使用</span>
+              <ArrowRight :size="14" />
+            </button>
+          </div>
+          <button type="button" class="skip-button" @click="skip">跳过引导</button>
+        </div>
+      </div>
     </div>
   </Transition>
 </template>
 
 <script setup>
+import { onMounted, ref } from 'vue'
+import {
+  ArrowRight,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  FolderOpen,
+  Server,
+  ShieldCheck,
+  Terminal,
+  TerminalSquare,
+  X,
+} from 'lucide-vue-next'
 import { STORAGE_KEYS } from '@/utils/storage-keys'
-import { ref, onMounted } from 'vue'
 
 const show = ref(false)
 const current = ref(0)
-
-const steps = [
-  { title: '欢迎使用 XTerminal Pro' },
-  { title: '添加 SSH 连接' },
-  { title: '一切就绪！' },
-]
+const steps = ['欢迎', '连接', '开始']
 
 onMounted(() => {
-  const onboarded = localStorage.getItem(STORAGE_KEYS.ONBOARDED)
-  if (!onboarded) {
-    show.value = true
-  }
+  if (!localStorage.getItem(STORAGE_KEYS.ONBOARDED)) show.value = true
 })
 
-function finish() {
+function complete() {
   localStorage.setItem(STORAGE_KEYS.ONBOARDED, 'true')
   show.value = false
+}
+
+function finish() {
+  complete()
 }
 
 function skip() {
-  localStorage.setItem(STORAGE_KEYS.ONBOARDED, 'true')
-  show.value = false
+  complete()
 }
 
-// expose for parent
 defineExpose({ show, finish })
 </script>
 
 <style scoped>
-/* ─── Overlay ─── */
-.onboarding-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: oklch(0 0 0 / 0.75);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ─── Card ─── */
-.onboarding-card {
-  width: 560px;
-  max-height: 90vh;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 24px 80px oklch(0 0 0 / 0.5);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-}
-
-/* ─── Close ─── */
-.onboarding-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 2;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: none;
-  background: var(--bg-hover);
-  color: var(--fg-muted);
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition);
-}
-.onboarding-close:hover {
-  background: var(--danger);
-  color: white;
-}
-
-/* ─── Body ─── */
-.onboarding-body {
-  padding: 40px 36px 24px;
-  flex: 1;
-  overflow-y: auto;
-  min-height: 320px;
-}
-
-.onboarding-step {
-  animation: stepIn 350ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes stepIn {
-  from { opacity: 0; transform: translateY(12px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* ─── Title & Desc ─── */
-.onboarding-title {
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--fg-primary);
-  margin: 16px 0 8px;
-  text-align: center;
-}
-
-.text-accent {
-  color: var(--accent);
-}
-
-.onboarding-desc {
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--fg-secondary);
-  text-align: center;
-  max-width: 440px;
-  margin: 0 auto;
-}
-
-/* ─── Illustrations ─── */
-.onboarding-illustration {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 140px;
-  margin-bottom: 8px;
-}
-
-/* Step 1: Welcome logo */
-.welcome-illustration {
-  position: relative;
-  width: 160px;
-  height: 160px;
-  margin: 0 auto;
-}
-
-.logo-glow {
-  font-size: 56px;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation: logoPulse 3s ease-in-out infinite;
-  filter: drop-shadow(0 0 20px oklch(0.65 0.18 250 / 0.4));
-}
-
-@keyframes logoPulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); }
-  50% { transform: translate(-50%, -50%) scale(1.08); }
-}
-
-.logo-orbit {
-  position: absolute;
-  inset: 0;
-  animation: orbitSpin 12s linear infinite;
-}
-
-@keyframes orbitSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.orbit-dot {
-  position: absolute;
-  font-size: 20px;
-  --angle: calc(var(--i) * 90deg);
-  top: 50%;
-  left: 50%;
-  transform: rotate(var(--angle)) translateY(-70px) rotate(calc(-1 * var(--angle)));
-  animation: orbitSpin 12s linear infinite reverse;
-}
-
-/* Step 2: SSH demo */
-.ssh-demo {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: var(--bg-elevated);
-  border-radius: var(--radius);
-  border: 1px solid var(--border-subtle);
-}
-
-.ssh-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 100px;
-}
-
-.ssh-add-btn {
-  width: 100%;
-  padding: 6px;
-  text-align: center;
-  background: var(--accent);
-  color: white;
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.ssh-add-btn.pulsing {
-  animation: btnPulse 2s ease-in-out infinite;
-}
-
-@keyframes btnPulse {
-  0%, 100% { box-shadow: 0 0 0 0 oklch(0.65 0.18 250 / 0.4); }
-  50% { box-shadow: 0 0 0 8px oklch(0.65 0.18 250 / 0); }
-}
-
-.ssh-item {
-  padding: 4px 8px;
-  font-size: 11px;
-  color: var(--fg-secondary);
-  background: var(--bg-hover);
-  border-radius: var(--radius-sm);
-}
-.ssh-item.active {
-  background: var(--accent);
-  color: white;
-}
-
-.ssh-arrow {
-  font-size: 20px;
-  color: var(--fg-muted);
-}
-
-.ssh-terminal-preview {
-  flex: 1;
-  background: oklch(0.12 0 0);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 1px solid var(--border-subtle);
-}
-
-.terminal-header {
-  display: flex;
-  gap: 4px;
-  padding: 6px 10px;
-  background: oklch(0.16 0 0);
-}
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.dot.red { background: #ff5f57; }
-.dot.yellow { background: #ffbd2e; }
-.dot.green { background: #28c940; }
-
-.terminal-body {
-  padding: 10px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--fg-primary);
-}
-.prompt {
-  color: var(--success);
-  margin-right: 6px;
-}
-
-/* Step 3: Done */
-.done-illustration {
-  position: relative;
-  height: 120px;
-}
-
-.rocket-burst {
-  font-size: 64px;
-  animation: rocketBounce 1.5s ease-in-out infinite;
-  filter: drop-shadow(0 4px 20px oklch(0.65 0.18 250 / 0.3));
-}
-
-@keyframes rocketBounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-12px); }
-}
-
-.confetti {
-  position: absolute;
-  inset: 0;
-}
-
-.confetti-piece {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  font-size: 14px;
-  color: var(--accent);
-  animation: confettiFly 2s ease-out infinite;
-  animation-delay: calc(var(--n) * 0.2s);
-}
-
-@keyframes confettiFly {
-  0% {
-    opacity: 1;
-    transform: translate(0, 0) rotate(0deg);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(
-      calc(cos(var(--n) * 45deg) * 80px),
-      calc(sin(var(--n) * 45deg) * 80px - 30px)
-    ) rotate(360deg);
-  }
-}
-
-.done-shortcuts {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin-top: 16px;
-  max-width: 340px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.shortcut-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-}
-
-.shortcut-row kbd {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 2px 6px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--accent);
-  white-space: nowrap;
-}
-
-.shortcut-row span {
-  font-size: 12px;
-  color: var(--fg-secondary);
-}
-
-/* ─── Chips & Tips ─── */
-.feature-chips {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  margin-top: 16px;
-}
-
-.chip {
-  font-size: 12px;
-  padding: 4px 12px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-  color: var(--fg-secondary);
-}
-
-.step-tip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 12px;
-  padding: 8px 12px;
-  background: oklch(0.65 0.18 250 / 0.08);
-  border: 1px solid oklch(0.65 0.18 250 / 0.15);
-  border-radius: var(--radius);
-  font-size: 12px;
-  color: var(--fg-secondary);
-}
-
-.tip-icon {
-  font-size: 14px;
-}
-
-.kbd-inline {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  padding: 1px 6px;
-  background: var(--bg-hover);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--accent);
-}
-
-/* ─── Footer ─── */
-.onboarding-footer {
-  padding: 0 36px 28px;
-}
-
-/* Progress */
-.progress-track {
-  height: 3px;
-  background: var(--bg-hover);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-bottom: 20px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Nav */
-.onboarding-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.nav-spacer {
-  width: 80px;
-}
-
-.step-indicator {
-  font-size: 12px;
-  color: var(--fg-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.btn-nav {
-  padding: 8px 20px;
-  border: none;
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-
-.btn-prev {
-  background: var(--bg-hover);
-  color: var(--fg-secondary);
-}
-.btn-prev:hover {
-  background: var(--border);
-  color: var(--fg-primary);
-}
-
-.btn-next {
-  background: var(--accent);
-  color: white;
-}
-.btn-next:hover {
-  background: var(--accent-hover);
-}
-
-.btn-finish {
-  background: var(--success);
-  color: white;
-  font-weight: 600;
-}
-.btn-finish:hover {
-  filter: brightness(1.1);
-}
-
-.btn-skip {
-  display: block;
-  margin: 12px auto 0;
-  background: none;
-  border: none;
-  font-size: 12px;
-  color: var(--fg-muted);
-  cursor: pointer;
-  padding: 4px 12px;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition);
-}
-.btn-skip:hover {
-  color: var(--fg-secondary);
-  background: var(--bg-hover);
-}
-
-/* ─── Transitions ─── */
-.onboarding-fade-enter-active,
-.onboarding-fade-leave-active {
-  transition: opacity 250ms ease;
-}
-.onboarding-fade-enter-from,
-.onboarding-fade-leave-to {
-  opacity: 0;
-}
-
-.onboarding-scale-enter-active {
-  transition: all 350ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.onboarding-scale-leave-active {
-  transition: all 200ms cubic-bezier(0.55, 0, 1, 0.45);
-}
-.onboarding-scale-enter-from {
-  opacity: 0;
-  transform: scale(0.92) translateY(20px);
-}
-.onboarding-scale-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
+.onboarding-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0, 0, 0, 0.68); backdrop-filter: blur(6px); }
+.onboarding-dialog { position: relative; width: min(540px, 100%); max-height: min(620px, 90vh); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
+.close-button { position: absolute; top: 10px; right: 10px; z-index: 2; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: var(--fg-muted); }
+.close-button:hover { background: var(--bg-hover); color: var(--fg-primary); }
+.onboarding-content { min-height: 350px; padding: 44px 34px 26px; overflow-y: auto; }
+.step-content { display: flex; flex-direction: column; align-items: center; animation: step-in 180ms ease-out; }
+.hero-icon { width: 78px; height: 78px; display: flex; align-items: center; justify-content: center; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: 20px; background: var(--accent-hover); color: var(--accent); }
+.hero-icon.success { color: var(--success); background: color-mix(in srgb, var(--success) 10%, var(--bg-surface)); border-color: color-mix(in srgb, var(--success) 30%, var(--border)); }
+h2 { margin: 20px 0 8px; color: var(--fg-primary); font-size: 20px; font-weight: 600; text-align: center; }
+p { max-width: 430px; margin: 0; color: var(--fg-secondary); font-size: 12px; line-height: 1.7; text-align: center; }
+.feature-grid { width: min(430px, 100%); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 22px; }
+.feature-grid > div { min-height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-surface); color: var(--fg-muted); font-size: 10px; }
+.notice-card { width: min(430px, 100%); display: flex; align-items: flex-start; gap: 9px; margin-top: 22px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--warning) 25%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--warning) 7%, var(--bg-surface)); color: var(--fg-secondary); font-size: 10px; line-height: 1.55; }
+.notice-card svg { flex-shrink: 0; color: var(--warning); }
+.shortcut-grid { width: min(390px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 22px; }
+.shortcut-grid > div { min-height: 40px; display: flex; align-items: center; gap: 4px; padding: 6px 8px; border: 1px solid var(--border-subtle); border-radius: 7px; background: var(--bg-surface); }
+.shortcut-grid span { margin-left: auto; color: var(--fg-muted); font-size: 9px; }
+kbd { min-width: 23px; padding: 2px 5px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-base); color: var(--fg-secondary); font-family: monospace; font-size: 9px; text-align: center; }
+.onboarding-footer { padding: 10px 14px 12px; flex-shrink: 0; border-top: 1px solid var(--border-subtle); background: var(--bg-surface); }
+.progress { height: 3px; display: flex; gap: 3px; margin-bottom: 10px; }
+.progress span { flex: 1; border-radius: 999px; background: var(--border); }
+.progress span.active { background: var(--accent); }
+.nav-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.nav-row > button:last-child { justify-self: end; }
+.secondary-button, .primary-button { height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 10px; border: 0; border-radius: 6px; font-size: 11px; }
+.secondary-button { background: var(--bg-hover); color: var(--fg-secondary); }
+.primary-button { background: var(--accent); color: white; }
+.step-count { color: var(--fg-muted); font-family: monospace; font-size: 9px; }
+.skip-button { display: block; margin: 8px auto 0; border: 0; background: transparent; color: var(--fg-muted); font-size: 9px; }
+.skip-button:hover { color: var(--fg-secondary); }
+.onboarding-fade-enter-active, .onboarding-fade-leave-active { transition: opacity 160ms ease; }
+.onboarding-fade-enter-from, .onboarding-fade-leave-to { opacity: 0; }
+@keyframes step-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 560px) { .onboarding-content { padding: 42px 18px 22px; } .feature-grid { grid-template-columns: 1fr; } .shortcut-grid { grid-template-columns: 1fr; } }
 </style>
