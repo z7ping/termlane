@@ -118,7 +118,7 @@ pub fn ssh_disconnect(session_id: String) -> Result<(), String> {
 
 // ─── SSH PTY Shell ───
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ssh_start_shell(
     app: AppHandle,
     host: String,
@@ -180,66 +180,66 @@ pub fn ssh_list_shells() -> Vec<String> {
 
 // ─── SFTP / Local Files ───
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sftp_list_local(path: String) -> Result<Vec<crate::sftp::FileEntry>, String> {
     validate_string_len("path", &path)?;
     crate::sftp::list_local(&path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sftp_list_remote(session_id: String, path: String) -> Result<Vec<crate::sftp::FileEntry>, String> {
     validate_string_len("path", &path)?;
     crate::sftp::list_remote(&session_id, &path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sftp_upload(session_id: String, local: String, remote: String) -> Result<String, String> {
     validate_string_len("local", &local)?;
     validate_string_len("remote", &remote)?;
     crate::sftp::upload(&session_id, &local, &remote)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sftp_download(session_id: String, remote: String, local: String) -> Result<String, String> {
     validate_string_len("remote", &remote)?;
     validate_string_len("local", &local)?;
     crate::sftp::download(&session_id, &remote, &local)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sftp_rename(session_id: String, old_path: String, new_path: String) -> Result<String, String> {
     validate_string_len("old_path", &old_path)?;
     validate_string_len("new_path", &new_path)?;
     crate::sftp::rename_file(&session_id, &old_path, &new_path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sftp_delete(session_id: String, path: String, is_dir: bool) -> Result<String, String> {
     validate_string_len("path", &path)?;
     validate_remote_delete_path(&path)?;
     crate::sftp::delete_file(&session_id, &path, is_dir)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sftp_mkdir(session_id: String, path: String) -> Result<String, String> {
     validate_string_len("path", &path)?;
     crate::sftp::create_dir(&session_id, &path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sftp_chmod(session_id: String, path: String, mode: String) -> Result<String, String> {
     validate_string_len("path", &path)?;
     validate_string_len("mode", &mode)?;
     crate::sftp::chmod(&session_id, &path, &mode)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sftp_read_file(session_id: String, path: String) -> Result<String, String> {
     validate_string_len("path", &path)?;
     crate::sftp::read_file(&session_id, &path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sftp_write_file(session_id: String, path: String, content: String) -> Result<String, String> {
     validate_string_len("path", &path)?;
     validate_file_content_len(&content)?;
@@ -327,19 +327,12 @@ pub fn local_list_shells() -> Vec<String> {
 
 // ─── Network ───
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn tcp_ping(host: String, port: u16) -> Result<u64, String> {
     validate_host_port(&host, port)?;
     validate_string_len("host", &host)?;
-    use std::net::TcpStream;
-    use std::time::{Duration, Instant};
-    let addr = format!("{}:{}", host, port);
-    let start = Instant::now();
-    TcpStream::connect_timeout(
-        &addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?,
-        Duration::from_secs(TCP_PING_TIMEOUT_SECS),
-    )
-    .map_err(|e| format!("连接失败: {}", e))?;
+    let start = std::time::Instant::now();
+    connect_tcp(&host, port, TCP_PING_TIMEOUT_SECS)?;
     Ok(start.elapsed().as_millis() as u64)
 }
 
