@@ -8,10 +8,7 @@ use tauri::AppHandle;
 
 /// 通用短字符串参数上限：主机、路径、用户名、命令等。
 const MAX_STRING_LEN: usize = 10_000;
-/// 在线编辑正文独立上限。正文不应复用路径/用户名的 10k 限制。
-const MAX_FILE_CONTENT_BYTES: usize = 512 * 1024;
 
-/// Validate that a host is non-empty and a port is in the valid TCP/UDP range.
 fn validate_host_port(host: &str, port: u16) -> Result<(), String> {
     if host.trim().is_empty() {
         return Err("host must not be empty".into());
@@ -22,7 +19,6 @@ fn validate_host_port(host: &str, port: u16) -> Result<(), String> {
     Ok(())
 }
 
-/// Reject any short string parameter that exceeds the safety limit.
 fn validate_string_len(name: &str, value: &str) -> Result<(), String> {
     if value.len() > MAX_STRING_LEN {
         return Err(format!("{} exceeds maximum length of {} bytes", name, MAX_STRING_LEN));
@@ -31,12 +27,38 @@ fn validate_string_len(name: &str, value: &str) -> Result<(), String> {
 }
 
 fn validate_file_content_len(content: &str) -> Result<(), String> {
-    if content.len() > MAX_FILE_CONTENT_BYTES {
+    if content.len() > MAX_INLINE_EDIT_BYTES {
         return Err(format!(
             "文件内容过大：{} bytes，在线编辑最大允许 {} bytes",
-            content.len(),
-            MAX_FILE_CONTENT_BYTES
+            content.len(), MAX_INLINE_EDIT_BYTES
         ));
+    }
+    Ok(())
+}
+
+fn validate_remote_delete_path(path: &str) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("远程删除路径不能为空".into());
+    }
+
+    let absolute = trimmed.starts_with('/');
+    let mut depth = 0i32;
+    for component in trimmed.split('/') {
+        match component {
+            "" | "." => {}
+            ".." => {
+                depth -= 1;
+                if depth < 0 {
+                    return Err("拒绝删除包含越界父目录的路径".into());
+                }
+            }
+            _ => depth += 1,
+        }
+    }
+
+    if depth <= 0 || (absolute && trimmed.trim_matches('/').is_empty()) {
+        return Err("拒绝删除根目录或等价路径".into());
     }
     Ok(())
 }
@@ -172,10 +194,11 @@ pub fn ssh_list_shells() -> Vec<String> {
     crate::ssh::list_shells()
 }
 
-// ─── Remote file management ───
+// ─── SFTP / Local Files ───
 
 #[tauri::command]
 pub fn sftp_list_local(path: String) -> Result<Vec<crate::sftp::FileEntry>, String> {
+    validate_string_len("path", &path)?;
     crate::sftp::list_local(&path)
 }
 
@@ -209,13 +232,7 @@ pub fn sftp_rename(session_id: String, old_path: String, new_path: String) -> Re
 #[tauri::command]
 pub fn sftp_delete(session_id: String, path: String, is_dir: bool) -> Result<String, String> {
     validate_string_len("path", &path)?;
-    if path.trim().is_empty() {
-        return Err("path must not be empty".into());
-    }
-    let trimmed = path.trim_end_matches('/');
-    if trimmed.starts_with('/') && trimmed[1..].chars().all(|c| c == '.') {
-        return Err("refusing to delete root-like path".into());
-    }
+    validate_remote_delete_path(&path)?;
     crate::sftp::delete_file(&session_id, &path, is_dir)
 }
 
@@ -228,6 +245,7 @@ pub fn sftp_mkdir(session_id: String, path: String) -> Result<String, String> {
 #[tauri::command]
 pub fn sftp_chmod(session_id: String, path: String, mode: String) -> Result<String, String> {
     validate_string_len("path", &path)?;
+    validate_string_len("mode", &mode)?;
     crate::sftp::chmod(&session_id, &path, &mode)
 }
 
@@ -361,6 +379,15 @@ mod tests {
     #[test]
     fn file_content_has_independent_limit() {
         assert!(validate_file_content_len(&"x".repeat(MAX_STRING_LEN + 1)).is_ok());
-        assert!(validate_file_content_len(&"x".repeat(MAX_FILE_CONTENT_BYTES + 1)).is_err());
+        assert!(validate_file_content_len(&"x".repeat(MAX_INLINE_EDIT_BYTES + 1)).is_err());
+    }
+
+    #[test]
+    fn remote_delete_rejects_root_equivalents() {
+        for path in ["", "/", "///", ".", "..", "/a/..", "a/.."] {
+            assert!(validate_remote_delete_path(path).is_err(), "should reject {path:?}");
+        }
+        assert!(validate_remote_delete_path("/home/user/file").is_ok());
+        assert!(validate_remote_delete_path("/home/user/../other").is_ok());
     }
 }
