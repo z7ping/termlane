@@ -39,7 +39,9 @@
 - 分屏
 - 自动重连相关逻辑
 - 连接延迟检测
-- `~/.ssh/known_hosts` 主机密钥检查
+- `~/.ssh/known_hosts` 主机身份校验
+- 首次连接显示主机密钥算法和 SHA256 指纹，用户确认后才信任
+- 非默认 SSH 端口按 OpenSSH `[host]:port` 规则保存和检查主机密钥
 
 ### SFTP / 文件
 
@@ -59,25 +61,13 @@
 
 ## 当前明确限制
 
-### 跳板机尚不是真实 ProxyJump
+### 1.0 当前不提供 ProxyJump
 
-当前 `ssh_connect_jump` 的历史实现会：
+历史 `ssh_connect_jump` 实现并不是真实 ProxyJump：它只验证 jump → target 的 `direct-tcpip` 通道可建立，随后客户端仍直接连接 target。
 
-1. 连接跳板机；
-2. 验证跳板机可以建立到目标机的 `direct-tcpip` 通道；
-3. 随后客户端仍然直接连接目标机。
+这套假实现已经从当前 1.0 收口分支中删除，包括 Rust command 和连接对话框入口。1.0 不再把“跳板机”列为已完成能力。
 
-因此它目前只能算跳板可达性预检查，**不能作为真实 ProxyJump 能力对外声明**。1.0 前会重新实现或从正式能力范围移除。
-
-### Host Key 首次信任仍需收口
-
-当前已使用 `known_hosts`：
-
-- 已知且匹配：允许连接；
-- 已知但不匹配：拒绝连接；
-- 未知主机：当前采用 TOFU（首次信任后写入）。
-
-1.0 前仍需补齐非默认 SSH 端口的正确识别，并设计明确的首次连接指纹确认交互。
+如果后续重新提供 ProxyJump，必须真正通过中间通道建立目标 SSH Session；不会为了保留一个入口而同时维护两套半成熟 SSH 栈。
 
 ### 自动更新目前只有版本检查
 
@@ -90,6 +80,33 @@
 - 更新签名
 - 更新 endpoint / 静态 JSON
 - 安装与回滚验证
+
+## 凭证与主机身份安全
+
+### 桌面凭证
+
+- `connections.json` 只保存非敏感连接配置。
+- 密码和私钥 passphrase 统一由 Rust `keyring` 写入操作系统密钥环。
+- Tab 快照和普通 localStorage 不再持久化 `password` / `passphrase`。
+- 历史 `xterminal-pwd_<id>` 明文 localStorage 数据会在读取连接时迁移到安全后端，然后删除明文键。
+- 复制连接只复制非敏感配置，不复制凭证。
+
+### 浏览器开发模式
+
+浏览器没有操作系统 Keyring，因此仅使用现有 AES-GCM fallback 支撑 UI / mock 开发。AES key 位于 sessionStorage，这一安全等级不能与桌面 Keyring 等同。
+
+### SSH Host Key
+
+- 已知且匹配：允许连接。
+- 首次未知：返回算法 + SHA256 指纹，用户明确点击“信任并连接”后才写入 `~/.ssh/known_hosts`。
+- 非 22 端口：使用 `check_port` 和 `[host]:port` 规则。
+- 已知但不匹配：硬拒绝，不允许静默覆盖。
+
+## Tauri 安全边界
+
+- CSP 已启用。
+- `withGlobalTauri` 已关闭；前端通过 `@tauri-apps/api` ESM 接口调用 Tauri，不再把 `window.__TAURI__` 暴露给整个 WebView。
+- Tauri capabilities 继续按最小权限原则维护。
 
 ## 快速开始
 
@@ -116,22 +133,17 @@ npm run tauri:dev
 ## 测试与检查
 
 ```bash
-# 前端测试
 npm test
-
-# 冒烟测试
 npm run test:smoke
-
-# TypeScript / Vue 类型检查
 npx vue-tsc --noEmit
-
-# 前端生产构建
 npm run build
 
-# Rust（在 src-tauri/ 下）
+cd src-tauri
 cargo check
 cargo test
 ```
+
+仓库已有 `.github/workflows/ci.yml`，PR 会运行同一组前端 / Rust 门禁。CI 发现的问题按真实失败修复，不通过关闭检查或放宽类型规则绕过。
 
 ## 构建
 
@@ -180,14 +192,6 @@ src-tauri/
 3. [#3 1.0 发布基线：核心链路、质量、安全与跨平台验证](https://github.com/z7ping/xterminal-pro/issues/3)
 
 历史 `docs/PLAN.md` 中的勾选仅代表当时的开发记录，不能替代当前源码验收。
-
-## 安全边界
-
-- 桌面密码由 Rust `keyring` 写入操作系统密钥环，不写入 `connections.json`。
-- Tauri CSP 已启用，不应为了兼容功能而直接关闭。
-- Browser secure-storage 仅作为浏览器开发 fallback，安全等级不能等同 OS Keyring。
-- Tauri capability 应坚持最小权限原则。
-- SSH Host Key mismatch 必须拒绝，不允许静默绕过。
 
 ## 文档
 
