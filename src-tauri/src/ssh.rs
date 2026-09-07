@@ -58,8 +58,7 @@ static PTY_SHELLS: std::sync::LazyLock<Mutex<HashMap<String, PtyShell>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Authenticated SSH Session objects backing interactive PTY shells.
-/// The same SSH transport may open additional exec channels for remote file
-/// management without establishing a second connection or duplicating secrets.
+/// Additional exec/SFTP channels reuse the same SSH transport and credentials.
 static PTY_SESSIONS: std::sync::LazyLock<Mutex<HashMap<String, Session>>> =
     std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -97,12 +96,8 @@ fn host_key_algorithm_and_format(
 }
 
 fn format_sha256_fingerprint(hash: &[u8]) -> String {
-    let hex = hash
-        .iter()
-        .map(|byte| format!("{:02x}", byte))
-        .collect::<Vec<_>>()
-        .join(":");
-    format!("SHA256:{}", hex)
+    let encoded = base64_encode(hash);
+    format!("SHA256:{}", encoded.trim_end_matches('='))
 }
 
 fn host_key_error(
@@ -147,6 +142,13 @@ fn retry_nonblocking_ssh<T>(
             }
         }
     }
+}
+
+fn session_handle(session_id: &str) -> Option<Session> {
+    if let Some(session) = lock!(SESSIONS).get(session_id).cloned() {
+        return Some(session);
+    }
+    lock!(PTY_SESSIONS).get(session_id).cloned()
 }
 
 fn execute_blocking_session(session: &Session, command: &str) -> Result<String, String> {
@@ -204,10 +206,6 @@ fn execute_nonblocking_session(session: &Session, command: &str) -> Result<Strin
 
 /// Create an SSH session from a TCP stream and verify the remote host key
 /// against ~/.ssh/known_hosts.
-///
-/// Unknown hosts are never silently trusted. The caller must explicitly retry
-/// with `trust_new_host_key = true` after presenting the fingerprint to the user.
-/// Existing key mismatches are always rejected.
 fn create_session(
     tcp: TcpStream,
     host: &str,
@@ -407,21 +405,21 @@ pub async fn connect_with_key(
 }
 
 pub async fn execute(session_id: &str, command: &str) -> Result<String, String> {
-    {
-        let sessions = lock!(SESSIONS);
-        if let Some(session) = sessions.get(session_id) {
-            return execute_blocking_session(session, command);
-        }
+    let session = session_handle(session_id).ok_or_else(|| "会话不存在".to_string())?;
+    if session.is_blocking() {
+        execute_blocking_session(&session, command)
+    } else {
+        execute_nonblocking_session(&session, command)
     }
+}
 
-    {
-        let sessions = lock!(PTY_SESSIONS);
-        if let Some(session) = sessions.get(session_id) {
-            return execute_nonblocking_session(session, command);
-        }
+pub fn open_sftp(session_id: &str) -> Result<ssh2::Sftp, String> {
+    let session = session_handle(session_id).ok_or_else(|| "会话不存在".to_string())?;
+    if session.is_blocking() {
+        session.sftp().map_err(|e| format!("初始化 SFTP 失败: {}", e))
+    } else {
+        retry_nonblocking_ssh("初始化 SFTP", || session.sftp())
     }
-
-    Err("会话不存在".to_string())
 }
 
 pub fn disconnect(session_id: &str) -> Result<(), String> {
@@ -820,10 +818,7 @@ mod tests {
 
     #[test]
     fn test_sha256_fingerprint_format() {
-        assert_eq!(
-            format_sha256_fingerprint(&[0x01, 0xab, 0xff]),
-            "SHA256:01:ab:ff"
-        );
+        assert_eq!(format_sha256_fingerprint(b"abc"), "SHA256:YWJj");
     }
 
     #[test]
@@ -833,7 +828,7 @@ mod tests {
             "example.com",
             2222,
             "ssh-ed25519",
-            "SHA256:01:02",
+            "SHA256:YWJj",
         );
         let payload = err
             .strip_prefix("HOST_KEY_UNKNOWN:")
@@ -842,7 +837,7 @@ mod tests {
         assert_eq!(json["host"], "example.com");
         assert_eq!(json["port"], 2222);
         assert_eq!(json["algorithm"], "ssh-ed25519");
-        assert_eq!(json["fingerprint"], "SHA256:01:02");
+        assert_eq!(json["fingerprint"], "SHA256:YWJj");
     }
 
     #[test]
