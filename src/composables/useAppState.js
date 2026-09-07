@@ -11,7 +11,7 @@ import {
 } from '../utils/credentials.js'
 import { parseHostKeyError } from '../utils/ssh-host-key.js'
 
-const LOCAL_CONN = { id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' }
+const LOCAL_CONN = { id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地' }
 const connections = ref([LOCAL_CONN])
 const latencyMap = ref({})
 const tabs = ref([])
@@ -212,7 +212,7 @@ async function onTestConnection(conn) {
         trustNewHostKey: false,
       })
     }
-    _toast(`✓ ${conn.name} 连接成功`, 'success')
+    _toast(`${conn.name} 连接成功`, 'success')
     await invoke('ssh_disconnect', { sessionId: sid })
   } catch (err) {
     const hostKeyError = parseHostKeyError(err)
@@ -221,10 +221,10 @@ async function onTestConnection(conn) {
       return
     }
     if (hostKeyError?.code === 'HOST_KEY_MISMATCH') {
-      _toast(`✗ ${conn.name} 主机密钥已变化，已拒绝连接`, 'error')
+      _toast(`${conn.name} 主机密钥已变化，已拒绝连接`, 'error')
       return
     }
-    _toast(`✗ ${conn.name} 连接失败: ${err}`, 'error')
+    _toast(`${conn.name} 连接失败: ${err}`, 'error')
   }
 }
 

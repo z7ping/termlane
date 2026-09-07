@@ -42,7 +42,7 @@
           <button type="button" title="导出" aria-label="导出" @click="exportRecording(recordingItem)">
             <Download :size="14" :stroke-width="1.8" />
           </button>
-          <button type="button" class="danger" title="删除" aria-label="删除" @click="deleteRecording(recordingItem.id)">
+          <button type="button" class="danger" title="删除" aria-label="删除" @click="requestDeleteRecording(recordingItem.id)">
             <Trash2 :size="14" :stroke-width="1.8" />
           </button>
         </div>
@@ -88,6 +88,22 @@
       </div>
     </div>
 
+    <BaseModal
+      :show="deleteRecordingId != null"
+      width="360px"
+      title="删除录制"
+      @close="deleteRecordingId = null"
+    >
+      <div class="confirm-dialog">
+        <div class="dialog-title">删除录制</div>
+        <p>此操作会删除录制文件和对应元数据，无法撤销。</p>
+        <div class="confirm-actions">
+          <button type="button" class="secondary-button" @click="deleteRecordingId = null">取消</button>
+          <button type="button" class="danger-button" @click="confirmDeleteRecording">删除</button>
+        </div>
+      </div>
+    </BaseModal>
+
     <div v-if="toastState.show" class="recorder-toast" :class="toastState.type">{{ toastState.message }}</div>
   </div>
 </template>
@@ -105,6 +121,7 @@ import {
   X,
 } from 'lucide-vue-next'
 import { invoke, listen } from '../utils/tauri.js'
+import BaseModal from './BaseModal.vue'
 
 const props = defineProps({
   sessionId: String,
@@ -121,6 +138,7 @@ const playbackLines = ref([])
 const playbackData = ref([])
 const playbackIdx = ref(0)
 const playbackActive = ref(false)
+const deleteRecordingId = ref(null)
 const toastState = ref({ show: false, message: '', type: 'info' })
 
 const recData = []
@@ -353,10 +371,17 @@ async function exportRecording(recordingItem) {
   }
 }
 
-async function deleteRecording(id) {
-  if (!window.confirm('确认删除此录制？')) return
+function requestDeleteRecording(id) {
+  deleteRecordingId.value = id
+}
+
+async function confirmDeleteRecording() {
+  const id = deleteRecordingId.value
+  if (!id) return
+  deleteRecordingId.value = null
   try {
     await invoke('delete_recording', { id })
+    toast('录制已删除', 'success')
     await loadRecordings()
   } catch (error) {
     toast(`删除失败：${error}`, 'error')
@@ -443,7 +468,7 @@ onUnmounted(() => {
   gap: 5px;
   padding: 0 9px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--accent);
   color: white;
   font-size: 11px;
@@ -451,11 +476,6 @@ onUnmounted(() => {
 
 .record-button.active {
   background: var(--danger);
-}
-
-.record-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.4;
 }
 
 .empty-state {
@@ -482,7 +502,7 @@ onUnmounted(() => {
   margin-bottom: 6px;
   padding: 9px 10px;
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--bg-surface);
 }
 
@@ -550,7 +570,7 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--bg-elevated);
   box-shadow: var(--shadow-lg);
 }
@@ -572,7 +592,7 @@ onUnmounted(() => {
   padding: 12px;
   background: #0b0d10;
   color: #d4d4d4;
-  font-family: 'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -594,9 +614,48 @@ onUnmounted(() => {
 .playback-count {
   min-width: 54px;
   color: var(--fg-muted);
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   text-align: right;
+}
+
+.confirm-dialog p {
+  margin: 8px 0 0;
+  color: var(--fg-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.dialog-title {
+  color: var(--fg-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.secondary-button,
+.danger-button {
+  height: 30px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+}
+
+.secondary-button {
+  background: var(--bg-hover);
+  color: var(--fg-secondary);
+}
+
+.danger-button {
+  background: var(--danger);
+  color: white;
 }
 
 .recorder-toast {
@@ -606,8 +665,8 @@ onUnmounted(() => {
   z-index: 70;
   max-width: min(420px, calc(100% - 16px));
   padding: 7px 9px;
-  border-radius: 6px;
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
   font-size: 11px;
 }
 
