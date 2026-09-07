@@ -14,18 +14,21 @@
     <div class="flex-1 flex min-h-0 overflow-hidden">
       <aside class="note-list">
         <div v-if="notes.length === 0" class="list-empty">暂无笔记</div>
-        <button
+        <div
           v-for="note in notes"
           v-else
           :key="note.id"
-          type="button"
           class="note-row"
           :class="{ active: activeNote?.id === note.id }"
+          role="button"
+          tabindex="0"
           @click="selectNote(note)"
+          @keydown.enter="selectNote(note)"
+          @keydown.space.prevent="selectNote(note)"
         >
           <div class="min-w-0 flex-1 text-left">
             <div class="note-title">{{ note.title || '无标题' }}</div>
-            <div class="note-updated">{{ note.updated }}</div>
+            <div class="note-updated">{{ formatUpdated(note.updated) }}</div>
           </div>
           <button
             type="button"
@@ -36,7 +39,7 @@
           >
             <Trash2 :size="13" :stroke-width="1.8" />
           </button>
-        </button>
+        </div>
       </aside>
 
       <main class="flex-1 min-w-0 flex flex-col">
@@ -77,7 +80,7 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { NotebookPen, Plus, Trash2 } from 'lucide-vue-next'
 import { STORAGE_KEYS } from '@/utils/storage-keys'
 
@@ -138,7 +141,6 @@ function saveActive() {
 
 function requestDelete(note) {
   deleteTarget.value = note
-  nextTick(() => {})
 }
 
 function deleteNote() {
@@ -150,20 +152,36 @@ function deleteNote() {
   saveNotes()
 }
 
-function formatStoredDates() {
+function normalizeStoredDates() {
+  let changed = false
   for (const note of notes.value) {
-    if (!note.updated) note.updated = new Date().toISOString()
+    if (!note.updated) {
+      note.updated = new Date().toISOString()
+      changed = true
+    }
   }
+  if (changed) saveNotes()
+}
+
+function formatUpdated(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 watch(() => props.connectionName, () => {
   loadNotes()
-  formatStoredDates()
+  normalizeStoredDates()
 })
 
 onMounted(() => {
   loadNotes()
-  formatStoredDates()
+  normalizeStoredDates()
 })
 </script>
 
@@ -177,12 +195,12 @@ onMounted(() => {
 .danger-button { background: var(--danger); color: white; }
 .note-list { width: 210px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid var(--border-subtle); background: var(--bg-surface); }
 .list-empty { padding: 28px 12px; color: var(--fg-muted); font-size: 11px; text-align: center; }
-.note-row { width: 100%; min-height: 52px; display: flex; align-items: center; gap: 5px; padding: 7px 6px 7px 10px; border: 0; border-bottom: 1px solid var(--border-subtle); background: transparent; color: var(--fg-secondary); }
+.note-row { width: 100%; min-height: 52px; display: flex; align-items: center; gap: 5px; padding: 7px 6px 7px 10px; border-bottom: 1px solid var(--border-subtle); background: transparent; color: var(--fg-secondary); cursor: default; }
 .note-row:hover { background: var(--bg-hover); }
+.note-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .note-row.active { background: var(--accent-hover); }
 .note-title { overflow: hidden; color: var(--fg-primary); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .note-updated { margin-top: 3px; color: var(--fg-muted); font-size: 9px; }
-.note-updated::after { content: ''; }
 .delete-button { width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); opacity: 0; }
 .note-row:hover .delete-button, .delete-button:focus-visible { opacity: 1; }
 .delete-button:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
