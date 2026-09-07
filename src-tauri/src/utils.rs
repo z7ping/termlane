@@ -59,6 +59,41 @@ pub fn base64_encode(input: &[u8]) -> String {
     result
 }
 
+pub fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
+    let mut table = [255u8; 256];
+    for (index, &character) in BASE64_CHARS.iter().enumerate() {
+        table[character as usize] = index as u8;
+    }
+    table[b'=' as usize] = 0;
+
+    let clean: Vec<u8> = input
+        .bytes()
+        .filter(|byte| !byte.is_ascii_whitespace())
+        .collect();
+    if clean.len() % 4 != 0 {
+        return Err("无效的 base64 编码".to_string());
+    }
+
+    let mut result = Vec::with_capacity(clean.len() / 4 * 3);
+    for chunk in clean.chunks(4) {
+        let a = table[chunk[0] as usize];
+        let b = table[chunk[1] as usize];
+        let c = table[chunk[2] as usize];
+        let d = table[chunk[3] as usize];
+        if a == 255 || b == 255 || c == 255 || d == 255 {
+            return Err("无效的 base64 字符".to_string());
+        }
+        result.push((a << 2) | (b >> 4));
+        if chunk[2] != b'=' {
+            result.push(((b & 0x0f) << 4) | (c >> 2));
+        }
+        if chunk[3] != b'=' {
+            result.push(((c & 0x03) << 6) | d);
+        }
+    }
+    Ok(result)
+}
+
 /// 获取 Unix 时间戳（秒）
 pub fn unix_now() -> u64 {
     std::time::SystemTime::now()
@@ -72,11 +107,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn base64_encode_matches_rfc4648_vectors() {
-        assert_eq!(base64_encode(b""), "");
-        assert_eq!(base64_encode(b"f"), "Zg==");
-        assert_eq!(base64_encode(b"fo"), "Zm8=");
-        assert_eq!(base64_encode(b"foo"), "Zm9v");
-        assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
+    fn base64_matches_rfc4648_vectors() {
+        for (raw, encoded) in [
+            (b"".as_slice(), ""),
+            (b"f".as_slice(), "Zg=="),
+            (b"fo".as_slice(), "Zm8="),
+            (b"foo".as_slice(), "Zm9v"),
+            (b"foobar".as_slice(), "Zm9vYmFy"),
+        ] {
+            assert_eq!(base64_encode(raw), encoded);
+            assert_eq!(base64_decode(encoded).expect("valid base64"), raw);
+        }
     }
 }
