@@ -8,7 +8,7 @@ export const STORAGE_KEYS = {
   THEME: 'xterminal-theme',
   FONT_SIZE: 'xterminal-fontSize',
   SCROLLBACK: 'xterminal-scrollback',
-  // 代理
+  // 代理（历史配置保留，1.0 当前不暴露代理入口）
   PROXY: 'xterminal_proxy',
   // 快捷键前缀
   SHORTCUT_PREFIX: 'shortcut_',
@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   SCHEDULED_TASKS: 'xterminal_scheduled_tasks',
   CONNECTION_TAGS: 'xterminal_connection_tags',
   MACROS: 'xterminal_macros',
+  QUICK_COMMANDS: 'xterminal_quick_commands',
   NOTES_PREFIX: 'xterminal_notes_',
   // 其他
   ONBOARDED: 'xterminal_onboarded',
