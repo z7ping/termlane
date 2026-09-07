@@ -1,214 +1,94 @@
-# Termlane CI/CD
-# Workflow: workflow_dispatch 手动触发
-# Runners:
-#   laptop-runner: Linux, Docker (Ubuntu)
-#   windows-runner: Windows, host mode (Mr.wang)
-
-name: Build Termlane
+name: Build packages
 
 on:
   workflow_dispatch:
     inputs:
       build_windows:
-        description: 'Build Windows .msi'
+        description: Build Windows MSI
         required: false
         type: boolean
         default: true
       build_linux:
-        description: 'Build Linux .deb'
+        description: Build Linux DEB
         required: false
         type: boolean
-        default: false
+        default: true
 
-env:
-  CARGO_TERM_COLOR: always
-  CARGO_BUILD_JOBS: 2
-  CARGO_INCREMENTAL: '1'
-  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+permissions:
+  contents: read
 
 jobs:
-  # ==================== Check (Linux runner) ====================
-  check:
-    name: Lint & Test
-    runs-on: ubuntu-latest
+  windows:
+    name: Windows MSI
+    if: ${{ inputs.build_windows }}
+    runs-on: windows-latest
     steps:
-      - name: 配置内网 Git 认证
-        run: |
-          git config --global url."http://z7ping:${{ secrets.GITEA_TOKEN }}@192.168.31.239:53000/".insteadOf "http://192.168.31.239:53000/"
-
       - name: Checkout
-        uses: http://192.168.31.239:53000/actions/checkout@v4
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: http://192.168.31.239:53000/actions/setup-node@v4
+        uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          mirror-url: 'https://npmmirror.com/mirrors/node'
-
-      - name: Install frontend deps
-        run: |
-          npm config set registry https://registry.npmmirror.com/
-          npm ci --prefer-offline
-
-      - name: 配置Rust国内镜像(sparse+rsproxy)
-        shell: bash
-        run: |
-          mkdir -p ~/.cargo
-          cat > ~/.cargo/config.toml << 'TOML'
-          [source.crates-io]
-          replace-with = "rsproxy"
-          [source.rsproxy]
-          registry = "https://rsproxy.cn/crates.io-index/"
-          TOML
+          node-version: 22
+          cache: npm
 
       - name: Setup Rust
-        uses: http://192.168.31.239:53000/3rd-party/rust-toolchain@stable
-        with:
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Rust cache
-        uses: http://192.168.31.239:53000/actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            src-tauri/target/
-          key: check-${{ hashFiles('src-tauri/Cargo.lock') }}
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Frontend type check
-        run: npx vue-tsc --noEmit
-
-      - name: Rust check
-        working-directory: src-tauri
-        run: cargo check
-
-      - name: Rust test
-        working-directory: src-tauri
-        run: cargo test
-
-  # ==================== Windows .msi (Windows runner) ====================
-  build-windows:
-    name: Windows (.msi)
-    runs-on: windows-latest
-    if: ${{ github.event.inputs.build_windows == 'true' }}
-    env:
-      RUSTUP_HOME: F:\gitea-cache\rustup
-      CARGO_HOME: F:\gitea-cache\cargo
-      CARGO_TARGET_DIR: F:\gitea-cache\target
-      OPENSSL_DIR: F:\gitea-cache\vcpkg\installed\x64-windows
-      OPENSSL_STATIC: 1
-      HTTP_PROXY: http://192.168.31.87:7897
-      HTTPS_PROXY: http://192.168.31.87:7897
-    steps:
-      - name: Checkout
-        uses: http://192.168.31.239:53000/actions/checkout@v4
-
-      - name: 设置工具链路径
-        shell: cmd
-        run: |
-          echo F:\gitea-cache\node\node-v22.23.0-win-x64>>%GITHUB_PATH%
-          echo F:\gitea-cache\cargo\bin>>%GITHUB_PATH%
-          echo F:\gitea-cache\rustup\bin>>%GITHUB_PATH%
-          echo F:\gitea-cache\vcpkg>>%GITHUB_PATH%
-
-      - name: 验证工具链
-        run: |
-          node -v
-          npm -v
-          rustc --version
-          cargo --version
-      - name: Restore cache
-        uses: http://192.168.31.239:53000/actions/cache@v4
-        with:
-          path: |
-            F:\gitea-cache\cargo\bin\
-            F:\gitea-cache\cargo\registry\index\
-            F:\gitea-cache\cargo\registry\cache\
-            F:\gitea-cache\cargo\git\db\
-            F:\gitea-cache\target\
-            node_modules\
-          key: win-msi-${{ hashFiles('src-tauri/Cargo.lock', 'package-lock.json') }}
-
-      - name: Install frontend deps
-        run: |
-          npm config set registry https://registry.npmmirror.com/
-          npm ci --prefer-offline
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Build .msi
+      - name: Build MSI
         run: npx tauri build --bundles msi
 
-      - name: Upload .msi artifact
-        uses: http://192.168.31.239:53000/actions/upload-artifact@v3
+      - name: Upload MSI
+        uses: actions/upload-artifact@v4
         with:
-          name: termlane-msi
-          path: F:\gitea-cache\target\release\bundle\msi\*.msi
-          retention-days: 30
+          name: termlane-windows-msi
+          path: src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+          retention-days: 14
 
-  # ==================== Linux .deb (Linux runner) ====================
-  build-linux:
-    name: Linux (.deb)
+  linux:
+    name: Linux DEB
+    if: ${{ inputs.build_linux }}
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.build_linux == 'true' }}
     steps:
-      - name: 配置内网 Git 认证
-        run: |
-          git config --global url."http://z7ping:${{ secrets.GITEA_TOKEN }}@192.168.31.239:53000/".insteadOf "http://192.168.31.239:53000/"
-
       - name: Checkout
-        uses: http://192.168.31.239:53000/actions/checkout@v4
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: http://192.168.31.239:53000/actions/setup-node@v4
+        uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          mirror-url: 'https://npmmirror.com/mirrors/node'
-
-      - name: Install frontend deps
-        run: |
-          npm config set registry https://registry.npmmirror.com/
-          npm ci --prefer-offline
-
-      - name: 配置Rust国内镜像(sparse+rsproxy)
-        shell: bash
-        run: |
-          mkdir -p ~/.cargo
-          cat > ~/.cargo/config.toml << 'TOML'
-          [source.crates-io]
-          replace-with = "rsproxy"
-          [source.rsproxy]
-          registry = "https://rsproxy.cn/crates.io-index/"
-          TOML
+          node-version: 22
+          cache: npm
 
       - name: Setup Rust
-        uses: http://192.168.31.239:53000/3rd-party/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libdbus-1-dev \
+            patchelf \
+            pkg-config
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build DEB
+        run: npx tauri build --bundles deb
+
+      - name: Upload DEB
+        uses: actions/upload-artifact@v4
         with:
-          toolchain: stable
-
-      - name: Rust cache
-        uses: http://192.168.31.239:53000/actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            src-tauri/target/
-          key: deb-${{ hashFiles('src-tauri/Cargo.lock') }}
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Build .deb
-        run: cargo tauri build --bundles deb
-
-      - name: Upload .deb artifact
-        uses: http://192.168.31.239:53000/actions/upload-artifact@v3
-        with:
-          name: termlane-deb
+          name: termlane-linux-deb
           path: src-tauri/target/release/bundle/deb/*.deb
-          retention-days: 30
+          if-no-files-found: error
+          retention-days: 14

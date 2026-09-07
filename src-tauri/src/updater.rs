@@ -19,15 +19,14 @@ fn is_newer_version(current: &str, latest: &str) -> Result<bool, String> {
     Ok(parse_version(latest)? > parse_version(current)?)
 }
 
-/// Check for updates from Gitea API.
-/// Returns Ok(Some(update)) only when the latest release is newer than the
-/// current app version. Returns Ok(None) when there is no release or the app is
-/// already on an equal/newer version.
+/// Check the latest public GitHub Release.
+///
+/// This command only performs version discovery. Download, signature
+/// verification and installation belong to the signed Tauri updater chain and
+/// are intentionally not implemented here.
 #[tauri::command]
 pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>, String> {
-    // The Gitea repository still uses its historical slug. Change this URL only
-    // after that remote repository is renamed as well.
-    const GITEA_API_URL: &str = "https://gitea.7ping.site/api/v1/repos/ai-area/xterminal-pro/releases/latest";
+    const RELEASE_API_URL: &str = "https://api.github.com/repos/z7ping/termlane/releases/latest";
 
     let client = reqwest::Client::builder()
         .user_agent(format!("Termlane/{}", env!("CARGO_PKG_VERSION")))
@@ -35,24 +34,28 @@ pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>,
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
     let response = client
-        .get(GITEA_API_URL)
-        .header("Accept", "application/json")
+        .get(RELEASE_API_URL)
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
         .await
-        .map_err(|e| format!("请求 Gitea API 失败: {}", e))?;
+        .map_err(|e| format!("请求 GitHub Releases 失败: {}", e))?;
 
-    if response.status() == 404 {
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(None);
     }
 
     if !response.status().is_success() {
-        return Err(format!("Gitea API 返回错误状态码: {}", response.status()));
+        return Err(format!(
+            "GitHub Releases 返回错误状态码: {}",
+            response.status()
+        ));
     }
 
-    let release: GiteaRelease = response
+    let release: GitHubRelease = response
         .json()
         .await
-        .map_err(|e| format!("解析 Gitea API 响应失败: {}", e))?;
+        .map_err(|e| format!("解析 GitHub Release 响应失败: {}", e))?;
 
     if !is_newer_version(&current_version, &release.tag_name)? {
         return Ok(None);
@@ -64,16 +67,16 @@ pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>,
         tag_name: release.tag_name,
         body: release.body.unwrap_or_else(|| "无更新说明".to_string()),
         download_url: release.html_url,
-        published_at: release.published_at,
+        published_at: release.published_at.unwrap_or_default(),
     }))
 }
 
 #[derive(Debug, Deserialize)]
-struct GiteaRelease {
+struct GitHubRelease {
     tag_name: String,
     body: Option<String>,
     html_url: Option<String>,
-    published_at: String,
+    published_at: Option<String>,
 }
 
 #[cfg(test)]
