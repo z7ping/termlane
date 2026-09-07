@@ -11,7 +11,9 @@ fn recording_path(filename: &str) -> Result<std::path::PathBuf, String> {
 
     let path = Path::new(trimmed);
     if path.components().count() != 1
-        || path.components().any(|component| !matches!(component, Component::Normal(_)))
+        || path
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
     {
         return Err("录制文件名不能包含目录".into());
     }
@@ -23,8 +25,7 @@ fn recording_path(filename: &str) -> Result<std::path::PathBuf, String> {
     Ok(crate::config::get_recording_dir().join(path))
 }
 
-#[tauri::command]
-pub fn save_recording_file(filename: String, content: String) -> Result<(), String> {
+fn validate_content(content: &str) -> Result<(), String> {
     if content.len() > MAX_RECORDING_BYTES {
         return Err(format!(
             "录制文件过大：{} bytes，最大允许 {} bytes",
@@ -32,9 +33,29 @@ pub fn save_recording_file(filename: String, content: String) -> Result<(), Stri
             MAX_RECORDING_BYTES
         ));
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn save_recording(
+    filename: String,
+    content: String,
+    meta: crate::config::RecordingMeta,
+) -> Result<(), String> {
+    validate_content(&content)?;
+    if meta.file_path != filename {
+        return Err("录制元数据中的文件名与实际文件名不一致".into());
+    }
 
     let path = recording_path(&filename)?;
-    fs::write(path, content).map_err(|error| format!("保存录制文件失败: {}", error))
+    fs::write(&path, content).map_err(|error| format!("保存录制文件失败: {}", error))?;
+
+    if let Err(error) = crate::config::save_recording_meta(meta) {
+        let _ = fs::remove_file(&path);
+        return Err(format!("保存录制元数据失败: {}", error));
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -57,6 +78,15 @@ mod tests {
     #[test]
     fn accepts_plain_cast_filename() {
         let path = recording_path("session.cast").expect("valid recording filename");
-        assert_eq!(path.file_name().and_then(|value| value.to_str()), Some("session.cast"));
+        assert_eq!(
+            path.file_name().and_then(|value| value.to_str()),
+            Some("session.cast")
+        );
+    }
+
+    #[test]
+    fn rejects_oversized_recording() {
+        let content = "x".repeat(MAX_RECORDING_BYTES + 1);
+        assert!(validate_content(&content).is_err());
     }
 }
