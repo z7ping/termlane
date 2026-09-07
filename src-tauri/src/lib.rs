@@ -3,6 +3,7 @@ mod utils;
 mod commands;
 mod config;
 mod local_pty;
+mod recordings;
 mod sftp;
 mod ssh;
 mod updater;
@@ -24,7 +25,7 @@ pub fn run() {
             commands::ssh_shell_resize,
             commands::ssh_close_shell,
             commands::ssh_list_shells,
-            // SFTP
+            // Remote file management
             commands::sftp_list_local,
             commands::sftp_list_remote,
             commands::sftp_upload,
@@ -46,6 +47,8 @@ pub fn run() {
             commands::save_recording_meta,
             commands::delete_recording,
             commands::get_recording_dir,
+            recordings::save_recording_file,
+            recordings::read_recording_file,
             // Local PTY
             commands::local_start_shell,
             commands::local_input,
