@@ -1,13 +1,9 @@
 name: CI
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - 'refactor/**'
-      - 'feature/**'
-      - 'fix/**'
+  release:
+    types:
+      - published
 
 permissions:
   contents: read
