@@ -27,12 +27,12 @@
           <TabBar
             :tabs="tabs"
             :active-id="activeTabId"
+            class="flex-1 min-w-0"
             @select="activeTabId = $event"
             @close="closeTab"
             @close-others="closeOtherTabs"
             @close-all="closeAllTabs"
             @new="openLocalTerminal"
-            class="flex-1 min-w-0"
           />
           <ViewSwitcher v-model="viewMode" />
         </div>
@@ -84,7 +84,7 @@
     <ConnectionDialog
       v-if="showAddConnection"
       :editing="editingConnection"
-      @save="(conn) => onSaveConnection(conn, editingConnection)"
+      @save="conn => onSaveConnection(conn, editingConnection)"
       @close="showAddConnection = false; editingConnection = null"
     />
     <ShortcutHelp :visible="showShortcuts" @close="showShortcuts = false" />
@@ -93,12 +93,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, defineAsyncComponent, defineComponent } from 'vue'
+import { defineAsyncComponent, defineComponent, onMounted, onUnmounted, ref } from 'vue'
 import { Terminal as TerminalIcon } from 'lucide-vue-next'
-import { parseShortcut, getShortcut } from './utils/shortcuts.js'
-import { useAppState, setToast } from './composables/useAppState.js'
+import { getShortcut, parseShortcut } from './utils/shortcuts.js'
+import { applyTheme, getStoredTheme } from './utils/theme-state'
+import { setToast, useAppState } from './composables/useAppState.js'
 
-// Critical - 首屏必需（同步加载）
 import TitleBar from './components/TitleBar.vue'
 import Sidebar from './components/Sidebar.vue'
 import TabBar from './components/TabBar.vue'
@@ -107,7 +107,6 @@ import TerminalPanel from './components/TerminalPanel.vue'
 import StatusBar from './components/StatusBar.vue'
 import Toast from './components/Toast.vue'
 
-// Lazy - 按需加载（异步分包）
 const asyncLoadingComponent = defineComponent({ template: '<div class="flex items-center justify-center p-4" style="color: var(--fg-muted);">加载中...</div>' })
 const asyncOpts = { loadingComponent: asyncLoadingComponent }
 const SftpPanel = defineAsyncComponent(() => import('./components/SftpPanel.vue'), asyncOpts)
@@ -129,9 +128,8 @@ const ShortcutHelp = defineAsyncComponent(() => import('./components/ShortcutHel
 const ErrorBoundary = defineAsyncComponent(() => import('./components/ErrorBoundary.vue'), asyncOpts)
 const Onboarding = defineAsyncComponent(() => import('./components/Onboarding.vue'), asyncOpts)
 
-// ── Shared state from composable ──
 const {
-  connections, latencyMap, tabs, activeTabId, sessionMap,
+  connections, latencyMap, tabs, activeTabId,
   activeConnectionId, activeTab, activeConnection, activeSessionId,
   loadConnections, loadTabsState, saveTabsState,
   startPingPolling, stopPingPolling,
@@ -140,7 +138,6 @@ const {
   onSessionConnected, onSessionDisconnected, onQuickCommand,
 } = useAppState()
 
-// ── View-only state (stays in App.vue) ──
 const sidebarOpen = ref(true)
 const showAddConnection = ref(false)
 const showShortcuts = ref(false)
@@ -148,13 +145,18 @@ const editingConnection = ref(null)
 const viewMode = ref('terminal')
 const toastRef = ref(null)
 
-function showToast(msg, type = 'info') { toastRef.value?.show(msg, type) }
+function showToast(message, type = 'info') {
+  toastRef.value?.show(message, type)
+}
 
-function onEditConnection(conn) { editingConnection.value = conn; showAddConnection.value = true }
+function onEditConnection(connection) {
+  editingConnection.value = connection
+  showAddConnection.value = true
+}
 
-function onBookmarkNav(bm) {
+function onBookmarkNav(bookmark) {
   viewMode.value = 'sftp'
-  showToast(`跳转到: ${bm.path}`, 'info')
+  showToast(`跳转到: ${bookmark.path}`, 'info')
 }
 
 function toggleFullscreen() {
@@ -162,43 +164,64 @@ function toggleFullscreen() {
   else document.exitFullscreen()
 }
 
-// ── Lifecycle ──
-let _cleanupKeydown = null
-let _cleanupShortcutChanged = null
-let _cleanupBeforeUnload = null
+let cleanupKeydown = null
+let cleanupShortcutChanged = null
+let cleanupBeforeUnload = null
 
 onMounted(async () => {
   setToast(showToast)
   document.getElementById('app')?.classList.add('ready')
-
-  const savedTheme = localStorage.getItem('xterminal-theme') || 'dark'
-  document.documentElement.setAttribute('data-theme', savedTheme)
+  applyTheme(getStoredTheme())
 
   await loadConnections()
   loadTabsState()
 
   const handleBeforeUnload = () => saveTabsState()
   window.addEventListener('beforeunload', handleBeforeUnload)
-  _cleanupBeforeUnload = handleBeforeUnload
+  cleanupBeforeUnload = handleBeforeUnload
 
   const setupGlobalShortcuts = () => {
     const handlers = []
 
     const newTabKey = parseShortcut(getShortcut('新建标签'))
-    handlers.push((e) => { if (newTabKey(e)) { openLocalTerminal(); e.preventDefault() } })
+    handlers.push(event => {
+      if (!newTabKey(event)) return
+      openLocalTerminal()
+      event.preventDefault()
+    })
 
     const closeTabKey = parseShortcut(getShortcut('关闭标签'))
-    handlers.push((e) => { if (closeTabKey(e) && activeTabId.value) { closeTab(activeTabId.value); e.preventDefault() } })
+    handlers.push(event => {
+      if (!closeTabKey(event) || !activeTabId.value) return
+      closeTab(activeTabId.value)
+      event.preventDefault()
+    })
 
     const toggleSidebarKey = parseShortcut(getShortcut('切换侧边栏') || 'Ctrl+B')
-    handlers.push((e) => { if (toggleSidebarKey(e)) { sidebarOpen.value = !sidebarOpen.value; e.preventDefault() } })
+    handlers.push(event => {
+      if (!toggleSidebarKey(event)) return
+      sidebarOpen.value = !sidebarOpen.value
+      event.preventDefault()
+    })
+
+    const settingsKey = parseShortcut(getShortcut('设置'))
+    handlers.push(event => {
+      if (!settingsKey(event)) return
+      viewMode.value = 'settings'
+      event.preventDefault()
+    })
 
     const fullscreenKey = parseShortcut(getShortcut('全屏'))
-    handlers.push((e) => { if (fullscreenKey(e)) { toggleFullscreen(); e.preventDefault() } })
+    handlers.push(event => {
+      if (!fullscreenKey(event)) return
+      toggleFullscreen()
+      event.preventDefault()
+    })
 
     const helpKey = parseShortcut(getShortcut('帮助') || '?')
-    handlers.push((e) => {
-      if (helpKey(e) && !e.ctrlKey && !e.altKey && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+    handlers.push(event => {
+      const tagName = event.target?.tagName
+      if (helpKey(event) && !event.ctrlKey && !event.altKey && !['INPUT', 'TEXTAREA'].includes(tagName)) {
         showShortcuts.value = !showShortcuts.value
       }
     })
@@ -208,8 +231,8 @@ onMounted(async () => {
 
   let shortcutHandlers = setupGlobalShortcuts()
 
-  const handleKeydown = (e) => {
-    shortcutHandlers.forEach(handler => handler(e))
+  const handleKeydown = event => {
+    shortcutHandlers.forEach(handler => handler(event))
   }
   document.addEventListener('keydown', handleKeydown)
 
@@ -218,17 +241,17 @@ onMounted(async () => {
   }
   window.addEventListener('shortcut-changed', handleShortcutChanged)
 
-  _cleanupKeydown = handleKeydown
-  _cleanupShortcutChanged = handleShortcutChanged
+  cleanupKeydown = handleKeydown
+  cleanupShortcutChanged = handleShortcutChanged
 
   startPingPolling()
 })
 
 onUnmounted(() => {
   stopPingPolling()
-  if (_cleanupKeydown) document.removeEventListener('keydown', _cleanupKeydown)
-  if (_cleanupShortcutChanged) window.removeEventListener('shortcut-changed', _cleanupShortcutChanged)
-  if (_cleanupBeforeUnload) window.removeEventListener('beforeunload', _cleanupBeforeUnload)
+  if (cleanupKeydown) document.removeEventListener('keydown', cleanupKeydown)
+  if (cleanupShortcutChanged) window.removeEventListener('shortcut-changed', cleanupShortcutChanged)
+  if (cleanupBeforeUnload) window.removeEventListener('beforeunload', cleanupBeforeUnload)
 })
 </script>
 
