@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   SCHEDULED_TASKS: 'xterminal_scheduled_tasks',
   CONNECTION_TAGS: 'xterminal_connection_tags',
   MACROS: 'xterminal_macros',
+  BOOKMARKS: 'xterminal_bookmarks',
   QUICK_COMMANDS: 'xterminal_quick_commands',
   NOTES_PREFIX: 'xterminal_notes_',
   // 其他
