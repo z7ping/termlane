@@ -7,6 +7,9 @@ macro_rules! lock {
 
 // src-tauri/src/utils.rs — 共享工具函数与常量
 
+use std::net::{TcpStream, ToSocketAddrs};
+use std::time::Duration;
+
 /// 连接超时（TCP 握手）
 pub const CONNECT_TIMEOUT_SECS: u64 = 10;
 /// 读取超时（普通命令 / 非阻塞 SFTP 操作）
@@ -31,6 +34,35 @@ pub const SECS_PER_DAY: u64 = 86400;
 pub const SECS_PER_HOUR: u64 = 3600;
 
 const BASE64_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/// 通过系统解析器解析主机名并尝试建立 TCP 连接。
+///
+/// 保留调用方传入的原始 hostname，由 SSH 层继续用于 known_hosts 校验；
+/// 这里只负责 DNS / IPv4 / IPv6 地址解析与 TCP 建连。
+pub fn connect_tcp(host: &str, port: u16, timeout_secs: u64) -> Result<TcpStream, String> {
+    let addresses = (host, port)
+        .to_socket_addrs()
+        .map_err(|error| format!("解析主机失败: {}", error))?;
+
+    let mut resolved = false;
+    let mut last_error = None;
+    for address in addresses {
+        resolved = true;
+        match TcpStream::connect_timeout(&address, Duration::from_secs(timeout_secs)) {
+            Ok(stream) => return Ok(stream),
+            Err(error) => last_error = Some(error),
+        }
+    }
+
+    if !resolved {
+        return Err(format!("无法解析主机: {}", host));
+    }
+
+    Err(match last_error {
+        Some(error) => format!("连接失败: {}", error),
+        None => format!("连接失败: {}:{}", host, port),
+    })
+}
 
 /// RFC 4648 Base64 编码。
 /// 当前仅用于把 SSH SHA-256 原始摘要转换为 OpenSSH 可核对的显示格式。
