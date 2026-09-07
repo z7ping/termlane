@@ -51,19 +51,30 @@
                 />
               </keep-alive>
             </template>
-            <SftpPanel v-if="viewMode === 'sftp'" :connection="activeConnection" :session-id="activeSessionId" :active="true" />
-            <BatchCommand v-if="viewMode === 'batch'" />
-            <ConnectionMonitor v-if="viewMode === 'monitor'" :connections="connections" :active-session-id="activeSessionId" />
+            <SftpPanel
+              v-if="viewMode === 'sftp'"
+              :connection="activeConnection"
+              :session-id="activeSessionId"
+              :active="true"
+              :navigation-target="bookmarkTarget"
+            />
             <SpeedTest v-if="viewMode === 'speed'" />
-            <SessionRecorder v-if="viewMode === 'recorder'" :session-id="activeSessionId" :connection-name="activeConnection?.name" />
+            <SessionRecorder
+              v-if="viewMode === 'recorder'"
+              :session-id="activeSessionId"
+              :connection-name="activeConnection?.name"
+              :is-local="isActiveLocal"
+            />
             <Notes v-if="viewMode === 'notes'" :connection-name="activeConnection?.name" />
             <Bookmarks v-if="viewMode === 'bookmarks'" @navigate="onBookmarkNav" />
-            <ProxyConfig v-if="viewMode === 'proxy'" />
             <QuickCommands v-if="viewMode === 'commands'" @run="onQuickCommand" />
-            <PortForward v-if="viewMode === 'forward'" />
-            <ScheduledTasks v-if="viewMode === 'tasks'" />
-            <MacroRecorder v-if="viewMode === 'macro'" :session-id="activeSessionId" />
-            <Settings v-if="viewMode === 'settings'" @open-proxy-settings="viewMode = 'proxy'" />
+            <MacroRecorder
+              v-if="viewMode === 'macro'"
+              :session-id="activeSessionId"
+              :is-local="isActiveLocal"
+              @status="showToast($event, 'info')"
+            />
+            <Settings v-if="viewMode === 'settings'" />
           </ErrorBoundary>
 
           <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center" style="color: var(--fg-muted);">
@@ -93,7 +104,7 @@
 </template>
 
 <script setup>
-import { defineAsyncComponent, defineComponent, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineAsyncComponent, defineComponent, onMounted, onUnmounted, ref } from 'vue'
 import { Terminal as TerminalIcon } from 'lucide-vue-next'
 import { getShortcut, parseShortcut } from './utils/shortcuts.js'
 import { applyTheme, getStoredTheme } from './utils/theme-state'
@@ -110,16 +121,11 @@ import Toast from './components/Toast.vue'
 const asyncLoadingComponent = defineComponent({ template: '<div class="flex items-center justify-center p-4" style="color: var(--fg-muted);">加载中...</div>' })
 const asyncOpts = { loadingComponent: asyncLoadingComponent }
 const SftpPanel = defineAsyncComponent(() => import('./components/SftpPanel.vue'), asyncOpts)
-const BatchCommand = defineAsyncComponent(() => import('./components/BatchCommand.vue'), asyncOpts)
-const ConnectionMonitor = defineAsyncComponent(() => import('./components/ConnectionMonitor.vue'), asyncOpts)
 const SpeedTest = defineAsyncComponent(() => import('./components/SpeedTest.vue'), asyncOpts)
 const SessionRecorder = defineAsyncComponent(() => import('./components/SessionRecorder.vue'), asyncOpts)
 const Notes = defineAsyncComponent(() => import('./components/Notes.vue'), asyncOpts)
 const Bookmarks = defineAsyncComponent(() => import('./components/Bookmarks.vue'), asyncOpts)
-const ProxyConfig = defineAsyncComponent(() => import('./components/ProxyConfig.vue'), asyncOpts)
 const QuickCommands = defineAsyncComponent(() => import('./components/QuickCommands.vue'), asyncOpts)
-const PortForward = defineAsyncComponent(() => import('./components/PortForward.vue'), asyncOpts)
-const ScheduledTasks = defineAsyncComponent(() => import('./components/ScheduledTasks.vue'), asyncOpts)
 const MacroRecorder = defineAsyncComponent(() => import('./components/MacroRecorder.vue'), asyncOpts)
 const Settings = defineAsyncComponent(() => import('./components/Settings.vue'), asyncOpts)
 const ConnectionDialog = defineAsyncComponent(() => import('./components/ConnectionDialog.vue'), asyncOpts)
@@ -144,6 +150,12 @@ const showShortcuts = ref(false)
 const editingConnection = ref(null)
 const viewMode = ref('terminal')
 const toastRef = ref(null)
+const bookmarkTarget = ref(null)
+
+const isActiveLocal = computed(() => {
+  const connection = activeConnection.value
+  return !connection || connection.host === 'localhost' || connection.host === '127.0.0.1'
+})
 
 function showToast(message, type = 'info') {
   toastRef.value?.show(message, type)
@@ -155,8 +167,27 @@ function onEditConnection(connection) {
 }
 
 function onBookmarkNav(bookmark) {
+  if (!bookmark?.path) return
+
+  const targetHost = bookmark.host?.trim()
+  if (targetHost) {
+    const targetConnection = connections.value.find(connection =>
+      connection.name === targetHost || connection.host === targetHost,
+    )
+    if (!targetConnection) {
+      showToast(`未找到书签对应连接：${targetHost}`, 'error')
+      return
+    }
+    if (activeConnectionId.value !== targetConnection.id) {
+      onSelectConnection(targetConnection)
+    }
+  }
+
+  bookmarkTarget.value = {
+    path: bookmark.path,
+    requestId: `${Date.now()}-${Math.random()}`,
+  }
   viewMode.value = 'sftp'
-  showToast(`跳转到: ${bookmark.path}`, 'info')
 }
 
 function toggleFullscreen() {
