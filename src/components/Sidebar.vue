@@ -7,7 +7,7 @@
   >
     <div class="sidebar-header">
       <template v-if="!collapsedSidebar">
-        <span class="text-xs font-semibold uppercase tracking-widest" style="color: var(--fg-muted);">连接</span>
+        <span class="sidebar-section-label text-xs font-semibold uppercase tracking-widest">连接</span>
         <div class="flex-1" />
         <span class="connection-count" aria-live="polite">{{ connections.length }}</span>
         <button class="sidebar-icon-button" type="button" aria-label="添加新连接" title="添加连接" @click="$emit('add')">
@@ -55,7 +55,7 @@
     </div>
 
     <div v-if="!collapsedSidebar" class="quick-commands">
-      <div class="text-xs px-1 mb-1.5 uppercase tracking-wider" style="color: var(--fg-muted);">快捷命令</div>
+      <div class="quick-command-label text-xs px-1 mb-1.5 uppercase tracking-wider">快捷命令</div>
       <div class="flex flex-wrap gap-1">
         <button
           v-for="cmd in quickCommands"
@@ -85,30 +85,33 @@
     >
       <button type="button" role="menuitem" class="ctx-item" @click="doCtx('select')">
         <LogIn :size="14" :stroke-width="1.8" />
-        <span>连接</span>
+        <span>打开</span>
       </button>
-      <button type="button" role="menuitem" class="ctx-item" @click="doCtx('edit')">
-        <Pencil :size="14" :stroke-width="1.8" />
-        <span>编辑</span>
-      </button>
-      <button type="button" role="menuitem" class="ctx-item" @click="doCtx('duplicate')">
-        <Copy :size="14" :stroke-width="1.8" />
-        <span>复制</span>
-      </button>
-      <button type="button" role="menuitem" class="ctx-item" @click="doCtx('test')">
-        <Cable :size="14" :stroke-width="1.8" />
-        <span>测试连接</span>
-      </button>
-      <div class="menu-separator" />
-      <button type="button" role="menuitem" class="ctx-item" @click="doCtx('fav')">
-        <Star :size="14" :stroke-width="1.8" :fill="ctx.conn?.favorite ? 'currentColor' : 'none'" />
-        <span>{{ ctx.conn?.favorite ? '取消收藏' : '收藏' }}</span>
-      </button>
-      <div class="menu-separator" />
-      <button type="button" role="menuitem" class="ctx-item danger" @click="doCtx('delete')">
-        <Trash2 :size="14" :stroke-width="1.8" />
-        <span>删除</span>
-      </button>
+
+      <template v-if="ctx.conn?.id !== 'local'">
+        <button type="button" role="menuitem" class="ctx-item" @click="doCtx('edit')">
+          <Pencil :size="14" :stroke-width="1.8" />
+          <span>编辑</span>
+        </button>
+        <button type="button" role="menuitem" class="ctx-item" @click="doCtx('duplicate')">
+          <Copy :size="14" :stroke-width="1.8" />
+          <span>复制</span>
+        </button>
+        <button type="button" role="menuitem" class="ctx-item" @click="doCtx('test')">
+          <Cable :size="14" :stroke-width="1.8" />
+          <span>测试连接</span>
+        </button>
+        <div class="menu-separator" />
+        <button type="button" role="menuitem" class="ctx-item" @click="doCtx('fav')">
+          <Star :size="14" :stroke-width="1.8" :fill="ctx.conn?.favorite ? 'currentColor' : 'none'" />
+          <span>{{ ctx.conn?.favorite ? '取消收藏' : '收藏' }}</span>
+        </button>
+        <div class="menu-separator" />
+        <button type="button" role="menuitem" class="ctx-item danger" @click="doCtx('delete')">
+          <Trash2 :size="14" :stroke-width="1.8" />
+          <span>删除</span>
+        </button>
+      </template>
     </div>
     <div v-if="ctx.show" class="fixed inset-0 z-40" aria-label="关闭菜单" @click="ctx.show = false" />
   </div>
@@ -212,7 +215,7 @@ function toggleCollapse() {
 function onCtxEvent({ event, conn }) {
   ctx.show = true
   ctx.x = Math.min(event.clientX, window.innerWidth - 170)
-  ctx.y = Math.min(event.clientY, window.innerHeight - 230)
+  ctx.y = Math.min(event.clientY, window.innerHeight - (conn?.id === 'local' ? 56 : 230))
   ctx.conn = conn
 }
 
@@ -222,6 +225,7 @@ function doCtx(action) {
   if (!connection) return
 
   if (action === 'select') emit('select', connection)
+  else if (connection.id === 'local') return
   else if (action === 'edit') emit('edit', connection)
   else if (action === 'duplicate') emit('duplicate', connection)
   else if (action === 'test') emit('test', connection)
@@ -264,6 +268,11 @@ function startResize(event) {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.sidebar-section-label,
+.quick-command-label {
+  color: var(--fg-muted);
+}
+
 .connection-count {
   padding: 1px 5px;
   border-radius: 5px;
@@ -279,7 +288,7 @@ function startResize(event) {
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--fg-muted);
   transition: background-color var(--transition-fast), color var(--transition-fast);
@@ -310,7 +319,7 @@ function startResize(event) {
   height: 28px;
   padding: 0 8px 0 28px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   outline: none;
   background: var(--bg-base);
   color: var(--fg-secondary);
@@ -342,7 +351,7 @@ function startResize(event) {
   border-radius: 5px;
   background: var(--bg-base);
   color: var(--fg-muted);
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   transition: background-color var(--transition-fast), color var(--transition-fast);
 }
@@ -365,7 +374,7 @@ function startResize(event) {
   min-width: 162px;
   padding: 5px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--bg-elevated);
   box-shadow: var(--shadow-lg);
 }
