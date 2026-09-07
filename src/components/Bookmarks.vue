@@ -87,7 +87,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Bookmark, Copy, FolderOpen, Plus, Server, Trash2 } from 'lucide-vue-next'
-import { getBookmarks, storeBookmarks } from '../utils/secure-store-browser'
+import { getBookmarks as getLegacyBookmarks } from '../utils/secure-store-browser'
+import { STORAGE_KEYS } from '@/utils/storage-keys'
 import BaseModal from './BaseModal.vue'
 
 const emit = defineEmits(['navigate'])
@@ -107,17 +108,42 @@ const groupedBookmarks = computed(() => {
   return [...groups.values()]
 })
 
-async function loadBookmarks() {
-  try {
-    const data = await getBookmarks()
-    bookmarks.value = Array.isArray(data) ? data : []
-  } catch {
-    bookmarks.value = []
-  }
+function normalizeBookmarks(value) {
+  if (!Array.isArray(value)) return []
+  return value.filter(bookmark =>
+    bookmark
+    && typeof bookmark.path === 'string'
+    && typeof bookmark.name === 'string',
+  )
 }
 
-async function persistBookmarks() {
-  await storeBookmarks(bookmarks.value)
+async function loadBookmarks() {
+  const raw = localStorage.getItem(STORAGE_KEYS.BOOKMARKS)
+  if (raw != null) {
+    try {
+      bookmarks.value = normalizeBookmarks(JSON.parse(raw))
+      return
+    } catch {
+      bookmarks.value = []
+    }
+  }
+
+  // 历史版本把普通书签误存进 browser secure fallback。
+  // 当前会话若仍能解密，则迁移到稳定普通持久化；旧密文不主动删除。
+  try {
+    const legacy = normalizeBookmarks(await getLegacyBookmarks())
+    if (legacy.length > 0) {
+      bookmarks.value = legacy
+      persistBookmarks()
+      return
+    }
+  } catch {}
+
+  bookmarks.value = []
+}
+
+function persistBookmarks() {
+  localStorage.setItem(STORAGE_KEYS.BOOKMARKS, JSON.stringify(bookmarks.value))
 }
 
 function openAddDialog() {
@@ -127,17 +153,17 @@ function openAddDialog() {
   showAdd.value = true
 }
 
-async function saveBookmark() {
+function saveBookmark() {
   const path = newBookmark.path.trim()
   if (!path) return
 
   bookmarks.value.push({
-    id: `bm_${Date.now()}`,
+    id: crypto.randomUUID(),
     name: newBookmark.name.trim() || path.split('/').filter(Boolean).pop() || path,
     path,
     host: newBookmark.host.trim(),
   })
-  await persistBookmarks()
+  persistBookmarks()
   showAdd.value = false
 }
 
@@ -165,12 +191,12 @@ async function copyPath() {
   await navigator.clipboard.writeText(path).catch(() => {})
 }
 
-async function deleteBookmark() {
+function deleteBookmark() {
   const id = context.bookmark?.id
   closeMenu()
   if (!id) return
   bookmarks.value = bookmarks.value.filter(bookmark => bookmark.id !== id)
-  await persistBookmarks()
+  persistBookmarks()
 }
 
 onMounted(loadBookmarks)
