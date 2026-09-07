@@ -40,7 +40,7 @@
         <div class="flex-1 relative overflow-hidden">
           <ErrorBoundary>
             <TerminalPanel
-              v-for="tab in tabs"
+              v-for="tab in terminalTabs"
               v-show="viewMode === 'terminal' && tab.id === activeTabId"
               :key="tab.id"
               :tab="tab"
@@ -110,7 +110,7 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, defineComponent, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineAsyncComponent, defineComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Terminal as TerminalIcon } from 'lucide-vue-next'
 import { getShortcut, parseShortcut } from './utils/shortcuts.js'
 import { applyTheme, getStoredTheme } from './utils/theme-state'
@@ -159,6 +159,18 @@ const viewMode = ref('terminal')
 const toastRef = ref(null)
 const bookmarkTarget = ref(null)
 const pendingDeleteConnectionId = ref(null)
+const openedTerminalIds = ref(new Set())
+
+const terminalTabs = computed(() =>
+  tabs.value.filter(tab => openedTerminalIds.value.has(tab.id)),
+)
+
+watch(activeTabId, id => {
+  if (!id || openedTerminalIds.value.has(id)) return
+  const next = new Set(openedTerminalIds.value)
+  next.add(id)
+  openedTerminalIds.value = next
+}, { immediate: true })
 
 const pendingDeleteConnectionName = computed(() =>
   connections.value.find(connection => connection.id === pendingDeleteConnectionId.value)?.name || '',
