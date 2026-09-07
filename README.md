@@ -192,18 +192,12 @@ src-tauri/
 2. [#2 UI / 交互产品化整理](https://github.com/z7ping/termlane/issues/2)
 3. [#3 1.0 发布基线：核心链路、质量、安全与跨平台验证](https://github.com/z7ping/termlane/issues/3)
 
-历史 `docs/PLAN.md` 中的勾选仅代表当时的开发记录，不能替代当前源码验收。
-
 ## 文档
 
-- [架构说明](docs/ARCHITECTURE.md)
-- [API](docs/API.md)
-- [测试说明](docs/TESTING.md)
-- [产品规格](docs/SPEC.md)
-- [开发计划](docs/PLAN.md)
 - [更新日志](CHANGELOG.md)
+- [贡献指南](CONTRIBUTING.md)
 
-> 文档正在随 1.0 收口同步校正。涉及当前能力、版本、依赖或安全结论时，请再次以源码验证。
+涉及当前能力、版本、依赖或安全结论时，请以源码、测试和构建配置为准。
 
 ## License
 

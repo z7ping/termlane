@@ -272,7 +272,7 @@ async fn ssh_connect(host:String,port:u16,username:String,password:String)->Resu
 
 ### 测试先行（TDD）
 
-我们遵循 [RED-GREEN-REFACTOR](docs/TESTING.md) 循环：
+我们遵循 RED-GREEN-REFACTOR 循环：
 
 1. **RED** - 先写失败的测试
 2. **GREEN** - 写最少代码让测试通过
@@ -303,20 +303,9 @@ npm run test
 
 ## 文档贡献
 
-### API 文档
-
-- 新增 Tauri Command 需要在 [docs/API.md](docs/API.md) 中添加文档
-- 包含函数签名、参数说明、返回值、示例
-
-### 架构文档
-
-- 重大架构变更需要更新 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- 包含设计决策、数据结构、流程图
-
-### README 更新
-
 - 新功能需要更新 README.md 的功能列表
 - 重大变更需要更新版本号和发布说明
+- 面向用户的配置、兼容性或使用方式变化需要同步更新 README.md 和 CHANGELOG.md
 
 ## 问题报告
 

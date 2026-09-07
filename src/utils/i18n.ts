@@ -1,6 +1,6 @@
 // i18n.ts - 国际化支持
 
-import { STORAGE_KEYS } from './storage-keys.ts'
+import { STORAGE_KEYS } from './storage-keys'
 
 interface TranslationMessages {
   [key: string]: string | TranslationMessages
