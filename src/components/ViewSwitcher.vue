@@ -7,9 +7,11 @@
       class="view-button"
       :class="{ active: modelValue === item.value }"
       :aria-pressed="modelValue === item.value"
+      :aria-label="item.label"
+      :title="item.label"
       @click="selectView(item.value)"
     >
-      <component :is="item.icon" :size="14" :stroke-width="1.8" />
+      <component :is="item.icon" :size="14" :stroke-width="1.8" aria-hidden="true" />
       <span>{{ item.label }}</span>
     </button>
 
@@ -20,11 +22,13 @@
         :class="{ active: activeTool != null }"
         aria-haspopup="menu"
         :aria-expanded="menuOpen"
+        :aria-label="activeTool ? `工具：${activeTool.label}` : '工具'"
+        :title="activeTool ? `工具：${activeTool.label}` : '工具'"
         @click="menuOpen = !menuOpen"
       >
-        <Wrench :size="14" :stroke-width="1.8" />
+        <Wrench :size="14" :stroke-width="1.8" aria-hidden="true" />
         <span>{{ activeTool ? activeTool.label : '工具' }}</span>
-        <ChevronDown :size="12" :stroke-width="1.8" :class="{ rotated: menuOpen }" />
+        <ChevronDown :size="12" :stroke-width="1.8" :class="{ rotated: menuOpen }" aria-hidden="true" />
       </button>
 
       <Transition name="menu-fade">
@@ -39,7 +43,7 @@
             :class="{ active: modelValue === item.value }"
             @click="selectView(item.value)"
           >
-            <component :is="item.icon" :size="15" :stroke-width="1.8" />
+            <component :is="item.icon" :size="15" :stroke-width="1.8" aria-hidden="true" />
             <span>{{ item.label }}</span>
           </button>
         </div>
@@ -83,7 +87,7 @@ const primaryViews = [
 // 1.0 只暴露已经接入真实运行链路的工具。
 // 批量、监控、代理、端口转发、定时任务等未完成能力不进入 1.0 产品导航。
 const toolViews = [
-  { value: 'speed', label: '测速', icon: Gauge },
+  { value: 'speed', label: '连接延迟', icon: Gauge },
   { value: 'recorder', label: '录制', icon: Circle },
   { value: 'notes', label: '笔记', icon: FileText },
   { value: 'bookmarks', label: '书签', icon: Bookmark },
@@ -133,13 +137,12 @@ onUnmounted(() => {
   gap: 5px;
   padding: 0 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--fg-muted);
   font-size: 12px;
   line-height: 1;
   white-space: nowrap;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .view-button:hover {
@@ -172,7 +175,7 @@ onUnmounted(() => {
   width: 176px;
   padding: 5px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--bg-elevated);
   box-shadow: var(--shadow-lg);
 }
@@ -185,12 +188,11 @@ onUnmounted(() => {
   gap: 8px;
   padding: 0 9px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--fg-secondary);
   font-size: 12px;
   text-align: left;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .tool-menu-item:hover,
