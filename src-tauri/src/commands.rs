@@ -31,7 +31,13 @@ fn validate_string_len(name: &str, value: &str) -> Result<(), String> {
 // ─── SSH Exec ───
 
 #[tauri::command]
-pub async fn ssh_connect(host: String, port: u16, username: String, password: String) -> Result<String, String> {
+pub async fn ssh_connect(
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+    trust_new_host_key: bool,
+) -> Result<String, String> {
     validate_host_port(&host, port)?;
     validate_string_len("host", &host)?;
     validate_string_len("username", &username)?;
@@ -39,11 +45,18 @@ pub async fn ssh_connect(host: String, port: u16, username: String, password: St
     if username.trim().is_empty() {
         return Err("username must not be empty".into());
     }
-    crate::ssh::connect(&host, port, &username, &password).await
+    crate::ssh::connect(&host, port, &username, &password, trust_new_host_key).await
 }
 
 #[tauri::command]
-pub async fn ssh_connect_key(host: String, port: u16, username: String, key_path: String, passphrase: String) -> Result<String, String> {
+pub async fn ssh_connect_key(
+    host: String,
+    port: u16,
+    username: String,
+    key_path: String,
+    passphrase: String,
+    trust_new_host_key: bool,
+) -> Result<String, String> {
     validate_host_port(&host, port)?;
     validate_string_len("host", &host)?;
     validate_string_len("username", &username)?;
@@ -52,29 +65,15 @@ pub async fn ssh_connect_key(host: String, port: u16, username: String, key_path
     if username.trim().is_empty() {
         return Err("username must not be empty".into());
     }
-    crate::ssh::connect_with_key(&host, port, &username, &key_path, &passphrase).await
-}
-
-#[tauri::command]
-pub async fn ssh_connect_jump(
-    jump_host: String, jump_port: u16, jump_user: String, jump_pass: String,
-    target_host: String, target_port: u16, target_user: String, target_pass: String,
-) -> Result<String, String> {
-    validate_host_port(&jump_host, jump_port)?;
-    validate_host_port(&target_host, target_port)?;
-    validate_string_len("jump_host", &jump_host)?;
-    validate_string_len("jump_user", &jump_user)?;
-    validate_string_len("jump_pass", &jump_pass)?;
-    validate_string_len("target_host", &target_host)?;
-    validate_string_len("target_user", &target_user)?;
-    validate_string_len("target_pass", &target_pass)?;
-    if jump_user.trim().is_empty() {
-        return Err("jump_user must not be empty".into());
-    }
-    if target_user.trim().is_empty() {
-        return Err("target_user must not be empty".into());
-    }
-    crate::ssh::connect_jump(&jump_host, jump_port, &jump_user, &jump_pass, &target_host, target_port, &target_user, &target_pass).await
+    crate::ssh::connect_with_key(
+        &host,
+        port,
+        &username,
+        &key_path,
+        &passphrase,
+        trust_new_host_key,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -102,11 +101,41 @@ pub fn ssh_disconnect(session_id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn ssh_start_shell(
     app: AppHandle,
-    host: String, port: u16, username: String, password: String,
-    key_path: Option<String>, passphrase: Option<String>,
-    cols: u16, rows: u16,
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+    key_path: Option<String>,
+    passphrase: Option<String>,
+    trust_new_host_key: bool,
+    cols: u16,
+    rows: u16,
 ) -> Result<String, String> {
-    crate::ssh::start_shell(app, &host, port, &username, &password, key_path.as_deref(), passphrase.as_deref(), cols, rows)
+    validate_host_port(&host, port)?;
+    validate_string_len("host", &host)?;
+    validate_string_len("username", &username)?;
+    validate_string_len("password", &password)?;
+    if let Some(ref key_path) = key_path {
+        validate_string_len("key_path", key_path)?;
+    }
+    if let Some(ref passphrase) = passphrase {
+        validate_string_len("passphrase", passphrase)?;
+    }
+    if username.trim().is_empty() {
+        return Err("username must not be empty".into());
+    }
+    crate::ssh::start_shell(
+        app,
+        &host,
+        port,
+        &username,
+        &password,
+        key_path.as_deref(),
+        passphrase.as_deref(),
+        trust_new_host_key,
+        cols,
+        rows,
+    )
 }
 
 #[tauri::command]
@@ -175,7 +204,6 @@ pub fn sftp_delete(session_id: String, path: String, is_dir: bool) -> Result<Str
     if path.trim().is_empty() {
         return Err("path must not be empty".into());
     }
-    // Prevent deletion of root-like paths (e.g. "/." or "/" followed by only dots)
     let trimmed = path.trim_end_matches('/');
     if trimmed.starts_with('/') && trimmed[1..].chars().all(|c| c == '.') {
         return Err("refusing to delete root-like path".into());
@@ -300,7 +328,8 @@ pub fn tcp_ping(host: String, port: u16) -> Result<u64, String> {
     TcpStream::connect_timeout(
         &addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?,
         Duration::from_secs(TCP_PING_TIMEOUT_SECS),
-    ).map_err(|e| format!("连接失败: {}", e))?;
+    )
+    .map_err(|e| format!("连接失败: {}", e))?;
     Ok(start.elapsed().as_millis() as u64)
 }
 
