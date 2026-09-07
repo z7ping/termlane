@@ -25,12 +25,15 @@
         </div>
 
         <div class="command-grid">
-          <button
+          <div
             v-for="commandItem in group.items"
             :key="commandItem.id"
-            type="button"
             class="command-card"
+            role="button"
+            tabindex="0"
             @click="$emit('run', commandItem.command)"
+            @keydown.enter="$emit('run', commandItem.command)"
+            @keydown.space.prevent="$emit('run', commandItem.command)"
           >
             <div class="min-w-0 flex-1 text-left">
               <div class="command-name">{{ commandItem.name }}</div>
@@ -45,7 +48,7 @@
             >
               <Trash2 :size="13" :stroke-width="1.8" />
             </button>
-          </button>
+          </div>
         </div>
       </section>
     </div>
@@ -179,8 +182,9 @@ onMounted(loadCommands)
 .group-title { height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 4px; color: var(--fg-muted); font-size: 10px; font-weight: 600; }
 .group-count { padding: 0 5px; border-radius: 8px; background: var(--bg-hover); font-weight: 400; }
 .command-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.command-card { min-width: 0; min-height: 52px; display: flex; align-items: center; gap: 6px; padding: 8px 7px 8px 10px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-surface); color: var(--fg-secondary); transition: background-color var(--transition-fast), border-color var(--transition-fast); }
+.command-card { min-width: 0; min-height: 52px; display: flex; align-items: center; gap: 6px; padding: 8px 7px 8px 10px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-surface); color: var(--fg-secondary); cursor: default; transition: background-color var(--transition-fast), border-color var(--transition-fast); }
 .command-card:hover { background: var(--bg-hover); border-color: var(--border); }
+.command-card:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 .command-name { overflow: hidden; color: var(--fg-primary); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .command-text { margin-top: 3px; overflow: hidden; color: var(--fg-muted); font-family: monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .delete-button { width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); opacity: 0; transition: opacity var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast); }
