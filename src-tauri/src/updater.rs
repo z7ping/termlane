@@ -25,10 +25,12 @@ fn is_newer_version(current: &str, latest: &str) -> Result<bool, String> {
 /// already on an equal/newer version.
 #[tauri::command]
 pub async fn check_update(current_version: String) -> Result<Option<UpdateInfo>, String> {
+    // The Gitea repository still uses its historical slug. Change this URL only
+    // after that remote repository is renamed as well.
     const GITEA_API_URL: &str = "https://gitea.7ping.site/api/v1/repos/ai-area/xterminal-pro/releases/latest";
 
     let client = reqwest::Client::builder()
-        .user_agent(format!("XTerminal-Pro/{}", env!("CARGO_PKG_VERSION")))
+        .user_agent(format!("Termlane/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 

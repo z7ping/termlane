@@ -19,7 +19,7 @@
                   <span class="orbit-dot" style="--i:3">⚡</span>
                 </div>
               </div>
-              <h2 class="onboarding-title">欢迎使用 <span class="text-accent">XTerminal Pro</span></h2>
+              <h2 class="onboarding-title">欢迎使用 <span class="text-accent">Termlane</span></h2>
               <p class="onboarding-desc">轻量、快速、强大的 SSH 终端工具。基于 Tauri 构建，内存占用仅 30MB，让远程管理从未如此轻松。</p>
               <div class="feature-chips">
                 <span class="chip">🚀 极速启动</span>
@@ -67,7 +67,7 @@
                 </div>
               </div>
               <h2 class="onboarding-title">一切就绪！</h2>
-              <p class="onboarding-desc">现在开始使用 XTerminal Pro 管理你的服务器吧。</p>
+              <p class="onboarding-desc">现在开始使用 Termlane 管理你的服务器吧。</p>
               <div class="done-shortcuts">
                 <div class="shortcut-row">
                   <kbd>Ctrl+T</kbd>
@@ -127,7 +127,7 @@ const show = ref(false)
 const current = ref(0)
 
 const steps = [
-  { title: '欢迎使用 XTerminal Pro' },
+  { title: '欢迎使用 Termlane' },
   { title: '添加 SSH 连接' },
   { title: '一切就绪！' },
 ]

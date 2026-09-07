@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢您对 XTerminal Pro 项目的关注！我们欢迎所有形式的贡献。
+感谢您对 Termlane 项目的关注！我们欢迎所有形式的贡献。
 
 ## 目录
 
@@ -42,8 +42,8 @@ xcode-select --install
 ### 克隆项目
 
 ```bash
-git clone https://github.com/7ping/XTerminal-Pro.git
-cd XTerminal-Pro
+git clone https://github.com/z7ping/termlane.git
+cd termlane
 ```
 
 ### 安装依赖
@@ -67,13 +67,13 @@ npm run dev
 
 ### 1. Fork 项目
 
-1. 访问 [XTerminal Pro](https://github.com/7ping/XTerminal-Pro)
+1. 访问 [Termlane](https://github.com/z7ping/termlane)
 2. 点击右上角 "Fork" 按钮
 3. 克隆你的 fork：
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/XTerminal-Pro.git
-cd XTerminal-Pro
+git clone https://github.com/YOUR_USERNAME/termlane.git
+cd termlane
 ```
 
 ### 2. 创建分支
@@ -322,7 +322,7 @@ npm run test
 
 ### 使用 Issue 模板
 
-报告 Bug 请使用 [Bug Report](https://github.com/7ping/XTerminal-Pro/issues/new?template=bug_report.md) 模板。
+报告 Bug 请使用 [Bug Report](https://github.com/z7ping/termlane/issues/new?template=bug_report.md) 模板。
 
 ### 必要信息
 
@@ -356,7 +356,7 @@ connect(config)
 
 ### 使用 Feature Request 模板
 
-提出新功能请使用 [Feature Request](https://github.com/7ping/XTerminal-Pro/issues/new?template=feature_request.md) 模板。
+提出新功能请使用 [Feature Request](https://github.com/z7ping/termlane/issues/new?template=feature_request.md) 模板。
 
 ### 功能描述
 
@@ -442,13 +442,13 @@ connect(config)
 ## 获取帮助
 
 - 📧 邮件：admin@7ping.site
-- 💬 讨论：[GitHub Discussions](https://github.com/7ping/XTerminal-Pro/discussions)
-- 📖 文档：[Wiki](https://github.com/7ping/XTerminal-Pro/wiki)
-- 🐛 问题：[Issues](https://github.com/7ping/XTerminal-Pro/issues)
+- 💬 讨论：[GitHub Discussions](https://github.com/z7ping/termlane/discussions)
+- 📖 文档：[Wiki](https://github.com/z7ping/termlane/wiki)
+- 🐛 问题：[Issues](https://github.com/z7ping/termlane/issues)
 
 ## 致谢
 
-感谢所有贡献者，无论大小贡献都让 XTerminal Pro 变得更好！
+感谢所有贡献者，无论大小贡献都让 Termlane 变得更好！
 
 ---
 

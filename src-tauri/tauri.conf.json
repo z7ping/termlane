@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegui-org/nicegui/main/nicegui/static/tauri/v2.json",
-  "productName": "XTerminal Pro",
+  "productName": "Termlane",
   "version": "0.1.0",
-  "identifier": "com.xterminal.pro",
+  "identifier": "io.github.z7ping.termlane",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "XTerminal Pro",
+        "title": "Termlane",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

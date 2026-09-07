@@ -18,14 +18,14 @@ describe('定时任务调度器', () => {
         { id: '1', name: 'Task 1', command: 'ls', schedule: '0 9 * * *' },
         { id: '2', name: 'Task 2', command: 'pwd', schedule: '0 10 * * *' },
       ]
-      localStorage.setItem('xterminal_scheduled_tasks', JSON.stringify(testTasks))
+      localStorage.setItem('termlane_scheduled_tasks', JSON.stringify(testTasks))
       
       const tasks = getScheduledTasks()
       expect(tasks).toEqual(testTasks)
     })
 
     test('JSON解析错误时返回空数组', () => {
-      localStorage.setItem('xterminal_scheduled_tasks', 'invalid json')
+      localStorage.setItem('termlane_scheduled_tasks', 'invalid json')
       const tasks = getScheduledTasks()
       expect(tasks).toEqual([])
     })
@@ -43,7 +43,7 @@ describe('定时任务调度器', () => {
       ]
       saveScheduledTasks(tasks)
       
-      const stored = localStorage.getItem('xterminal_scheduled_tasks')
+      const stored = localStorage.getItem('termlane_scheduled_tasks')
       expect(stored).toBeTruthy()
       expect(JSON.parse(stored)).toEqual(tasks)
     })

@@ -51,21 +51,21 @@ describe('i18n 国际化功能', () => {
   test('t("app.name") 返回正确值', () => {
     // 测试 t("app.name") 返回正确值
     const appName = i18n.t('app.name')
-    expect(appName).toBe('XTerminal Pro')
+    expect(appName).toBe('Termlane')
   })
 
   test('设置语言后可以切换', () => {
     // 测试设置语言后可以切换
     const originalLocale = i18n.getLocale()
-    
+
     // 切换到英文
     i18n.setLocale('en')
     expect(i18n.getLocale()).toBe('en')
-    
+
     // 切换到中文
     i18n.setLocale('zh')
     expect(i18n.getLocale()).toBe('zh')
-    
+
     // 恢复原始语言
     i18n.setLocale(originalLocale)
   })

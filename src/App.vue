@@ -58,7 +58,7 @@
           <div v-if="tabs.length === 0 && viewMode === 'terminal'" class="h-full flex items-center justify-center text-gray-500">
             <div class="text-center">
               <div class="text-6xl mb-4">⌨️</div>
-              <div class="text-lg">XTerminal Pro</div>
+              <div class="text-lg">Termlane</div>
               <div class="text-sm mt-2">从左侧选择一个连接，或按 + 打开本地终端</div>
             </div>
           </div>
@@ -79,6 +79,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, defineAsyncComponent, defineComponent } from 'vue'
 import { parseShortcut, getShortcut } from './utils/shortcuts.js'
+import { STORAGE_KEYS } from './utils/storage-keys.js'
 import { useAppState, setToast } from './composables/useAppState.js'
 
 // Critical - 首屏必需（同步加载）
@@ -172,7 +173,7 @@ onMounted(async () => {
   document.getElementById('app')?.classList.add('ready')
 
   // Restore theme from localStorage
-  const savedTheme = localStorage.getItem('xterminal-theme') || 'dark'
+  const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || 'dark'
   document.documentElement.setAttribute('data-theme', savedTheme)
 
   // Restore persisted application state. Window geometry is handled by the

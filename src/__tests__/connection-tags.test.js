@@ -23,14 +23,14 @@ describe('连接标签功能', () => {
         { id: 'custom1', name: '自定义标签1', color: 'red' },
         { id: 'custom2', name: '自定义标签2', color: 'blue' },
       ]
-      localStorage.setItem('xterminal_connection_tags', JSON.stringify(customTags))
+      localStorage.setItem('termlane_connection_tags', JSON.stringify(customTags))
       
       const tags = getTags()
       expect(tags).toEqual(customTags)
     })
 
     test('JSON解析错误时返回空数组', () => {
-      localStorage.setItem('xterminal_connection_tags', 'invalid json')
+      localStorage.setItem('termlane_connection_tags', 'invalid json')
       const tags = getTags()
       expect(tags).toEqual([])
     })
@@ -119,7 +119,7 @@ describe('连接标签功能', () => {
       const tagsWithCustom = getTags()
       const customTag = tagsWithCustom.find(t => t.name === '自定义')
       
-      // 删除自定义标签
+      // 删除标签
       const result = removeTag(customTag.id)
       
       expect(result).toHaveLength(4) // 回到默认的4个标签

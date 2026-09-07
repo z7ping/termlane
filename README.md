@@ -1,4 +1,4 @@
-# XTerminal Pro
+# Termlane
 
 一个面向开发者日常多服务器工作的轻量桌面终端。
 
@@ -89,6 +89,7 @@
 - 密码和私钥 passphrase 统一由 Rust `keyring` 写入操作系统密钥环。
 - Tab 快照和普通 localStorage 不再持久化 `password` / `passphrase`。
 - 历史 `xterminal-pwd_<id>` 明文 localStorage 数据会在读取连接时迁移到安全后端，然后删除明文键。
+- 从 XTerminal Pro 改名后，旧 `xterminal-*` 普通存储、`xterminal-pro` 配置目录和 Keyring 服务会在首次使用时迁移到 Termlane 命名空间。
 - 复制连接只复制非敏感配置，不复制凭证。
 
 ### 浏览器开发模式
@@ -143,7 +144,7 @@ cargo check
 cargo test
 ```
 
-仓库已有 `.github/workflows/ci.yml`，PR 会运行同一组前端 / Rust 门禁。CI 发现的问题按真实失败修复，不通过关闭检查或放宽类型规则绕过。
+仓库已有 `.github/workflows/ci.yml`，Release 会运行同一组前端 / Rust 门禁。CI 发现的问题按真实失败修复，不通过关闭检查或放宽类型规则绕过。
 
 ## 构建
 
@@ -187,9 +188,9 @@ src-tauri/
 
 当前停止无边界扩功能，按三个方向推进：
 
-1. [#1 去自研化与基础能力整合](https://github.com/z7ping/xterminal-pro/issues/1)
-2. [#2 UI / 交互产品化整理](https://github.com/z7ping/xterminal-pro/issues/2)
-3. [#3 1.0 发布基线：核心链路、质量、安全与跨平台验证](https://github.com/z7ping/xterminal-pro/issues/3)
+1. [#1 去自研化与基础能力整合](https://github.com/z7ping/termlane/issues/1)
+2. [#2 UI / 交互产品化整理](https://github.com/z7ping/termlane/issues/2)
+3. [#3 1.0 发布基线：核心链路、质量、安全与跨平台验证](https://github.com/z7ping/termlane/issues/3)
 
 历史 `docs/PLAN.md` 中的勾选仅代表当时的开发记录，不能替代当前源码验收。
 

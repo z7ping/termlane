@@ -27,13 +27,13 @@ describe('窗口状态持久化', () => {
   describe('saveWindowState', () => {
     test('保存窗口状态到localStorage', () => {
       saveWindowState()
-      const stored = localStorage.getItem('xterminal_window_state')
+      const stored = localStorage.getItem('termlane_window_state')
       expect(stored).toBeTruthy()
     })
 
     test('保存的state包含正确的字段', () => {
       saveWindowState()
-      const state = JSON.parse(localStorage.getItem('xterminal_window_state'))
+      const state = JSON.parse(localStorage.getItem('termlane_window_state'))
       
       expect(state).toHaveProperty('width')
       expect(state).toHaveProperty('height')
@@ -45,7 +45,7 @@ describe('窗口状态持久化', () => {
 
     test('保存的width和height正确', () => {
       saveWindowState()
-      const state = JSON.parse(localStorage.getItem('xterminal_window_state'))
+      const state = JSON.parse(localStorage.getItem('termlane_window_state'))
       
       expect(state.width).toBe(1024)
       expect(state.height).toBe(768)
@@ -53,7 +53,7 @@ describe('窗口状态持久化', () => {
 
     test('保存的x和y坐标正确', () => {
       saveWindowState()
-      const state = JSON.parse(localStorage.getItem('xterminal_window_state'))
+      const state = JSON.parse(localStorage.getItem('termlane_window_state'))
       
       expect(state.x).toBe(100)
       expect(state.y).toBe(50)
@@ -62,13 +62,13 @@ describe('窗口状态持久化', () => {
     test('maximized根据fullscreenElement判断', () => {
       // 不是全屏
       saveWindowState()
-      let state = JSON.parse(localStorage.getItem('xterminal_window_state'))
+      let state = JSON.parse(localStorage.getItem('termlane_window_state'))
       expect(state.maximized).toBe(false)
       
       // 模拟全屏
       document.fullscreenElement = document.body
       saveWindowState()
-      state = JSON.parse(localStorage.getItem('xterminal_window_state'))
+      state = JSON.parse(localStorage.getItem('termlane_window_state'))
       expect(state.maximized).toBe(true)
     })
 
@@ -77,21 +77,21 @@ describe('窗口状态持久化', () => {
       saveWindowState()
       const afterSave = Date.now()
       
-      const state = JSON.parse(localStorage.getItem('xterminal_window_state'))
+      const state = JSON.parse(localStorage.getItem('termlane_window_state'))
       expect(state.savedAt).toBeGreaterThanOrEqual(beforeSave)
       expect(state.savedAt).toBeLessThanOrEqual(afterSave)
     })
 
     test('多次保存会覆盖之前的状态', () => {
       saveWindowState()
-      const firstState = localStorage.getItem('xterminal_window_state')
+      const firstState = localStorage.getItem('termlane_window_state')
       
       // 改变窗口大小
       window.innerWidth = 1920
       window.innerHeight = 1080
       
       saveWindowState()
-      const secondState = localStorage.getItem('xterminal_window_state')
+      const secondState = localStorage.getItem('termlane_window_state')
       
       expect(firstState).not.toBe(secondState)
     })
@@ -118,7 +118,7 @@ describe('窗口状态持久化', () => {
         maximized: false,
         savedAt: Date.now(),
       }
-      localStorage.setItem('xterminal_window_state', JSON.stringify(testState))
+      localStorage.setItem('termlane_window_state', JSON.stringify(testState))
       
       const loaded = loadWindowState()
       expect(loaded).toEqual(testState)
@@ -130,14 +130,14 @@ describe('窗口状态持久化', () => {
     })
 
     test('JSON解析错误时返回null', () => {
-      localStorage.setItem('xterminal_window_state', 'invalid json')
+      localStorage.setItem('termlane_window_state', 'invalid json')
       const loaded = loadWindowState()
       expect(loaded).toBeNull()
     })
 
     test('支持加载不完整的state对象', () => {
       const incompleteState = { width: 1024, height: 768 }
-      localStorage.setItem('xterminal_window_state', JSON.stringify(incompleteState))
+      localStorage.setItem('termlane_window_state', JSON.stringify(incompleteState))
       
       const loaded = loadWindowState()
       expect(loaded).toEqual(incompleteState)
@@ -147,16 +147,16 @@ describe('窗口状态持久化', () => {
   describe('clearWindowState', () => {
     test('删除保存的窗口状态', () => {
       saveWindowState()
-      expect(localStorage.getItem('xterminal_window_state')).toBeTruthy()
+      expect(localStorage.getItem('termlane_window_state')).toBeTruthy()
       
       clearWindowState()
-      expect(localStorage.getItem('xterminal_window_state')).toBeNull()
+      expect(localStorage.getItem('termlane_window_state')).toBeNull()
     })
 
     test('多次清理安全', () => {
       clearWindowState()
       clearWindowState()
-      expect(localStorage.getItem('xterminal_window_state')).toBeNull()
+      expect(localStorage.getItem('termlane_window_state')).toBeNull()
     })
   })
 

@@ -1,10 +1,10 @@
-# XTerminal Pro CI/CD
+# Termlane CI/CD
 # Workflow: workflow_dispatch 手动触发
 # Runners:
 #   laptop-runner: Linux, Docker (Ubuntu)
 #   windows-runner: Windows, host mode (Mr.wang)
 
-name: Build XTerminal Pro
+name: Build Termlane
 
 on:
   workflow_dispatch:
@@ -145,7 +145,7 @@ jobs:
       - name: Upload .msi artifact
         uses: http://192.168.31.239:53000/actions/upload-artifact@v3
         with:
-          name: xterminal-pro-msi
+          name: termlane-msi
           path: F:\gitea-cache\target\release\bundle\msi\*.msi
           retention-days: 30
 
@@ -209,6 +209,6 @@ jobs:
       - name: Upload .deb artifact
         uses: http://192.168.31.239:53000/actions/upload-artifact@v3
         with:
-          name: xterminal-pro-deb
+          name: termlane-deb
           path: src-tauri/target/release/bundle/deb/*.deb
           retention-days: 30

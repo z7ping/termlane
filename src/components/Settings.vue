@@ -155,7 +155,7 @@
       <section>
         <h3 class="text-xs uppercase mb-3" style="color: var(--fg-muted);">关于</h3>
         <div class="rounded p-3 space-y-2" style="background: var(--bg-surface);">
-          <div class="text-sm" style="color: var(--fg-primary);">XTerminal Pro v0.1.0</div>
+          <div class="text-sm" style="color: var(--fg-primary);">Termlane v0.1.0</div>
           <div class="text-xs" style="color: var(--fg-muted);">轻量级SSH终端 + SFTP + 多服务器管理</div>
           <div class="text-xs" style="color: var(--fg-muted);">基于 Tauri v2 + Vue 3 + xterm.js</div>
           <div class="text-xs" style="color: var(--fg-muted);">内存占用: ~30MB | 安装包: ~8MB</div>
@@ -208,7 +208,7 @@ const defaultShortcuts = [
 // 从 localStorage 读取快捷键
 const shortcuts = defaultShortcuts.map(s => ({
   name: s.name,
-  key: localStorage.getItem(`shortcut_${s.name}`) || s.key
+  key: localStorage.getItem(`${STORAGE_KEYS.SHORTCUT_PREFIX}${s.name}`) || s.key
 }))
 
 function setTheme(value) {
@@ -235,13 +235,13 @@ function captureShortcut(e) {
   if (e.altKey) modifiers.push('Alt')
   if (e.shiftKey) modifiers.push('Shift')
   if (e.metaKey) modifiers.push('Meta')
-  
+
   // Ignore modifier-only combos
   if (!modifiers.length && e.key.length > 1) return
-  
+
   const keyName = e.key.length === 1 ? e.key.toUpperCase() : e.key
   newShortcutKey.value = [...modifiers, keyName].join('+')
-  
+
   if (e.key === 'Escape') {
     editingShortcut.value = null
   } else if (e.key === 'Enter') {
@@ -252,7 +252,7 @@ function captureShortcut(e) {
 function saveShortcut() {
   if (editingShortcut.value && newShortcutKey.value) {
     editingShortcut.value.key = newShortcutKey.value
-    localStorage.setItem(`shortcut_${editingShortcut.value.name}`, newShortcutKey.value)
+    localStorage.setItem(`${STORAGE_KEYS.SHORTCUT_PREFIX}${editingShortcut.value.name}`, newShortcutKey.value)
     // 触发自定义事件通知 App.vue
     window.dispatchEvent(new CustomEvent('shortcut-changed', {
       detail: { name: editingShortcut.value.name, key: newShortcutKey.value }

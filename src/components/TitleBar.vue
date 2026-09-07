@@ -3,7 +3,7 @@
     <button @click="$emit('toggle-sidebar')" class="mr-3 p-1 no-drag hover:bg-white/10 rounded" style="color: var(--fg-secondary);">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
-    <span class="text-sm font-medium" style="color: var(--fg-primary);">XTerminal Pro</span>
+    <span class="text-sm font-medium" style="color: var(--fg-primary);">Termlane</span>
     <div class="flex-1" />
     <div class="flex gap-1 no-drag">
       <button @click="cycleTheme" class="p-1 hover:bg-white/10 rounded text-xs" style="color: var(--fg-muted);" :title="'主题: ' + themeNames[currentTheme]">
