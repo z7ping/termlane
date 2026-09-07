@@ -1,200 +1,178 @@
 <template>
   <div class="h-full flex flex-col" style="background: var(--bg-base);">
-    <div class="h-9 flex items-center px-3" style="background: var(--bg-surface); border-bottom: 1px solid var(--border);">
-      <span class="text-sm font-medium" style="color: var(--fg-secondary);">设置</span>
+    <div class="settings-header h-9 flex items-center px-3">
+      <SettingsIcon :size="15" :stroke-width="1.8" />
+      <span class="text-sm font-medium">设置</span>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-4 space-y-6">
-      <!-- 外观 -->
-      <section>
-        <h3 class="text-xs uppercase mb-3" style="color: var(--fg-muted);">外观</h3>
-        <div class="space-y-3">
-          <!-- 主题选择 -->
-          <div>
-            <div class="text-sm mb-2" style="color: var(--fg-primary);">主题</div>
-            <div class="flex gap-1">
+    <div class="flex-1 overflow-y-auto p-4">
+      <div class="settings-content">
+        <section class="settings-section">
+          <h3 class="section-title">外观</h3>
+
+          <div class="setting-block">
+            <div class="setting-label">主题</div>
+            <div class="theme-grid">
               <button
-                v-for="t in themes"
-                :key="t.value"
-                @click="setTheme(t.value)"
-                class="flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors border"
-                :style="currentTheme === t.value
-                  ? 'background: var(--accent); color: white; border-color: var(--accent);'
-                  : 'background: var(--bg-surface); color: var(--fg-secondary); border-color: var(--border);'"
+                v-for="theme in themes"
+                :key="theme.value"
+                type="button"
+                class="theme-button"
+                :class="{ active: currentTheme === theme.value }"
+                :aria-pressed="currentTheme === theme.value"
+                @click="setTheme(theme.value)"
               >
-                {{ t.label }}
+                <component :is="theme.icon" :size="15" :stroke-width="1.8" />
+                <span>{{ theme.label }}</span>
               </button>
             </div>
           </div>
 
-          <!-- 字体大小 -->
-          <div class="flex items-center justify-between">
+          <div class="setting-row">
             <div>
-              <div class="text-sm" style="color: var(--fg-primary);">字体大小</div>
-              <div class="text-xs" style="color: var(--fg-muted);">终端字体大小</div>
+              <div class="setting-label">终端字体</div>
+              <div class="setting-description">新建终端时生效</div>
             </div>
-            <div class="flex items-center gap-2">
-              <button @click="settings.fontSize = Math.max(13, settings.fontSize - 1)" class="w-6 h-6 rounded text-sm" style="background: var(--bg-elevated); color: var(--fg-secondary);">-</button>
-              <span class="text-sm w-8 text-center" style="color: var(--fg-secondary);">{{ settings.fontSize }}</span>
-              <button @click="settings.fontSize = Math.min(24, settings.fontSize + 1)" class="w-6 h-6 rounded text-sm" style="background: var(--bg-elevated); color: var(--fg-secondary);">+</button>
+            <div class="stepper">
+              <button type="button" aria-label="减小字体" @click="settings.fontSize = Math.max(13, settings.fontSize - 1)">−</button>
+              <span>{{ settings.fontSize }}</span>
+              <button type="button" aria-label="增大字体" @click="settings.fontSize = Math.min(24, settings.fontSize + 1)">+</button>
             </div>
-          </div>
-          <!-- 字体预览 -->
-          <div
-            class="rounded px-3 py-2 text-center italic"
-            :style="{ fontSize: settings.fontSize + 'px', fontFamily: 'monospace', background: 'var(--bg-surface)', color: 'var(--fg-secondary)' }"
-          >
-            The quick brown fox
           </div>
 
-          <!-- 光标样式 -->
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="text-sm" style="color: var(--fg-primary);">光标样式</div>
-              <div class="text-xs" style="color: var(--fg-muted);">终端光标闪烁</div>
-            </div>
-            <button
-              @click="settings.cursorBlink = !settings.cursorBlink"
-              class="w-10 h-5 rounded-full relative transition-colors"
-              :style="{ background: settings.cursorBlink ? 'var(--accent)' : 'var(--border)' }"
-            >
-              <span
-                class="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
-                :class="settings.cursorBlink ? 'left-5' : 'left-0.5'"
-              />
-            </button>
+          <div class="font-preview" :style="{ fontSize: settings.fontSize + 'px' }">
+            ssh user@example.com
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- 终端 -->
-      <section>
-        <h3 class="text-xs uppercase mb-3" style="color: var(--fg-muted);">终端</h3>
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
+        <section class="settings-section">
+          <h3 class="section-title">终端</h3>
+          <div class="setting-row">
             <div>
-              <div class="text-sm" style="color: var(--fg-primary);">滚动缓冲区</div>
-              <div class="text-xs" style="color: var(--fg-muted);">保留的行数</div>
+              <div class="setting-label">滚动缓冲区</div>
+              <div class="setting-description">每个新终端保留的历史行数</div>
             </div>
-            <select v-model.number="settings.scrollback" class="border rounded px-2 py-1 text-sm" style="background: var(--bg-surface); color: var(--fg-secondary); border-color: var(--border);">
-              <option :value="1000">1000</option>
-              <option :value="5000">5000</option>
-              <option :value="10000">10000</option>
-              <option :value="50000">50000</option>
+            <select v-model.number="settings.scrollback" class="setting-select" aria-label="滚动缓冲区行数">
+              <option :value="1000">1,000</option>
+              <option :value="5000">5,000</option>
+              <option :value="10000">10,000</option>
+              <option :value="50000">50,000</option>
             </select>
           </div>
+        </section>
 
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="text-sm" style="color: var(--fg-primary);">SSH 连接超时</div>
-              <div class="text-xs" style="color: var(--fg-muted);">秒</div>
+        <section class="settings-section">
+          <h3 class="section-title">快捷键</h3>
+          <div class="shortcut-list">
+            <div v-for="shortcut in shortcuts" :key="shortcut.name" class="shortcut-row">
+              <span>{{ shortcut.name }}</span>
+              <div class="flex items-center gap-2">
+                <kbd>{{ shortcut.key }}</kbd>
+                <button
+                  type="button"
+                  class="icon-button"
+                  :aria-label="`编辑${shortcut.name}快捷键`"
+                  :title="`编辑 ${shortcut.name}`"
+                  @click="editShortcut(shortcut)"
+                >
+                  <Pencil :size="14" :stroke-width="1.8" />
+                </button>
+              </div>
             </div>
-            <input v-model.number="settings.sshTimeout" type="number" min="5" max="120" class="w-16 border rounded px-2 py-1 text-sm text-center" style="background: var(--bg-surface); color: var(--fg-secondary); border-color: var(--border);" />
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- 快捷键 -->
-      <section>
-        <h3 class="text-xs uppercase mb-3" style="color: var(--fg-muted);">快捷键</h3>
-        <div class="space-y-2 text-sm">
-          <div v-for="key in shortcuts" :key="key.name" class="flex items-center justify-between py-1">
-            <span style="color: var(--fg-secondary);">{{ key.name }}</span>
+        <section class="settings-section">
+          <h3 class="section-title">网络</h3>
+          <button type="button" class="action-row" @click="$emit('open-proxy-settings')">
+            <Globe :size="16" :stroke-width="1.8" />
+            <div class="flex-1 text-left">
+              <div class="setting-label">代理设置</div>
+              <div class="setting-description">配置应用网络代理</div>
+            </div>
+            <ChevronRight :size="15" :stroke-width="1.8" />
+          </button>
+        </section>
+
+        <section class="settings-section">
+          <h3 class="section-title">关于</h3>
+          <div class="about-card">
             <div class="flex items-center gap-2">
-              <kbd class="px-2 py-0.5 border rounded text-xs font-mono" style="background: var(--bg-surface); border-color: var(--border); color: var(--fg-muted);">{{ key.key }}</kbd>
-              <button
-                @click="editShortcut(key)"
-                class="px-1.5 py-0.5 rounded text-xs transition-colors"
-                style="color: var(--accent);"
-                title="编辑快捷键"
-              >
-                ✏️
-              </button>
+              <Info :size="16" :stroke-width="1.8" />
+              <span class="setting-label">XTerminal Pro{{ appVersion ? ` v${appVersion}` : '' }}</span>
             </div>
+            <p>轻量级 SSH 终端 + SFTP + 多服务器管理工具。</p>
+            <p>基于 Tauri v2、Vue 3 和 xterm.js。</p>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
+    </div>
 
-      <!-- 快捷键编辑对话框 -->
-      <div v-if="editingShortcut" class="fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.7);" @click.self="editingShortcut = null">
-        <div class="rounded-lg p-6 w-80" style="background: var(--bg-surface); border: 1px solid var(--border);">
-          <h3 class="text-sm font-medium mb-4" style="color: var(--fg-primary);">编辑快捷键: {{ editingShortcut?.name }}</h3>
-          <div class="mb-4">
-            <label class="text-xs block mb-2" style="color: var(--fg-secondary);">按下新的快捷键组合</label>
-            <input
-              ref="shortcutInput"
-              v-model="newShortcutKey"
-              @keydown="captureShortcut"
-              class="w-full px-3 py-2 rounded text-sm font-mono"
-              style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg-primary);"
-              placeholder="例如: Ctrl+Shift+K"
-              autocomplete="off"
-            />
-            <p class="text-xs mt-2" style="color: var(--fg-muted);">按 Esc 取消，按 Enter 确认</p>
-          </div>
-          <div class="flex justify-end gap-2">
-            <button @click="editingShortcut = null" class="px-3 py-1.5 rounded text-xs" style="background: var(--bg-hover); color: var(--fg-secondary);">取消</button>
-            <button @click="saveShortcut" class="px-3 py-1.5 rounded text-xs" style="background: var(--accent); color: white;">保存</button>
-          </div>
+    <div
+      v-if="editingShortcut"
+      class="fixed inset-0 z-50 flex items-center justify-center"
+      style="background: rgba(0, 0, 0, 0.7);"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="`编辑${editingShortcut.name}快捷键`"
+      @click.self="editingShortcut = null"
+    >
+      <div class="shortcut-dialog">
+        <h3>编辑快捷键：{{ editingShortcut.name }}</h3>
+        <label for="shortcut-input">按下新的快捷键组合</label>
+        <input
+          id="shortcut-input"
+          ref="shortcutInput"
+          v-model="newShortcutKey"
+          class="shortcut-input"
+          placeholder="例如 Ctrl+Shift+K"
+          autocomplete="off"
+          @keydown="captureShortcut"
+        />
+        <p>Esc 取消，Enter 保存</p>
+        <div class="flex justify-end gap-2 mt-4">
+          <button type="button" class="secondary-button" @click="editingShortcut = null">取消</button>
+          <button type="button" class="primary-button" @click="saveShortcut">保存</button>
         </div>
       </div>
-
-      <!-- 代理设置 -->
-      <section>
-        <h3 class="text-xs uppercase mb-3" style="color: var(--fg-muted);">网络</h3>
-        <button
-          @click="$emit('open-proxy-settings')"
-          class="w-full px-3 py-2 rounded text-sm font-medium transition-colors border"
-          style="background: var(--bg-surface); color: var(--fg-secondary); border-color: var(--border);"
-        >
-          🌐 打开代理设置
-        </button>
-      </section>
-
-      <!-- 关于 -->
-      <section>
-        <h3 class="text-xs uppercase mb-3" style="color: var(--fg-muted);">关于</h3>
-        <div class="rounded p-3 space-y-2" style="background: var(--bg-surface);">
-          <div class="text-sm" style="color: var(--fg-primary);">XTerminal Pro v0.1.0</div>
-          <div class="text-xs" style="color: var(--fg-muted);">轻量级SSH终端 + SFTP + 多服务器管理</div>
-          <div class="text-xs" style="color: var(--fg-muted);">基于 Tauri v2 + Vue 3 + xterm.js</div>
-          <div class="text-xs" style="color: var(--fg-muted);">内存占用: ~30MB | 安装包: ~8MB</div>
-          <div class="text-xs mt-2" style="color: var(--fg-muted);">开发者: 龙虾003 🦞</div>
-        </div>
-      </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { STORAGE_KEYS } from "@/utils/storage-keys.js"
-import { reactive, ref, nextTick, watch } from 'vue'
+import { STORAGE_KEYS } from '@/utils/storage-keys.js'
+import { invoke } from '@/utils/tauri.js'
+import { nextTick, onMounted, reactive, ref, watch } from 'vue'
+import {
+  ChevronRight,
+  Globe,
+  Info,
+  Moon,
+  Pencil,
+  Settings as SettingsIcon,
+  Snowflake,
+  Sun,
+} from 'lucide-vue-next'
 
 defineEmits(['open-proxy-settings'])
 
 const themes = [
-  { value: 'dark', label: '🌙 暗色' },
-  { value: 'light', label: '☀️ 亮色' },
-  { value: 'nord', label: '❄️ Nord' },
+  { value: 'dark', label: '暗色', icon: Moon },
+  { value: 'light', label: '亮色', icon: Sun },
+  { value: 'nord', label: 'Nord', icon: Snowflake },
 ]
 
 const currentTheme = ref(localStorage.getItem(STORAGE_KEYS.THEME) || 'dark')
+const appVersion = ref('')
 
 const settings = reactive({
-  darkMode: currentTheme.value !== 'light',
   fontSize: parseInt(localStorage.getItem(STORAGE_KEYS.FONT_SIZE)) || 14,
-  cursorBlink: true,
   scrollback: parseInt(localStorage.getItem(STORAGE_KEYS.SCROLLBACK)) || 10000,
-  sshTimeout: 30,
 })
 
-// Watch settings changes and save to localStorage
-watch(() => settings.fontSize, (val) => localStorage.setItem(STORAGE_KEYS.FONT_SIZE, val))
-watch(() => settings.scrollback, (val) => localStorage.setItem(STORAGE_KEYS.SCROLLBACK, val))
-watch(() => settings.cursorBlink, (val) => localStorage.setItem(STORAGE_KEYS.CURSOR_BLINK, val))
-watch(() => settings.sshTimeout, (val) => localStorage.setItem(STORAGE_KEYS.SSH_TIMEOUT, val))
+watch(() => settings.fontSize, value => localStorage.setItem(STORAGE_KEYS.FONT_SIZE, String(value)))
+watch(() => settings.scrollback, value => localStorage.setItem(STORAGE_KEYS.SCROLLBACK, String(value)))
 
-// 默认快捷键
 const defaultShortcuts = [
   { name: '搜索', key: 'Ctrl+Shift+F' },
   { name: '清屏', key: 'Ctrl+L' },
@@ -205,59 +183,346 @@ const defaultShortcuts = [
   { name: '全屏', key: 'F11' },
 ]
 
-// 从 localStorage 读取快捷键
-const shortcuts = defaultShortcuts.map(s => ({
-  name: s.name,
-  key: localStorage.getItem(`shortcut_${s.name}`) || s.key
+const shortcuts = defaultShortcuts.map(shortcut => ({
+  name: shortcut.name,
+  key: localStorage.getItem(`${STORAGE_KEYS.SHORTCUT_PREFIX}${shortcut.name}`) || shortcut.key,
 }))
-
-function setTheme(value) {
-  currentTheme.value = value
-  document.documentElement.setAttribute('data-theme', value)
-  localStorage.setItem(STORAGE_KEYS.THEME, value)
-  settings.darkMode = value !== 'light'
-}
 
 const editingShortcut = ref(null)
 const newShortcutKey = ref('')
 const shortcutInput = ref(null)
 
-function editShortcut(key) {
-  editingShortcut.value = key
-  newShortcutKey.value = key.key
+onMounted(async () => {
+  try {
+    appVersion.value = await invoke('get_app_version')
+  } catch {
+    appVersion.value = ''
+  }
+})
+
+function setTheme(value) {
+  currentTheme.value = value
+  document.documentElement.setAttribute('data-theme', value)
+  localStorage.setItem(STORAGE_KEYS.THEME, value)
+}
+
+function editShortcut(shortcut) {
+  editingShortcut.value = shortcut
+  newShortcutKey.value = shortcut.key
   nextTick(() => shortcutInput.value?.focus())
 }
 
-function captureShortcut(e) {
-  e.preventDefault()
-  const modifiers = []
-  if (e.ctrlKey) modifiers.push('Ctrl')
-  if (e.altKey) modifiers.push('Alt')
-  if (e.shiftKey) modifiers.push('Shift')
-  if (e.metaKey) modifiers.push('Meta')
-  
-  // Ignore modifier-only combos
-  if (!modifiers.length && e.key.length > 1) return
-  
-  const keyName = e.key.length === 1 ? e.key.toUpperCase() : e.key
-  newShortcutKey.value = [...modifiers, keyName].join('+')
-  
-  if (e.key === 'Escape') {
+function captureShortcut(event) {
+  event.preventDefault()
+
+  if (event.key === 'Escape') {
     editingShortcut.value = null
-  } else if (e.key === 'Enter') {
-    saveShortcut()
+    return
   }
+  if (event.key === 'Enter') {
+    saveShortcut()
+    return
+  }
+
+  const modifiers = []
+  if (event.ctrlKey) modifiers.push('Ctrl')
+  if (event.altKey) modifiers.push('Alt')
+  if (event.shiftKey) modifiers.push('Shift')
+  if (event.metaKey) modifiers.push('Meta')
+
+  const modifierKeys = ['Control', 'Alt', 'Shift', 'Meta']
+  if (modifierKeys.includes(event.key)) return
+
+  const keyName = event.key.length === 1 ? event.key.toUpperCase() : event.key
+  newShortcutKey.value = [...modifiers, keyName].join('+')
 }
 
 function saveShortcut() {
-  if (editingShortcut.value && newShortcutKey.value) {
-    editingShortcut.value.key = newShortcutKey.value
-    localStorage.setItem(`shortcut_${editingShortcut.value.name}`, newShortcutKey.value)
-    // 触发自定义事件通知 App.vue
-    window.dispatchEvent(new CustomEvent('shortcut-changed', {
-      detail: { name: editingShortcut.value.name, key: newShortcutKey.value }
-    }))
-  }
+  if (!editingShortcut.value || !newShortcutKey.value) return
+
+  editingShortcut.value.key = newShortcutKey.value
+  localStorage.setItem(
+    `${STORAGE_KEYS.SHORTCUT_PREFIX}${editingShortcut.value.name}`,
+    newShortcutKey.value,
+  )
+  window.dispatchEvent(new CustomEvent('shortcut-changed', {
+    detail: { name: editingShortcut.value.name, key: newShortcutKey.value },
+  }))
   editingShortcut.value = null
 }
 </script>
+
+<style scoped>
+.settings-header {
+  gap: 7px;
+  color: var(--fg-secondary);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-content {
+  width: min(680px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-title {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.setting-block,
+.setting-row,
+.shortcut-list,
+.about-card,
+.action-row {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+.setting-block {
+  padding: 12px;
+}
+
+.setting-row {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 12px;
+}
+
+.setting-label {
+  color: var(--fg-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.setting-description {
+  margin-top: 2px;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.theme-button {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--fg-secondary);
+  font-size: 12px;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.theme-button:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.theme-button.active {
+  border-color: var(--accent);
+  background: var(--accent-hover);
+  color: var(--accent);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.stepper button,
+.stepper span {
+  width: 30px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  color: var(--fg-secondary);
+  font-size: 12px;
+}
+
+.stepper button:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.font-preview {
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-base);
+  color: var(--fg-secondary);
+  font-family: 'Cascadia Code', 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+}
+
+.setting-select,
+.shortcut-input {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--fg-primary);
+  outline: none;
+}
+
+.setting-select {
+  min-width: 92px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.shortcut-list {
+  overflow: hidden;
+}
+
+.shortcut-row {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px 6px 12px;
+  color: var(--fg-secondary);
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.shortcut-row:last-child {
+  border-bottom: 0;
+}
+
+.shortcut-row kbd {
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-base);
+  color: var(--fg-muted);
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.icon-button {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.icon-button:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.action-row {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  color: var(--fg-muted);
+  text-align: left;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.action-row:hover {
+  background: var(--bg-hover);
+  color: var(--fg-primary);
+}
+
+.about-card {
+  padding: 12px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.about-card p {
+  margin: 4px 0 0;
+}
+
+.shortcut-dialog {
+  width: 320px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.shortcut-dialog h3 {
+  margin: 0 0 14px;
+  color: var(--fg-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.shortcut-dialog label,
+.shortcut-dialog p {
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+
+.shortcut-input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.shortcut-dialog p {
+  margin: 6px 0 0;
+}
+
+.secondary-button,
+.primary-button {
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.secondary-button {
+  background: var(--bg-hover);
+  color: var(--fg-secondary);
+}
+
+.primary-button {
+  background: var(--accent);
+  color: white;
+}
+</style>
