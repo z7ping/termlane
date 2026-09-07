@@ -26,27 +26,27 @@
       <div v-if="connecting" class="connecting-overlay">
         <div class="flex flex-col items-center gap-3">
           <div class="spinner" />
-          <div class="text-sm" style="color: var(--fg-muted);">正在连接...</div>
+          <div class="text-sm connecting-text">正在连接...</div>
         </div>
       </div>
 
       <div v-if="hostKeyPrompt" class="host-key-overlay">
         <div class="host-key-card">
-          <div class="text-sm font-semibold mb-1" style="color: var(--fg-primary);">首次连接：确认服务器身份</div>
-          <div class="text-xs mb-4" style="color: var(--fg-muted);">
+          <div class="host-key-title text-sm font-semibold mb-1">首次连接：确认服务器身份</div>
+          <div class="host-key-description text-xs mb-4">
             {{ hostKeyTarget(hostKeyPrompt) }} 尚未记录在 known_hosts。请核对服务器指纹后再继续。
           </div>
           <div class="space-y-2 text-xs">
             <div class="flex gap-3">
-              <span class="w-16 shrink-0" style="color: var(--fg-muted);">算法</span>
-              <span class="font-mono" style="color: var(--fg-secondary);">{{ hostKeyPrompt.algorithm }}</span>
+              <span class="host-key-label w-16 shrink-0">算法</span>
+              <span class="host-key-value font-mono">{{ hostKeyPrompt.algorithm }}</span>
             </div>
             <div class="flex gap-3 items-start">
-              <span class="w-16 shrink-0" style="color: var(--fg-muted);">SHA256</span>
-              <code class="font-mono break-all select-text" style="color: var(--fg-primary);">{{ hostKeyPrompt.fingerprint }}</code>
+              <span class="host-key-label w-16 shrink-0">SHA256</span>
+              <code class="host-key-fingerprint font-mono break-all select-text">{{ hostKeyPrompt.fingerprint }}</code>
             </div>
           </div>
-          <div class="mt-4 text-xs" style="color: var(--warning);">
+          <div class="host-key-warning mt-4 text-xs">
             无法确认指纹时不要继续。确认后该主机密钥会写入 ~/.ssh/known_hosts。
           </div>
           <div class="mt-5 flex justify-end gap-2">
@@ -109,9 +109,11 @@ const toastClass = computed(() => ({
   info: 'info',
 }[toast.value.type]))
 
+let toastTimer = null
 function showToast(message, type = 'info', duration = 2000) {
+  if (toastTimer) clearTimeout(toastTimer)
   toast.value = { show: true, message, type }
-  setTimeout(() => { toast.value.show = false }, duration)
+  toastTimer = setTimeout(() => { toast.value.show = false }, duration)
 }
 
 let term = null
@@ -121,14 +123,15 @@ let resizeObserver = null
 let shellId = null
 let sessionKind = null
 let isConnected = false
-let unlisten = null
+let unlistenOutput = null
+let unlistenLifecycle = null
 let inputDisposable = null
+let reconnectTimer = null
 let reconnectAttempts = 0
+let startGeneration = 0
+let disposed = false
 let searchKeyMatcher = parseShortcut(searchShortcutLabel.value)
 const MAX_RECONNECT = 3
-let idleTimer = null
-let lastActivity = Date.now()
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000
 
 function getTheme() {
   const themeName = localStorage.getItem(STORAGE_KEYS.THEME) || 'dark'
@@ -159,6 +162,83 @@ function createTerminal(container) {
   terminal.open(container)
   fit.fit()
   return { terminal, fit, search }
+}
+
+function clearReconnectTimer() {
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  reconnectTimer = null
+}
+
+function clearSshListeners() {
+  unlistenOutput?.()
+  unlistenLifecycle?.()
+  unlistenOutput = null
+  unlistenLifecycle = null
+}
+
+function markDisconnected(sessionId) {
+  if (shellId && sessionId && shellId !== sessionId) return
+  shellId = null
+  sessionKind = null
+  isConnected = false
+  emit('disconnected')
+}
+
+function scheduleReconnect(terminal, conn) {
+  if (disposed || !terminal || terminal.disposed) return
+  clearReconnectTimer()
+
+  if (reconnectAttempts >= MAX_RECONNECT) {
+    terminal.writeln('\r\n\x1b[1;31m重连失败，请手动重新连接\x1b[0m')
+    connectFailed.value = true
+    return
+  }
+
+  reconnectAttempts++
+  const attempt = reconnectAttempts
+  terminal.writeln(`\r\n\x1b[1;33m正在重连 (${attempt}/${MAX_RECONNECT})...\x1b[0m`)
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    if (disposed || !term || term.disposed) return
+    startPtyShell(term, conn, true, false)
+  }, 2000 * attempt)
+}
+
+async function bindSshListeners(sessionId, terminal, conn, generation, attemptState) {
+  clearSshListeners()
+
+  try {
+    unlistenOutput = await listen(`ssh-output:${sessionId}`, event => {
+      if (disposed || generation !== startGeneration || !term || term.disposed) return
+      term.write(String(event.payload ?? ''))
+    })
+
+    unlistenLifecycle = await listen(`ssh-lifecycle:${sessionId}`, event => {
+      if (disposed || generation !== startGeneration || !term || term.disposed) return
+      const lifecycle = event.payload || {}
+      const kind = lifecycle.kind
+      const message = lifecycle.message ? String(lifecycle.message) : ''
+      attemptState.ended = true
+      connecting.value = false
+      markDisconnected(sessionId)
+
+      if (kind === 'exited') {
+        clearReconnectTimer()
+        reconnectAttempts = 0
+        connectFailed.value = false
+        terminal.writeln('\r\n\x1b[1;33m[Shell 已退出]\x1b[0m\r\n')
+        return
+      }
+
+      if (kind === 'disconnected') {
+        terminal.writeln(`\r\n\x1b[1;31m[连接断开]${message ? ` ${message}` : ''}\x1b[0m\r\n`)
+        scheduleReconnect(terminal, conn)
+      }
+    })
+  } catch (error) {
+    clearSshListeners()
+    throw error
+  }
 }
 
 async function pasteClipboard() {
@@ -249,12 +329,19 @@ function showWelcome(terminal, mode) {
 }
 
 async function startLocalShell(terminal) {
+  const generation = ++startGeneration
   terminal.writeln('\x1b[1;33m启动本地 Shell...\x1b[0m')
   connecting.value = true
 
   try {
     const dims = fitAddon?.proposeDimensions() || { cols: 80, rows: 24 }
-    shellId = await invoke('local_start_shell', { cols: dims.cols, rows: dims.rows })
+    const startedShellId = await invoke('local_start_shell', { cols: dims.cols, rows: dims.rows })
+    if (disposed || generation !== startGeneration || terminal.disposed) {
+      await invoke('local_close_shell', { sessionId: startedShellId }).catch(() => {})
+      return
+    }
+
+    shellId = startedShellId
     sessionKind = 'local'
     isConnected = true
     reconnectAttempts = 0
@@ -264,22 +351,24 @@ async function startLocalShell(terminal) {
     showToast('本地终端已启动', 'success')
     emit('connected', shellId)
 
-    unlisten?.()
-    unlisten = await listen(`local-output:${shellId}`, event => {
-      if (term && !term.disposed) term.write(event.payload)
+    clearSshListeners()
+    unlistenOutput = await listen(`local-output:${shellId}`, event => {
+      if (disposed || generation !== startGeneration || !term || term.disposed) return
+      term.write(String(event.payload ?? ''))
       if (String(event.payload).includes('[Shell 已退出]')) {
-        isConnected = false
-        emit('disconnected')
+        markDisconnected(startedShellId)
       }
     })
 
     inputDisposable?.dispose()
-    inputDisposable = terminal.onData(async data => {
-      lastActivity = Date.now()
+    inputDisposable = terminal.onData(data => {
       if (!shellId || !isConnected) return
-      try { await invoke('local_input', { sessionId: shellId, data }) } catch {}
+      invoke('local_input', { sessionId: shellId, data }).catch(error => {
+        showToast(`发送输入失败：${error}`, 'error')
+      })
     })
   } catch (error) {
+    if (disposed || generation !== startGeneration) return
     connecting.value = false
     terminal.writeln(`\x1b[1;31m✗ 本地 Shell 启动失败: ${error}\x1b[0m`)
     showToast('本地终端启动失败', 'error')
@@ -290,6 +379,12 @@ async function startLocalShell(terminal) {
 }
 
 async function startPtyShell(terminal, conn, isReconnect = false, trustNewHostKey = false) {
+  if (disposed) return
+  clearReconnectTimer()
+  const generation = ++startGeneration
+  const requestedSessionId = `ssh-shell-${crypto.randomUUID()}`
+  const attemptState = { ended: false }
+
   if (!isReconnect && !trustNewHostKey) {
     terminal.writeln(`\x1b[1;33m正在连接 ${conn.username}@${conn.host}:${conn.port || 22}...\x1b[0m`)
   }
@@ -297,10 +392,13 @@ async function startPtyShell(terminal, conn, isReconnect = false, trustNewHostKe
   hostKeyPrompt.value = null
 
   try {
+    await bindSshListeners(requestedSessionId, terminal, conn, generation, attemptState)
+    if (disposed || generation !== startGeneration) return
+
     const dims = fitAddon?.proposeDimensions() || { cols: 80, rows: 24 }
     const secret = conn.id ? await loadCredential(conn.id) : ''
-
-    shellId = await invoke('ssh_start_shell', {
+    const startedShellId = await invoke('ssh_start_shell', {
+      sessionId: requestedSessionId,
       host: conn.host,
       port: conn.port || 22,
       username: conn.username,
@@ -312,46 +410,41 @@ async function startPtyShell(terminal, conn, isReconnect = false, trustNewHostKe
       rows: dims.rows,
     })
 
+    if (startedShellId !== requestedSessionId) {
+      await invoke('ssh_close_shell', { sessionId: startedShellId }).catch(() => {})
+      throw new Error('SSH Session ID 不一致')
+    }
+
+    if (disposed || generation !== startGeneration || attemptState.ended || terminal.disposed) {
+      await invoke('ssh_close_shell', { sessionId: requestedSessionId }).catch(() => {})
+      return
+    }
+
+    shellId = requestedSessionId
     sessionKind = 'ssh'
     isConnected = true
     reconnectAttempts = 0
+    pendingHostKeyReconnect.value = false
     connecting.value = false
     connectFailed.value = false
     terminal.writeln(`\x1b[1;32m✓ 已连接到 ${conn.host}\x1b[0m`)
     showToast('连接成功', 'success')
     emit('connected', shellId)
 
-    unlisten?.()
-    unlisten = await listen(`ssh-output:${shellId}`, event => {
-      if (!term || term.disposed) return
-
-      const payload = String(event.payload)
-      term.write(payload)
-      if (payload.includes('[Shell 已退出]') || payload.includes('[连接断开]')) {
-        isConnected = false
-        emit('disconnected')
-        if (reconnectAttempts < MAX_RECONNECT) {
-          reconnectAttempts++
-          term.writeln(`\r\n\x1b[1;33m正在重连 (${reconnectAttempts}/${MAX_RECONNECT})...\x1b[0m`)
-          setTimeout(() => startPtyShell(term, conn, true, false), 2000 * reconnectAttempts)
-        } else {
-          term.writeln('\r\n\x1b[1;31m重连失败，请手动重新连接\x1b[0m')
-          connectFailed.value = true
-        }
-      }
-      lastActivity = Date.now()
-    })
-
     inputDisposable?.dispose()
-    inputDisposable = terminal.onData(async data => {
-      lastActivity = Date.now()
+    inputDisposable = terminal.onData(data => {
       if (!shellId || !isConnected) return
-      try { await invoke('ssh_shell_input', { sessionId: shellId, data }) } catch {}
+      invoke('ssh_shell_input', { sessionId: shellId, data }).catch(error => {
+        showToast(`发送输入失败：${error}`, 'error')
+      })
     })
   } catch (error) {
+    if (disposed || generation !== startGeneration) return
+    clearSshListeners()
     connecting.value = false
     isConnected = false
     sessionKind = null
+    shellId = null
 
     const hostKeyError = parseHostKeyError(error)
     if (hostKeyError?.code === 'HOST_KEY_UNKNOWN') {
@@ -366,6 +459,12 @@ async function startPtyShell(terminal, conn, isReconnect = false, trustNewHostKe
       terminal.writeln(`\x1b[1;31m  当前指纹：${hostKeyError.fingerprint}\x1b[0m`)
       showToast('主机密钥已变化，连接已拒绝', 'error', 4000)
       connectFailed.value = true
+      return
+    }
+
+    if (isReconnect) {
+      terminal.writeln(`\r\n\x1b[1;31m第 ${reconnectAttempts} 次重连失败：${error}\x1b[0m`)
+      scheduleReconnect(terminal, conn)
       return
     }
 
@@ -387,6 +486,7 @@ function cancelHostKeyTrust() {
   if (hostKeyPrompt.value && term) {
     term.writeln(`\x1b[1;33m未信任 ${hostKeyTarget(hostKeyPrompt.value)}，连接已取消。\x1b[0m`)
   }
+  clearReconnectTimer()
   hostKeyPrompt.value = null
   pendingHostKeyReconnect.value = false
   connectFailed.value = true
@@ -491,6 +591,9 @@ watch(() => props.active, active => {
 })
 
 function retryConnection() {
+  if (connecting.value) return
+  clearReconnectTimer()
+  reconnectAttempts = 0
   connectFailed.value = false
   hostKeyPrompt.value = null
   const conn = props.tab?.connection
@@ -532,36 +635,32 @@ onMounted(async () => {
 
   await initTerminal()
 
-  idleTimer = setInterval(() => {
-    if (!isConnected || !shellId || Date.now() - lastActivity <= IDLE_TIMEOUT_MS) return
-
-    term?.writeln('\r\n\x1b[1;33m[空闲超时 30 分钟，自动断开]\x1b[0m')
-    const command = sessionKind === 'local' ? 'local_close_shell' : 'ssh_close_shell'
-    invoke(command, { sessionId: shellId }).catch(() => {})
-    isConnected = false
-    shellId = null
-    sessionKind = null
-    emit('disconnected')
-  }, 60_000)
-
   window.addEventListener('storage', handleStorage)
   window.addEventListener('termlane-theme-changed', handleThemeChanged)
   window.addEventListener('shortcut-changed', handleShortcutChanged)
 })
 
 onUnmounted(async () => {
-  clearInterval(idleTimer)
+  disposed = true
+  startGeneration++
+  clearReconnectTimer()
+  clearSshListeners()
   resizeObserver?.disconnect()
-  unlisten?.()
   inputDisposable?.dispose()
+  if (toastTimer) clearTimeout(toastTimer)
   containerRef.value?.removeEventListener('contextmenu', handleContextmenu)
   window.removeEventListener('storage', handleStorage)
   window.removeEventListener('termlane-theme-changed', handleThemeChanged)
   window.removeEventListener('shortcut-changed', handleShortcutChanged)
 
-  if (shellId) {
-    const command = sessionKind === 'local' ? 'local_close_shell' : 'ssh_close_shell'
-    await invoke(command, { sessionId: shellId }).catch(() => {})
+  const activeShellId = shellId
+  const activeSessionKind = sessionKind
+  shellId = null
+  sessionKind = null
+  isConnected = false
+  if (activeShellId) {
+    const command = activeSessionKind === 'local' ? 'local_close_shell' : 'ssh_close_shell'
+    await invoke(command, { sessionId: activeShellId }).catch(() => {})
   }
   term?.dispose()
 })
@@ -572,7 +671,6 @@ onUnmounted(async () => {
   position: relative;
   background: var(--bg-base);
 }
-
 .search-bar {
   height: 34px;
   display: flex;
@@ -584,7 +682,6 @@ onUnmounted(async () => {
   background: var(--bg-surface);
   color: var(--fg-muted);
 }
-
 .search-input {
   flex: 1;
   min-width: 0;
@@ -597,11 +694,7 @@ onUnmounted(async () => {
   color: var(--fg-primary);
   font-size: 12px;
 }
-
-.search-input:focus {
-  border-color: var(--accent);
-}
-
+.search-input:focus { border-color: var(--accent); }
 .icon-button,
 .terminal-action {
   display: inline-flex;
@@ -613,18 +706,9 @@ onUnmounted(async () => {
   color: var(--fg-muted);
   transition: background-color var(--transition-fast), color var(--transition-fast);
 }
-
-.icon-button {
-  width: 26px;
-  height: 26px;
-}
-
+.icon-button { width: 26px; height: 26px; }
 .icon-button:hover,
-.terminal-action:hover {
-  background: var(--bg-hover);
-  color: var(--fg-primary);
-}
-
+.terminal-action:hover { background: var(--bg-hover); color: var(--fg-primary); }
 .failure-banner {
   height: 32px;
   display: flex;
@@ -638,7 +722,6 @@ onUnmounted(async () => {
   font-size: 12px;
   font-weight: 500;
 }
-
 .failure-banner button {
   padding: 4px 8px;
   border: 0;
@@ -647,11 +730,7 @@ onUnmounted(async () => {
   color: white;
   font-size: 11px;
 }
-
-.connection-failed {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 60%, transparent);
-}
-
+.connection-failed { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 60%, transparent); }
 .connecting-overlay,
 .host-key-overlay {
   position: absolute;
@@ -663,12 +742,10 @@ onUnmounted(async () => {
   padding: 20px;
   background: color-mix(in srgb, var(--bg-base) 88%, transparent);
 }
-
-.host-key-overlay {
-  z-index: 30;
-  background: color-mix(in srgb, var(--bg-base) 94%, transparent);
-}
-
+.connecting-text,
+.host-key-description,
+.host-key-label { color: var(--fg-muted); }
+.host-key-overlay { z-index: 30; background: color-mix(in srgb, var(--bg-base) 94%, transparent); }
 .spinner {
   width: 28px;
   height: 28px;
@@ -677,11 +754,7 @@ onUnmounted(async () => {
   border-radius: 999px;
   animation: spin 0.8s linear infinite;
 }
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
+@keyframes spin { to { transform: rotate(360deg); } }
 .host-key-card {
   width: min(520px, 100%);
   padding: 18px;
@@ -690,7 +763,10 @@ onUnmounted(async () => {
   background: var(--bg-elevated);
   box-shadow: var(--shadow-lg);
 }
-
+.host-key-title,
+.host-key-fingerprint { color: var(--fg-primary); }
+.host-key-value { color: var(--fg-secondary); }
+.host-key-warning { color: var(--warning); }
 .secondary-button,
 .primary-button {
   height: 30px;
@@ -699,32 +775,16 @@ onUnmounted(async () => {
   border-radius: 6px;
   font-size: 12px;
 }
-
-.secondary-button {
-  background: var(--bg-hover);
-  color: var(--fg-secondary);
-}
-
-.primary-button {
-  background: var(--accent);
-  color: white;
-}
-
-.terminal-actions {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  z-index: 10;
-}
-
+.secondary-button { background: var(--bg-hover); color: var(--fg-secondary); }
+.primary-button { background: var(--accent); color: white; }
+.terminal-actions { position: absolute; right: 8px; bottom: 8px; z-index: 10; }
 .terminal-action {
   width: 28px;
   height: 28px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
 }
-
 .terminal-toast {
   position: absolute;
   top: 8px;
@@ -733,21 +793,9 @@ onUnmounted(async () => {
   padding: 6px 9px;
   border-radius: 6px;
   font-size: 11px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
 }
-
-.terminal-toast.success {
-  background: color-mix(in srgb, var(--success) 18%, var(--bg-elevated));
-  color: var(--success);
-}
-
-.terminal-toast.error {
-  background: color-mix(in srgb, var(--danger) 18%, var(--bg-elevated));
-  color: var(--danger);
-}
-
-.terminal-toast.info {
-  background: var(--bg-elevated);
-  color: var(--fg-secondary);
-}
+.terminal-toast.success { background: color-mix(in srgb, var(--success) 18%, var(--bg-elevated)); color: var(--success); }
+.terminal-toast.error { background: color-mix(in srgb, var(--danger) 18%, var(--bg-elevated)); color: var(--danger); }
+.terminal-toast.info { background: var(--bg-elevated); color: var(--fg-secondary); }
 </style>
