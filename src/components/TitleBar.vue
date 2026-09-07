@@ -48,25 +48,27 @@
 </template>
 
 <script setup>
-import { STORAGE_KEYS } from '@/utils/storage-keys.js'
-import { ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { Maximize2, Moon, PanelLeft, Settings, Snowflake, Sun } from 'lucide-vue-next'
+import { applyTheme, getStoredTheme, nextTheme } from '@/utils/theme-state'
 
 defineEmits(['toggle-sidebar', 'toggle-fullscreen', 'open-settings'])
 
-const themes = ['dark', 'light', 'nord']
 const themeNames = { dark: '暗色', light: '亮色', nord: 'Nord' }
 const themeIcons = { dark: Moon, light: Sun, nord: Snowflake }
-const currentTheme = ref(localStorage.getItem(STORAGE_KEYS.THEME) || 'dark')
-
-document.documentElement.setAttribute('data-theme', currentTheme.value)
+const currentTheme = ref(getStoredTheme())
 
 function cycleTheme() {
-  const idx = themes.indexOf(currentTheme.value)
-  currentTheme.value = themes[(idx + 1) % themes.length]
-  document.documentElement.setAttribute('data-theme', currentTheme.value)
-  localStorage.setItem(STORAGE_KEYS.THEME, currentTheme.value)
+  currentTheme.value = nextTheme(currentTheme.value)
+  applyTheme(currentTheme.value)
 }
+
+function handleThemeChanged(event) {
+  currentTheme.value = event.detail || getStoredTheme()
+}
+
+onMounted(() => window.addEventListener('xterminal-theme-changed', handleThemeChanged))
+onUnmounted(() => window.removeEventListener('xterminal-theme-changed', handleThemeChanged))
 </script>
 
 <style scoped>
