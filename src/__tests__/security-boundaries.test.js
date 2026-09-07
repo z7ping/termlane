@@ -20,6 +20,14 @@ describe('credential persistence boundary', () => {
     expect('password' in safe).toBe(false)
     expect('passphrase' in safe).toBe(false)
   })
+
+  test('stripping secrets does not mutate the source connection', () => {
+    const source = { id: 'prod', host: '10.0.0.1', password: 'secret' }
+    const safe = stripConnectionSecrets(source)
+
+    expect(source.password).toBe('secret')
+    expect(safe).toEqual({ id: 'prod', host: '10.0.0.1' })
+  })
 })
 
 describe('SSH host key error boundary', () => {

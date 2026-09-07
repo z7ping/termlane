@@ -49,7 +49,7 @@ async function loadConnections() {
     const saved = await invoke('load_connections')
     if (saved?.length > 0) {
       for (const conn of saved) {
-        if (!conn?.id || conn.id === 'local') continue
+        if (!conn?.id || conn.id === 'local' || conn.authType !== 'password') continue
         try {
           await migrateLegacyPlaintextCredential(conn.id)
         } catch (e) {
@@ -136,7 +136,16 @@ async function onSaveConnection(conn, editingConn) {
       : ''
 
   try {
-    if (credential) await saveCredential(id, credential)
+    if (conn.authType === 'password') {
+      if (!credential) throw new Error('密码不能为空')
+      await saveCredential(id, credential)
+    } else if (conn.authType === 'key') {
+      if (credential) await saveCredential(id, credential)
+      else await deleteCredential(id)
+    } else {
+      await deleteCredential(id)
+    }
+
     await invoke('save_connection', { conn: safeConnection })
     await loadConnections()
     _toast('连接已保存', 'success')
