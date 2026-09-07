@@ -59,6 +59,16 @@ fn validate_shell_session_id(session_id: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn emit_shell_lifecycle(app: &AppHandle, session_id: &str, kind: &str, message: Option<&str>) {
+    let _ = app.emit(
+        &format!("ssh-lifecycle:{}", session_id),
+        serde_json::json!({
+            "kind": kind,
+            "message": message,
+        }),
+    );
+}
+
 fn known_host_entry(host: &str, port: u16) -> String {
     if port == 22 {
         host.to_string()
@@ -467,10 +477,7 @@ pub fn start_shell(
         'shell: loop {
             match channel.read(&mut buf) {
                 Ok(0) => {
-                    let _ = app_handle.emit(
-                        &format!("ssh-output:{}", reader_sid),
-                        "\r\n\x1b[1;33m[Shell 已退出]\x1b[0m\r\n",
-                    );
+                    emit_shell_lifecycle(&app_handle, &reader_sid, "exited", None);
                     break;
                 }
                 Ok(n) => {
@@ -483,18 +490,17 @@ pub fn start_shell(
                         || e.kind() == std::io::ErrorKind::TimedOut =>
                 {
                     if channel.eof() {
-                        let _ = app_handle.emit(
-                            &format!("ssh-output:{}", reader_sid),
-                            "\r\n\x1b[1;33m[Shell 已退出]\x1b[0m\r\n",
-                        );
+                        emit_shell_lifecycle(&app_handle, &reader_sid, "exited", None);
                         break;
                     }
                     consecutive_empty += 1;
                 }
                 Err(error) => {
-                    let _ = app_handle.emit(
-                        &format!("ssh-output:{}", reader_sid),
-                        format!("\r\n\x1b[1;31m[连接断开] {}\x1b[0m\r\n", error),
+                    emit_shell_lifecycle(
+                        &app_handle,
+                        &reader_sid,
+                        "disconnected",
+                        Some(&error.to_string()),
                     );
                     break;
                 }
@@ -503,17 +509,16 @@ pub fn start_shell(
             while let Ok(input) = input_rx.try_recv() {
                 if input == "\x04" {
                     let _ = channel.send_eof();
-                    let _ = app_handle.emit(
-                        &format!("ssh-output:{}", reader_sid),
-                        "\r\n\x1b[1;33m[Shell 已退出]\x1b[0m\r\n",
-                    );
+                    emit_shell_lifecycle(&app_handle, &reader_sid, "exited", None);
                     break 'shell;
                 }
 
                 if let Err(error) = write_channel_all(&mut channel, input.as_bytes()) {
-                    let _ = app_handle.emit(
-                        &format!("ssh-output:{}", reader_sid),
-                        format!("\r\n\x1b[1;31m[连接断开] {}\x1b[0m\r\n", error),
+                    emit_shell_lifecycle(
+                        &app_handle,
+                        &reader_sid,
+                        "disconnected",
+                        Some(&error),
                     );
                     break 'shell;
                 }
