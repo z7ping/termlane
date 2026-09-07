@@ -14,7 +14,6 @@ pub fn run() {
             // SSH Exec
             commands::ssh_connect,
             commands::ssh_connect_key,
-            commands::ssh_connect_jump,
             commands::ssh_execute,
             commands::ssh_disconnect,
             commands::ssh_list_sessions,
