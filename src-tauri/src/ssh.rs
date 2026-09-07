@@ -2,11 +2,11 @@ use crate::utils::*;
 // ssh.rs - SSH connection management with PTY shell support
 
 use serde::{Deserialize, Serialize};
+use ssh2::{CheckResult, ErrorCode, HashType, HostKeyType, KnownHostFileKind, KnownHostKeyFormat, Session};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::Mutex;
-use ssh2::{CheckResult, ErrorCode, HashType, HostKeyType, KnownHostFileKind, KnownHostKeyFormat, Session};
 use tauri::{AppHandle, Emitter};
 
 use crate::utils;
@@ -214,36 +214,14 @@ fn create_session(
     port: u16,
     trust_new_host_key: bool,
 ) -> Result<Session, String> {
-    eprintln!("[DEBUG ssh] Step 0: setting blocking mode...");
     tcp.set_nonblocking(false)
-        .map_err(|e| {
-            eprintln!("[DEBUG ssh] FAIL set_nonblocking: {}", e);
-            format!("设置阻塞模式失败: {}", e)
-        })?;
-    eprintln!("[DEBUG ssh] Step 0 OK: blocking mode set");
+        .map_err(|e| format!("设置阻塞模式失败: {}", e))?;
 
-    eprintln!("[DEBUG ssh] Step 1: Session::new()...");
-    let mut session = Session::new().map_err(|e| {
-        eprintln!("[DEBUG ssh] FAIL Session::new: {}", e);
-        e.to_string()
-    })?;
-    eprintln!("[DEBUG ssh] Step 1 OK");
-
-    eprintln!("[DEBUG ssh] Step 2: set_tcp_stream...");
+    let mut session = Session::new().map_err(|e| e.to_string())?;
     session.set_tcp_stream(tcp);
-    eprintln!("[DEBUG ssh] Step 2 OK");
-
-    eprintln!("[DEBUG ssh] Step 3: handshake...");
-    session.handshake().map_err(|e| {
-        let code = e.code();
-        let msg = e.message();
-        eprintln!(
-            "[DEBUG ssh] FAIL handshake: code={} msg={}",
-            code, msg
-        );
-        format!("握手失败: [{}] {}", code, msg)
-    })?;
-    eprintln!("[DEBUG ssh] Step 3 OK: handshake succeeded");
+    session
+        .handshake()
+        .map_err(|e| format!("握手失败: [{}] {}", e.code(), e.message()))?;
 
     let (key, key_type) = session
         .host_key()
@@ -331,23 +309,13 @@ pub async fn connect(
 
     let session = create_session(tcp, host, port, trust_new_host_key)?;
 
-    eprintln!("[DEBUG ssh] Step 4: userauth_password...");
     let mut auth_err = String::new();
     for attempt in 1..=5 {
         match session.userauth_password(username, password) {
-            Ok(()) => {
-                eprintln!("[DEBUG ssh] Step 4 OK (attempt {})", attempt);
-                break;
-            }
+            Ok(()) => break,
             Err(e) => {
                 auth_err = format!("认证失败: {}", e);
                 let msg = e.message().to_lowercase();
-                eprintln!(
-                    "[DEBUG ssh] Step 4 attempt {} FAIL: code={} msg={}",
-                    attempt,
-                    e.code(),
-                    e.message()
-                );
                 if msg.contains("would block")
                     || msg.contains("again")
                     || msg.contains("busy")
@@ -491,12 +459,11 @@ pub fn start_shell(
 
     let session = create_session(tcp, host, port, trust_new_host_key)?;
 
-    eprintln!("[DEBUG ssh] Step PTY auth: authenticating...");
     let mut auth_err = String::new();
     if let Some(kp) = key_path {
         let pp = passphrase.unwrap_or("");
         for attempt in 1..=5 {
-            let r = if pp.is_empty() {
+            let result = if pp.is_empty() {
                 session.userauth_pubkey_file(
                     username,
                     None,
@@ -511,20 +478,11 @@ pub fn start_shell(
                     Some(pp),
                 )
             };
-            match r {
-                Ok(()) => {
-                    eprintln!("[DEBUG ssh] Step PTY auth OK (key, attempt {})", attempt);
-                    break;
-                }
+            match result {
+                Ok(()) => break,
                 Err(e) => {
                     auth_err = format!("密钥认证失败: {}", e);
                     let msg = e.message().to_lowercase();
-                    eprintln!(
-                        "[DEBUG ssh] Step PTY auth key attempt {} FAIL: code={} msg={}",
-                        attempt,
-                        e.code(),
-                        e.message()
-                    );
                     if msg.contains("would block")
                         || msg.contains("again")
                         || msg.contains("busy")
@@ -540,22 +498,10 @@ pub fn start_shell(
     } else {
         for attempt in 1..=5 {
             match session.userauth_password(username, password) {
-                Ok(()) => {
-                    eprintln!(
-                        "[DEBUG ssh] Step PTY auth OK (password, attempt {})",
-                        attempt
-                    );
-                    break;
-                }
+                Ok(()) => break,
                 Err(e) => {
                     auth_err = format!("认证失败: {}", e);
                     let msg = e.message().to_lowercase();
-                    eprintln!(
-                        "[DEBUG ssh] Step PTY auth password attempt {} FAIL: code={} msg={}",
-                        attempt,
-                        e.code(),
-                        e.message()
-                    );
                     if msg.contains("would block")
                         || msg.contains("again")
                         || msg.contains("busy")
@@ -570,11 +516,6 @@ pub fn start_shell(
         }
     }
 
-    eprintln!(
-        "[DEBUG ssh] Step PTY auth OK (all attempts passed, authenticated={})",
-        session.authenticated()
-    );
-
     if !session.authenticated() {
         let detail = if auth_err.is_empty() {
             "SSH 认证失败".to_string()
@@ -584,22 +525,17 @@ pub fn start_shell(
         return Err(detail);
     }
 
-    eprintln!("[DEBUG ssh] Step PTY: channel_session...");
     let mut channel = session
         .channel_session()
         .map_err(|e| format!("创建通道失败: [{}] {}", e.code(), e.message()))?;
-    eprintln!("[DEBUG ssh] Step PTY: channel_session OK");
     channel
         .request_pty_size(cols as u32, rows as u32, None, None)
         .map_err(|e| format!("PTY 失败: {}", e))?;
     channel
         .shell()
         .map_err(|e| format!("启动 shell 失败: {}", e))?;
-    eprintln!("[DEBUG ssh] Step PTY: shell started OK");
 
-    eprintln!("[DEBUG ssh] Step PTY: setting session to non-blocking...");
     session.set_blocking(false);
-    eprintln!("[DEBUG ssh] Step PTY: session now non-blocking");
 
     let session_id = format!("ssh-shell-{}-{}", host.replace('.', "_"), utils::unix_now());
     let sid = session_id.clone();
@@ -613,7 +549,7 @@ pub fn start_shell(
         let mut buf = [0u8; PTY_BUF_SIZE];
         let mut consecutive_empty = 0u32;
 
-        loop {
+        'shell: loop {
             match channel.read(&mut buf) {
                 Ok(0) => {
                     let _ = app_handle.emit(
@@ -650,39 +586,29 @@ pub fn start_shell(
             }
 
             while let Ok(input) = input_rx.try_recv() {
-                eprintln!("[DEBUG reader] input_rx got: len={}", input.len());
                 if input == "\x04" {
                     channel.send_eof().ok();
-                } else {
-                    let data = input.as_bytes();
-                    let mut written = 0;
-                    for retry in 0..10 {
-                        match channel.write(&data[written..]) {
-                            Ok(n) => {
-                                written += n;
-                                eprintln!(
-                                    "[DEBUG reader] channel.write OK: {} bytes (total {}/{})",
-                                    n,
-                                    written,
-                                    data.len()
-                                );
-                                if written >= data.len() {
-                                    break;
-                                }
-                            }
-                            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                                eprintln!(
-                                    "[DEBUG reader] channel.write WouldBlock retry {}",
-                                    retry
-                                );
-                                std::thread::sleep(std::time::Duration::from_millis(5));
-                                continue;
-                            }
-                            Err(e) => {
-                                eprintln!("[DEBUG reader] channel.write FAIL: {:?}", e);
+                    let _ = app_handle.emit(
+                        &format!("ssh-output:{}", reader_sid),
+                        "\r\n\x1b[1;33m[Shell 已退出]\x1b[0m\r\n",
+                    );
+                    break 'shell;
+                }
+
+                let data = input.as_bytes();
+                let mut written = 0;
+                for _ in 0..10 {
+                    match channel.write(&data[written..]) {
+                        Ok(n) => {
+                            written += n;
+                            if written >= data.len() {
                                 break;
                             }
                         }
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                            std::thread::sleep(std::time::Duration::from_millis(PTY_POLL_FAST_MS));
+                        }
+                        Err(_) => break,
                     }
                 }
             }
@@ -701,6 +627,8 @@ pub fn start_shell(
         }
 
         drop(channel);
+        lock!(PTY_SESSIONS).remove(&reader_sid);
+        lock!(PTY_SHELLS).remove(&reader_sid);
     });
 
     lock!(PTY_SHELLS).insert(
@@ -737,7 +665,14 @@ pub fn shell_resize(session_id: &str, cols: u16, rows: u16) -> Result<(), String
 }
 
 pub fn close_shell(session_id: &str) -> Result<(), String> {
-    lock!(PTY_SHELLS).remove(session_id);
+    let shell = {
+        let mut shells = lock!(PTY_SHELLS);
+        shells.remove(session_id)
+    };
+
+    if let Some(shell) = shell {
+        let _ = shell.input_tx.send("\x04".to_string());
+    }
     lock!(PTY_SESSIONS).remove(session_id);
     Ok(())
 }
