@@ -12,16 +12,21 @@ import {
 import { parseHostKeyError } from '../utils/ssh-host-key.js'
 
 const LOCAL_CONN = { id: 'local', name: '本地终端', host: 'localhost', port: 22, username: 'local', authType: 'local', group: '本地', icon: '💻' }
-
 const connections = ref([LOCAL_CONN])
 const latencyMap = ref({})
 const tabs = ref([])
 const activeTabId = ref(null)
 const sessionMap = ref({})
-const activeConnectionId = ref(null)
 
-const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value))
-const activeConnection = computed(() => connections.value.find(c => c.id === activeConnectionId.value))
+const activeTab = computed(() => tabs.value.find(tab => tab.id === activeTabId.value) || null)
+const activeConnectionId = computed(() => activeTab.value?.connectionId || null)
+const activeConnection = computed(() => {
+  const connectionId = activeConnectionId.value
+  if (!connectionId) return null
+  return connections.value.find(connection => connection.id === connectionId)
+    || activeTab.value?.connection
+    || null
+})
 const activeSessionId = computed(() => sessionMap.value[activeTabId.value] || null)
 
 let _toastFn = null
@@ -71,7 +76,10 @@ function loadTabsState() {
         ...tab,
         connection: stripConnectionSecrets(tab.connection || {}),
       }))
-      activeTabId.value = localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB) || savedTabs[0]?.id
+      const savedActiveTabId = localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB)
+      activeTabId.value = tabs.value.some(tab => tab.id === savedActiveTabId)
+        ? savedActiveTabId
+        : savedTabs[0]?.id
       saveTabsState()
     }
   } catch (e) { console.warn('[XTerminal] Load tabs error:', e) }
@@ -79,8 +87,7 @@ function loadTabsState() {
 
 async function onSelectConnection(conn) {
   const safeConnection = stripConnectionSecrets(conn)
-  activeConnectionId.value = safeConnection.id
-  const existing = tabs.value.find(t => t.connectionId === safeConnection.id)
+  const existing = tabs.value.find(tab => tab.connectionId === safeConnection.id)
   if (existing) {
     existing.name = safeConnection.name
     existing.connection = safeConnection
@@ -103,7 +110,7 @@ function closeTab(tabId) {
   const sid = sessionMap.value[tabId]
   if (sid) {
     const tab = tabs.value.find(t => t.id === tabId)
-    const isLocal = !tab?.connection || tab.connection.host === 'localhost'
+    const isLocal = !tab?.connection || tab.connection.host === 'localhost' || tab.connection.host === '127.0.0.1'
     safeInvoke(isLocal ? 'local_close_shell' : 'ssh_close_shell', { sessionId: sid }).catch(() => {})
     delete sessionMap.value[tabId]
   }
@@ -148,6 +155,14 @@ async function onSaveConnection(conn, editingConn) {
 
     await invoke('save_connection', { conn: safeConnection })
     await loadConnections()
+
+    const openTab = tabs.value.find(tab => tab.connectionId === id)
+    if (openTab) {
+      openTab.name = safeConnection.name
+      openTab.connection = safeConnection
+      saveTabsState()
+    }
+
     _toast('连接已保存', 'success')
   } catch (err) {
     _toast('保存失败: ' + err, 'error')
@@ -231,11 +246,21 @@ function onSessionDisconnected(tabId) {
   delete sessionMap.value[tabId]
 }
 
-function onQuickCommand(cmd) {
-  if (activeSessionId.value) {
-    safeInvoke('ssh_shell_input', { sessionId: activeSessionId.value, data: cmd + '\r' }).catch(() => {})
-  } else {
-    _toast('请先连接服务器', 'info')
+async function onQuickCommand(cmd) {
+  if (!activeSessionId.value || !activeTab.value) {
+    _toast('请先打开一个终端会话', 'info')
+    return
+  }
+
+  const connection = activeConnection.value || activeTab.value.connection
+  const isLocal = !connection || connection.host === 'localhost' || connection.host === '127.0.0.1'
+  try {
+    await invoke(isLocal ? 'local_input' : 'ssh_shell_input', {
+      sessionId: activeSessionId.value,
+      data: cmd + '\r',
+    })
+  } catch (error) {
+    _toast(`发送命令失败: ${error}`, 'error')
   }
 }
 
