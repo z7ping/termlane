@@ -1,150 +1,72 @@
 <template>
-  <div class="toast-container">
-    <transition-group name="toast">
+  <div class="toast-container" aria-live="polite" aria-atomic="false">
+    <TransitionGroup name="toast">
       <div
-        v-for="t in toasts"
-        :key="t.id"
+        v-for="toast in toasts"
+        :key="toast.id"
         class="toast-item"
-        :class="'toast-' + t.type"
+        :class="`toast-${toast.type}`"
+        role="status"
       >
-        <span class="toast-icon">{{ iconMap[t.type] || iconMap.info }}</span>
-        <span class="toast-msg">{{ t.message }}</span>
+        <span class="toast-icon" aria-hidden="true">
+          <component :is="iconFor(toast.type)" :size="14" :stroke-width="1.9" />
+        </span>
+        <span class="toast-message">{{ toast.message }}</span>
       </div>
-    </transition-group>
+    </TransitionGroup>
   </div>
 </template>
 
 <script setup>
-import { ref, provide } from 'vue'
+import { ref } from 'vue'
+import { CheckCircle2, CircleAlert, Info, TriangleAlert } from 'lucide-vue-next'
 
 const toasts = ref([])
-
-const iconMap = {
-  success: '✓',
-  error: '✕',
-  info: 'ℹ',
-  warning: '⚠',
+const MAX_TOASTS = 5
+const VALID_TYPES = new Set(['success', 'error', 'info', 'warning'])
+const icons = {
+  success: CheckCircle2,
+  error: CircleAlert,
+  warning: TriangleAlert,
+  info: Info,
 }
 
-const MAX_TOASTS = 5
+function iconFor(type) {
+  return icons[type] || Info
+}
 
 function show(message, type = 'info', duration = 2500) {
-  const id = Date.now() + Math.random()
-  toasts.value.push({ id, message, type })
-  
-  // Limit to 5 toasts max
+  const normalizedType = VALID_TYPES.has(type) ? type : 'info'
+  const id = crypto.randomUUID()
+  toasts.value.push({ id, message: String(message ?? ''), type: normalizedType })
+
   if (toasts.value.length > MAX_TOASTS) {
     toasts.value = toasts.value.slice(-MAX_TOASTS)
   }
-  
-  setTimeout(() => {
-    toasts.value = toasts.value.filter(t => t.id !== id)
-  }, duration)
+
+  window.setTimeout(() => {
+    toasts.value = toasts.value.filter(toast => toast.id !== id)
+  }, Math.max(500, duration))
 }
 
-provide('toast', { show })
 defineExpose({ show })
 </script>
 
 <style scoped>
-.toast-container {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.toast-item {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding: 0.625rem 1rem;
-  min-width: 220px;
-  max-width: 380px;
-  font-size: 0.875rem;
-  line-height: 1.4;
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  color: #e5e7eb;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(8px);
-}
-
-.toast-icon {
-  flex-shrink: 0;
-  width: 1.5rem;
-  height: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.toast-msg {
-  flex: 1;
-  word-break: break-word;
-}
-
-/* --- type accents --- */
-.toast-success .toast-icon {
-  background: color-mix(in oklch, var(--success) 25%, transparent);
-  color: var(--success);
-}
-.toast-success {
-  border-left: 3px solid var(--success);
-}
-
-.toast-error .toast-icon {
-  background: color-mix(in oklch, var(--danger) 25%, transparent);
-  color: var(--danger);
-}
-.toast-error {
-  border-left: 3px solid var(--danger);
-}
-
-.toast-warning .toast-icon {
-  background: color-mix(in oklch, var(--warning) 25%, transparent);
-  color: var(--warning);
-}
-.toast-warning {
-  border-left: 3px solid var(--warning);
-}
-
-.toast-info .toast-icon {
-  background: color-mix(in oklch, var(--accent) 25%, transparent);
-  color: var(--accent);
-}
-.toast-info {
-  border-left: 3px solid var(--accent);
-}
-
-/* --- slide-in / slide-out animation (from right) --- */
-.toast-enter-active {
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-              opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.toast-leave-active {
-  transition: transform 0.25s cubic-bezier(0.55, 0, 1, 0.45),
-              opacity 0.25s cubic-bezier(0.55, 0, 1, 0.45);
-}
-
-.toast-enter-from {
-  transform: translateX(110%);
-  opacity: 0;
-}
-.toast-leave-to {
-  transform: translateX(110%);
-  opacity: 0;
-}
-
-/* keep list reflow smooth */
-.toast-move {
-  transition: transform 0.3s ease;
-}
+.toast-container { position: fixed; top: 12px; right: 12px; z-index: 9999; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.toast-item { min-width: 220px; max-width: min(380px, calc(100vw - 24px)); display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 7px; background: var(--bg-elevated); color: var(--fg-secondary); box-shadow: var(--shadow-md); font-size: 11px; line-height: 1.45; }
+.toast-icon { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 999px; }
+.toast-message { flex: 1; min-width: 0; padding-top: 3px; overflow-wrap: anywhere; }
+.toast-success { border-left-color: var(--success); }
+.toast-success .toast-icon { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.toast-error { border-left-color: var(--danger); }
+.toast-error .toast-icon { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.toast-warning { border-left-color: var(--warning); }
+.toast-warning .toast-icon { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
+.toast-info { border-left-color: var(--accent); }
+.toast-info .toast-icon { background: var(--accent-hover); color: var(--accent); }
+.toast-enter-active { transition: transform 180ms ease-out, opacity 180ms ease-out; }
+.toast-leave-active { transition: transform 140ms ease-in, opacity 140ms ease-in; }
+.toast-enter-from, .toast-leave-to { transform: translateX(16px); opacity: 0; }
+.toast-move { transition: transform 160ms ease; }
 </style>
