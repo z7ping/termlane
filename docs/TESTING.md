@@ -1,6 +1,6 @@
-# XTerminal Pro - 测试指南
+# Termlane - 测试指南
 
-本文档描述 XTerminal Pro 的测试策略、测试编写规范和运行方法。
+本文档描述 Termlane 的测试策略、测试编写规范和运行方法。
 
 ## 测试策略
 

@@ -1,4 +1,4 @@
-# XTerminal Pro 构建镜像
+# Termlane 构建镜像
 # 基于 debian:bookworm，预装 Node.js 22 + Rust + Tauri 全部系统依赖
 # 构建一次，CI 直接用，不用每次装环境
 #

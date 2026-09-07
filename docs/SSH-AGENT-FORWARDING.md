@@ -115,7 +115,7 @@ extern "C" fn auth_agent_callback(
 | Tabby | node-ssh（ssh2.js） | ✅ 支持 |
 | Termius | 自研 | ✅ 支持 |
 | FinalShell | JavaFX + 自研 | ✅ 支持 |
-| **XTerminal Pro** | **ssh2-rs（libssh2）** | **❌ 待实现** |
+| **Termlane** | **ssh2-rs（libssh2）** | **❌ 待实现** |
 
 ## 排期建议
 

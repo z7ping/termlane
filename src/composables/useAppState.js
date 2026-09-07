@@ -58,14 +58,14 @@ async function loadConnections() {
         try {
           await migrateLegacyPlaintextCredential(conn.id)
         } catch (e) {
-          console.warn(`[XTerminal] Credential migration failed for ${conn.id}:`, e)
+          console.warn(`[Termlane] Credential migration failed for ${conn.id}:`, e)
         }
       }
 
       const localExists = saved.some(c => c.id === 'local')
       connections.value = localExists ? saved : [LOCAL_CONN, ...saved]
     }
-  } catch (e) { console.warn('[XTerminal] Load connections error:', e) }
+  } catch (e) { console.warn('[Termlane] Load connections error:', e) }
 }
 
 function loadTabsState() {
@@ -82,7 +82,7 @@ function loadTabsState() {
         : savedTabs[0]?.id
       saveTabsState()
     }
-  } catch (e) { console.warn('[XTerminal] Load tabs error:', e) }
+  } catch (e) { console.warn('[Termlane] Load tabs error:', e) }
 }
 
 async function onSelectConnection(conn) {

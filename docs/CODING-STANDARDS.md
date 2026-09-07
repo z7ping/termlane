@@ -1,4 +1,4 @@
-# XTerminal Pro - 编码标准与注释规范
+# Termlane - 编码标准与注释规范
 
 ## 目录
 

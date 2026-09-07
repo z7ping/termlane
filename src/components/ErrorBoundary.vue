@@ -24,7 +24,7 @@ const errorKey = ref(0)
 onErrorCaptured(error => {
   hasError.value = true
   errorMessage.value = error?.message || '未知组件错误'
-  console.error('[XTerminal] View render error:', error)
+  console.error('[Termlane] View render error:', error)
   return false
 })
 

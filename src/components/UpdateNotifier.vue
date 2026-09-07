@@ -55,7 +55,7 @@ async function checkForUpdates() {
       .slice(0, 20)
     showUpdate.value = true
   } catch (error) {
-    console.warn('[XTerminal] Update check failed:', error)
+    console.warn('[Termlane] Update check failed:', error)
   }
 }
 

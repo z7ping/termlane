@@ -1,4 +1,4 @@
-# XTerminal Pro - 架构设计文档
+# Termlane - 架构设计文档
 
 ## 系统架构
 
@@ -129,7 +129,7 @@ App.vue (Root)
 
 ### 状态管理
 
-XTerminal Pro 使用 Vue 3 的响应式系统进行状态管理，不使用外部状态管理库（如 Pinia）。
+Termlane 使用 Vue 3 的响应式系统进行状态管理，不使用外部状态管理库（如 Pinia）。
 
 **全局状态**（App.vue）：
 - `connections`：所有连接配置

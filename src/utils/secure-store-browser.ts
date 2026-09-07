@@ -1,5 +1,5 @@
 /**
- * XTerminal Pro 浏览器版本安全存储模块
+ * Termlane 浏览器版本安全存储模块
  * 纯浏览器环境，使用 AES-GCM 加密 + localStorage。
  * 不依赖任何 Tauri 相关 API；桌面凭证不经过本模块。
  */

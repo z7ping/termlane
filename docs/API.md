@@ -1,6 +1,6 @@
-# XTerminal Pro - API 文档
+# Termlane - API 文档
 
-本文档描述 XTerminal Pro 的 Rust 后端 API 和前端 IPC 接口。
+本文档描述 Termlane 的 Rust 后端 API 和前端 IPC 接口。
 
 ## 架构概览
 

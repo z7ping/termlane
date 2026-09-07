@@ -1,6 +1,6 @@
-# XTerminal Pro 浏览器版本安全存储
+# Termlane 浏览器版本安全存储
 
-这是 XTerminal Pro 的纯浏览器版本安全存储实现，当 `@tauri-apps/plugin-secure-storage` 安装有问题时的备用解决方案。
+这是 Termlane 的纯浏览器版本安全存储实现，当 `@tauri-apps/plugin-secure-storage` 安装有问题时的备用解决方案。
 
 ## 特性
 
